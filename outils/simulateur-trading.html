@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Simulateur Trading Crypto</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1216;
+    color: #e6e8eb;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 24px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .sub { color: #8b9099; font-size: 13px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .card {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card .label { font-size: 12px; color: #8b9099; margin-bottom: 6px; }
+  .card .value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .value.pos { color: #3ecf8e; }
+  .value.neg { color: #ef5a6f; }
+  .panel {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #c7cbd1; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  select, input, button {
+    background: #0f1216;
+    border: 1px solid #2c313a;
+    color: #e6e8eb;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  input[type=number] { width: 130px; }
+  button {
+    cursor: pointer;
+    background: #1f2733;
+    border-color: #37414f;
+    font-weight: 500;
+    transition: background .15s;
+  }
+  button:hover { background: #2a3444; }
+  button.buy { background: #16412f; border-color: #1f6b4c; color: #6fe3ab; }
+  button.buy:hover { background: #1a5038; }
+  button.sell { background: #4a1a24; border-color: #6f2635; color: #ff8fa0; }
+  button.sell:hover { background: #5a2029; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #8b9099; font-weight: 500; padding: 6px 8px; border-bottom: 1px solid #262b33; }
+  td { padding: 7px 8px; border-bottom: 1px solid #1d2128; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .muted { color: #8b9099; }
+  .empty { color: #5c626b; font-style: italic; padding: 10px 0; }
+  .price-tag { font-size: 12px; color: #8b9099; }
+  .note {
+    font-size: 12px; color: #8b9099; background: #12161b;
+    border: 1px solid #262b33; border-radius: 8px; padding: 10px 12px; margin-top: 6px;
+  }
+  .status { font-size: 12px; color: #5c626b; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Simulateur de trading crypto</h1>
+<div class="sub">Paper trading — prix en temps réel via CoinGecko, frais paramétrables (défaut : frais standard Bitpanda)</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Solde cash</div>
+    <div class="value" id="cashVal">-- €</div>
+  </div>
+  <div class="card">
+    <div class="label">Valeur portefeuille</div>
+    <div class="value" id="portfolioVal">-- €</div>
+  </div>
+  <div class="card">
+    <div class="label">P&L total</div>
+    <div class="value" id="pnlVal">-- €</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Paramètres</h2>
+  <div class="row">
+    <label class="muted">Solde de départ</label>
+    <input type="number" id="startBalance" value="10000" step="100" min="0">
+    <button id="resetBtn">Réinitialiser la simulation</button>
+    <label class="muted" style="margin-left:auto">Frais de trading (%)</label>
+    <input type="number" id="feeRate" value="1.49" step="0.01" min="0" max="10" style="width:80px">
+  </div>
+  <div class="note">
+    Bitpanda applique un frais "trading" (≈1,49 % en palier standard, réduit selon volume/BEST détenu) + un spread déjà intégré au prix affiché sur leur plateforme. Ce simulateur applique ton taux de frais aux deux sens (achat/vente) ; le spread réel n'est pas modélisé car il varie en continu et n'est pas public via API.
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Passer un ordre</h2>
+  <div class="row">
+    <select id="coinSelect"></select>
+    <span class="price-tag" id="currentPriceTag">chargement…</span>
+    <input type="number" id="amountInput" placeholder="Montant en €" min="0" step="10">
+    <button class="buy" id="buyBtn">Acheter</button>
+    <button class="sell" id="sellBtn">Vendre</button>
+    <button id="refreshBtn">Rafraîchir les prix</button>
+  </div>
+  <div class="status" id="statusMsg"></div>
+</div>
+
+<div class="panel">
+  <h2>Positions</h2>
+  <table id="holdingsTable">
+    <thead>
+      <tr><th>Crypto</th><th>Quantité</th><th>Prix moyen</th><th>Prix actuel</th><th>Valeur</th><th>P&L</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="empty" id="holdingsEmpty">Aucune position ouverte.</div>
+</div>
+
+<div class="panel">
+  <h2>Historique des transactions</h2>
+  <table id="historyTable">
+    <thead>
+      <tr><th>Heure</th><th>Type</th><th>Crypto</th><th>Quantité</th><th>Prix</th><th>Frais</th><th>Total</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="empty" id="historyEmpty">Aucune transaction.</div>
+</div>
+
+<script>
+const COINS = [
+  { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' },
+  { id: 'ethereum', symbol: 'ETH', name: 'Ethereum' },
+  { id: 'solana', symbol: 'SOL', name: 'Solana' },
+  { id: 'ripple', symbol: 'XRP', name: 'XRP' },
+  { id: 'cardano', symbol: 'ADA', name: 'Cardano' },
+  { id: 'polkadot', symbol: 'DOT', name: 'Polkadot' },
+  { id: 'litecoin', symbol: 'LTC', name: 'Litecoin' },
+  { id: 'dogecoin', symbol: 'DOGE', name: 'Dogecoin' },
+  { id: 'chainlink', symbol: 'LINK', name: 'Chainlink' },
+  { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche' }
+];
+
+const STORAGE_KEY = 'crypto_sim_state_v1';
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      return {
+        cash: saved.cash ?? 10000,
+        holdings: saved.holdings ?? {},
+        history: saved.history ?? [],
+        startBalance: saved.startBalance ?? 10000,
+        feeRate: saved.feeRate ?? 1.49,
+        prices: {}
+      };
+    }
+  } catch (e) {
+    console.warn('Impossible de charger la sauvegarde locale.', e);
+  }
+  return { cash: 10000, holdings: {}, history: [], startBalance: 10000, feeRate: 1.49, prices: {} };
+}
+
+let state = loadState();
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      cash: state.cash,
+      holdings: state.holdings,
+      history: state.history,
+      startBalance: parseFloat(document.getElementById('startBalance').value) || 10000,
+      feeRate: parseFloat(document.getElementById('feeRate').value) || 1.49
+    }));
+  } catch (e) {
+    console.warn('Impossible de sauvegarder localement.', e);
+  }
+}
+
+function fmt(n, decimals = 2) {
+  if (n === undefined || n === null || isNaN(n)) return '--';
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function initSelect() {
+  const sel = document.getElementById('coinSelect');
+  sel.innerHTML = COINS.map(c => `<option value="${c.id}">${c.name} (${c.symbol})</option>`).join('');
+  sel.addEventListener('change', updatePriceTag);
+}
+
+async function fetchPrices() {
+  document.getElementById('statusMsg').textContent = 'Récupération des prix…';
+  const ids = COINS.map(c => c.id).join(',');
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=eur`);
+    const data = await res.json();
+    COINS.forEach(c => {
+      if (data[c.id]) state.prices[c.id] = data[c.id].eur;
+    });
+    document.getElementById('statusMsg').textContent = 'Prix mis à jour — ' + new Date().toLocaleTimeString('fr-FR');
+  } catch (e) {
+    document.getElementById('statusMsg').textContent = "Erreur de récupération des prix. Réessaie dans quelques instants.";
+  }
+  updatePriceTag();
+  renderAll();
+}
+
+function updatePriceTag() {
+  const id = document.getElementById('coinSelect').value;
+  const price = state.prices[id];
+  document.getElementById('currentPriceTag').textContent = price ? `${fmt(price)} €` : 'indisponible';
+}
+
+function getFeeRate() {
+  const v = parseFloat(document.getElementById('feeRate').value);
+  return isNaN(v) ? 0 : v / 100;
+}
+
+function buy() {
+  const id = document.getElementById('coinSelect').value;
+  const amountEur = parseFloat(document.getElementById('amountInput').value);
+  const price = state.prices[id];
+  if (!price) { setStatus("Prix indisponible, rafraîchis d'abord."); return; }
+  if (!amountEur || amountEur <= 0) { setStatus("Entre un montant valide."); return; }
+  const fee = amountEur * getFeeRate();
+  const totalCost = amountEur + fee;
+  if (totalCost > state.cash) { setStatus("Solde insuffisant (frais inclus)."); return; }
+
+  const qty = amountEur / price;
+  const h = state.holdings[id] || { qty: 0, avgPrice: 0 };
+  const newQty = h.qty + qty;
+  h.avgPrice = (h.qty * h.avgPrice + qty * price) / newQty;
+  h.qty = newQty;
+  state.holdings[id] = h;
+  state.cash -= totalCost;
+
+  logTx('Achat', id, qty, price, fee, totalCost);
+  document.getElementById('amountInput').value = '';
+  setStatus(`Achat exécuté : ${fmt(qty, 6)} ${symbolOf(id)}`);
+  renderAll();
+}
+
+function sell() {
+  const id = document.getElementById('coinSelect').value;
+  const amountEur = parseFloat(document.getElementById('amountInput').value);
+  const price = state.prices[id];
+  const h = state.holdings[id];
+  if (!price) { setStatus("Prix indisponible, rafraîchis d'abord."); return; }
+  if (!amountEur || amountEur <= 0) { setStatus("Entre un montant valide."); return; }
+  if (!h || h.qty <= 0) { setStatus("Aucune position à vendre."); return; }
+
+  let qty = amountEur / price;
+  if (qty > h.qty) qty = h.qty;
+  const grossValue = qty * price;
+  const fee = grossValue * getFeeRate();
+  const netProceeds = grossValue - fee;
+
+  h.qty -= qty;
+  if (h.qty < 1e-9) delete state.holdings[id]; else state.holdings[id] = h;
+  state.cash += netProceeds;
+
+  logTx('Vente', id, qty, price, fee, netProceeds);
+  document.getElementById('amountInput').value = '';
+  setStatus(`Vente exécutée : ${fmt(qty, 6)} ${symbolOf(id)}`);
+  renderAll();
+}
+
+function logTx(type, id, qty, price, fee, total) {
+  state.history.unshift({ time: new Date().toLocaleTimeString('fr-FR'), type, id, qty, price, fee, total });
+}
+
+function symbolOf(id) { return COINS.find(c => c.id === id)?.symbol || id; }
+function nameOf(id) { return COINS.find(c => c.id === id)?.name || id; }
+
+function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
+
+function portfolioValue() {
+  let total = 0;
+  for (const [id, h] of Object.entries(state.holdings)) {
+    const price = state.prices[id];
+    if (price) total += h.qty * price;
+  }
+  return total;
+}
+
+function renderAll() {
+  const initial = parseFloat(document.getElementById('startBalance').value) || 0;
+  const pv = portfolioValue();
+  const totalValue = state.cash + pv;
+  const pnl = totalValue - initial;
+
+  document.getElementById('cashVal').textContent = fmt(state.cash) + ' €';
+  document.getElementById('portfolioVal').textContent = fmt(pv) + ' €';
+  const pnlEl = document.getElementById('pnlVal');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmt(pnl) + ' €';
+  pnlEl.className = 'value ' + (pnl >= 0 ? 'pos' : 'neg');
+
+  // holdings table
+  const tbody = document.querySelector('#holdingsTable tbody');
+  const entries = Object.entries(state.holdings);
+  document.getElementById('holdingsEmpty').style.display = entries.length ? 'none' : 'block';
+  tbody.innerHTML = entries.map(([id, h]) => {
+    const price = state.prices[id];
+    const value = price ? h.qty * price : 0;
+    const pnlPos = price ? (price - h.avgPrice) * h.qty : 0;
+    const cls = pnlPos >= 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>${nameOf(id)} <span class="muted">(${symbolOf(id)})</span></td>
+      <td>${fmt(h.qty, 6)}</td>
+      <td>${fmt(h.avgPrice)} €</td>
+      <td>${price ? fmt(price) + ' €' : '--'}</td>
+      <td>${fmt(value)} €</td>
+      <td class="${cls}">${pnlPos >= 0 ? '+' : ''}${fmt(pnlPos)} €</td>
+    </tr>`;
+  }).join('');
+
+  // history table
+  const htbody = document.querySelector('#historyTable tbody');
+  document.getElementById('historyEmpty').style.display = state.history.length ? 'none' : 'block';
+  htbody.innerHTML = state.history.slice(0, 30).map(tx => `
+    <tr>
+      <td class="muted">${tx.time}</td>
+      <td>${tx.type}</td>
+      <td>${symbolOf(tx.id)}</td>
+      <td>${fmt(tx.qty, 6)}</td>
+      <td>${fmt(tx.price)} €</td>
+      <td>${fmt(tx.fee)} €</td>
+      <td>${fmt(tx.total)} €</td>
+    </tr>
+  `).join('');
+
+  saveState();
+}
+
+document.getElementById('buyBtn').addEventListener('click', buy);
+document.getElementById('sellBtn').addEventListener('click', sell);
+document.getElementById('refreshBtn').addEventListener('click', fetchPrices);
+document.getElementById('resetBtn').addEventListener('click', () => {
+  const initial = parseFloat(document.getElementById('startBalance').value) || 10000;
+  state.cash = initial;
+  state.holdings = {};
+  state.history = [];
+  localStorage.removeItem(STORAGE_KEY);
+  setStatus('Simulation réinitialisée.');
+  renderAll();
+});
+document.getElementById('startBalance').addEventListener('change', (e) => {
+  if (state.history.length === 0 && Object.keys(state.holdings).length === 0) {
+    state.cash = parseFloat(e.target.value) || 0;
+    renderAll();
+  }
+});
+document.getElementById('feeRate').addEventListener('change', saveState);
+
+document.getElementById('startBalance').value = state.startBalance;
+document.getElementById('feeRate').value = state.feeRate;
+
+initSelect();
+fetchPrices();
+setInterval(fetchPrices, 30000);
+</script>
+</body>
+</html>

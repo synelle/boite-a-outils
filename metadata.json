@@ -1,0 +1,8 @@
+{
+  "simulateur-trading.html": {
+    "titre": "Simulateur de trading crypto",
+    "description": "Paper trading crypto en temps réel (CoinGecko), frais paramétrables, positions et historique.",
+    "icone": "📈",
+    "categorie": "Finance"
+  }
+}

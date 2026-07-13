@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boîte à outils</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1216;
+    color: #e6e8eb;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 24px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .sub { color: #8b9099; font-size: 13px; margin-bottom: 20px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: border-color .15s, transform .1s;
+  }
+  .card:hover { border-color: #37414f; transform: translateY(-1px); }
+  .card .icon { font-size: 24px; margin-bottom: 8px; }
+  .card .titre { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .card .desc { font-size: 12px; color: #8b9099; line-height: 1.4; }
+  .card .cat { display: inline-block; margin-top: 8px; font-size: 11px; color: #6fe3ab; background: #16412f; border-radius: 4px; padding: 2px 6px; }
+  .empty { color: #5c626b; font-style: italic; padding: 20px 0; }
+
+  .panel {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #c7cbd1; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button {
+    cursor: pointer;
+    background: #1f2733;
+    border: 1px solid #37414f;
+    color: #e6e8eb;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    transition: background .15s;
+  }
+  button:hover { background: #2a3444; }
+  .status { font-size: 12px; color: #8b9099; margin-top: 10px; }
+  .status.pos { color: #3ecf8e; }
+  .status.neg { color: #ef5a6f; }
+  ul.unref { margin-top: 8px; padding-left: 18px; font-size: 13px; }
+  ul.unref li { color: #ffb454; margin-bottom: 4px; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h1>Boîte à outils</h1>
+<div class="sub">Simulateurs, jeux et mini-outils — vanilla JS, hébergés via GitHub Pages</div>
+
+<div class="cards" id="cardsContainer"></div>
+<div class="empty" id="cardsEmpty" style="display:none">Aucun outil référencé pour l'instant.</div>
+
+<div class="panel">
+  <h2>Configuration</h2>
+  <div class="row">
+    <input type="text" id="ownerRepo" placeholder="owner/repo" style="background:#0f1216;border:1px solid #2c313a;color:#e6e8eb;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;width:200px">
+    <button id="detectBtn">Détecter</button>
+    <button id="clearCacheBtn">Vider le cache</button>
+  </div>
+  <div class="status" id="detectStatus"></div>
+</div>
+
+<script>
+const METADATA_URL = 'metadata.json';
+const OUTILS_DIR = 'outils';
+const CACHE_KEY = 'toolbox_detect_cache_v1';
+const REPO_KEY = 'toolbox_owner_repo_v1';
+
+let metadata = {};
+
+async function loadMetadata() {
+  try {
+    const res = await fetch(METADATA_URL, { cache: 'no-cache' });
+    metadata = await res.json();
+  } catch (e) {
+    metadata = {};
+  }
+  renderCards();
+}
+
+function renderCards() {
+  const container = document.getElementById('cardsContainer');
+  const entries = Object.entries(metadata);
+  document.getElementById('cardsEmpty').style.display = entries.length ? 'none' : 'block';
+  container.innerHTML = entries.map(([file, meta]) => `
+    <a class="card" href="${OUTILS_DIR}/${encodeURIComponent(file)}">
+      <div class="icon">${meta.icone || '🔧'}</div>
+      <div class="titre">${meta.titre || file}</div>
+      <div class="desc">${meta.description || ''}</div>
+      ${meta.categorie ? `<div class="cat">${meta.categorie}</div>` : ''}
+    </a>
+  `).join('');
+}
+
+function setDetectStatus(msg, cls) {
+  const el = document.getElementById('detectStatus');
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function guessOwnerRepo() {
+  const saved = localStorage.getItem(REPO_KEY);
+  if (saved) return saved;
+  const parts = location.hostname.split('.');
+  if (location.hostname.endsWith('github.io') && parts.length >= 3) {
+    const owner = parts[0];
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    const repo = pathParts[0] || `${owner}.github.io`;
+    return `${owner}/${repo}`;
+  }
+  return '';
+}
+
+async function detectFiles() {
+  const ownerRepoInput = document.getElementById('ownerRepo').value.trim();
+  if (!ownerRepoInput || !ownerRepoInput.includes('/')) {
+    setDetectStatus("Renseigne le repo au format owner/repo.", 'neg');
+    return;
+  }
+  localStorage.setItem(REPO_KEY, ownerRepoInput);
+
+  const cacheRaw = localStorage.getItem(CACHE_KEY);
+  if (cacheRaw) {
+    try {
+      const cache = JSON.parse(cacheRaw);
+      if (cache.ownerRepo === ownerRepoInput && Date.now() - cache.timestamp < 1000 * 60 * 60) {
+        showDetectionResult(cache.files, true);
+        return;
+      }
+    } catch (e) { /* ignore corrupt cache */ }
+  }
+
+  setDetectStatus('Interrogation de l\'API GitHub…');
+  try {
+    const res = await fetch(`https://api.github.com/repos/${ownerRepoInput}/contents/${OUTILS_DIR}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const files = data
+      .filter(item => item.type === 'file' && item.name.toLowerCase().endsWith('.html'))
+      .map(item => item.name);
+
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ ownerRepo: ownerRepoInput, files, timestamp: Date.now() }));
+    showDetectionResult(files, false);
+  } catch (e) {
+    setDetectStatus(`Erreur lors de la détection : ${e.message}`, 'neg');
+  }
+}
+
+function showDetectionResult(files, fromCache) {
+  const known = new Set(Object.keys(metadata));
+  const unref = files.filter(f => !known.has(f));
+  const el = document.getElementById('detectStatus');
+  const prefix = fromCache ? '(depuis le cache) ' : '';
+  if (unref.length === 0) {
+    el.innerHTML = `${prefix}Tous les fichiers .html de "${OUTILS_DIR}/" sont référencés dans metadata.json.`;
+    el.className = 'status pos';
+  } else {
+    el.innerHTML = `${prefix}Fichiers non référencés dans metadata.json :<ul class="unref">${
+      unref.map(f => `<li>${f}</li>`).join('')
+    }</ul>`;
+    el.className = 'status neg';
+  }
+}
+
+document.getElementById('detectBtn').addEventListener('click', detectFiles);
+document.getElementById('clearCacheBtn').addEventListener('click', () => {
+  localStorage.removeItem(CACHE_KEY);
+  setDetectStatus('Cache vidé.');
+});
+
+document.getElementById('ownerRepo').value = guessOwnerRepo();
+
+loadMetadata();
+</script>
+</body>
+</html>
