@@ -69,6 +69,12 @@
     border: 1px solid #262b33; border-radius: 8px; padding: 10px 12px; margin-top: 6px;
   }
   .status { font-size: 12px; color: #5c626b; margin-top: 4px; }
+  .search-result {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 8px; border-bottom: 1px solid #1d2128; font-size: 13px;
+  }
+  .search-result:last-child { border-bottom: none; }
+  .search-result button { padding: 4px 10px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -116,6 +122,11 @@
     <button id="refreshBtn">Rafraîchir les prix</button>
     <button id="refreshCoinsBtn">Actualiser la liste des cryptos</button>
   </div>
+  <div class="row" style="margin-top:10px">
+    <input type="text" id="coinSearchInput" placeholder="Ajouter une crypto absente de la liste (ex: Kite)">
+    <button id="coinSearchBtn">Rechercher</button>
+  </div>
+  <div id="coinSearchResults"></div>
   <div class="status" id="statusMsg"></div>
   <div class="status" id="coinListStatus"></div>
 </div>
@@ -174,7 +185,76 @@ function loadCoinList() {
 }
 
 let coinListData = loadCoinList();
-let COINS = coinListData.coins;
+
+const EXTRA_COINS_KEY = 'crypto_sim_extra_coins_v1';
+
+function loadExtraCoins() {
+  try {
+    const raw = localStorage.getItem(EXTRA_COINS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Impossible de charger les cryptos ajoutées manuellement.', e);
+  }
+  return [];
+}
+
+function saveExtraCoins(list) {
+  try { localStorage.setItem(EXTRA_COINS_KEY, JSON.stringify(list)); }
+  catch (e) { console.warn('Impossible de sauvegarder les cryptos ajoutées.', e); }
+}
+
+let extraCoins = loadExtraCoins();
+
+function buildCoinsList() {
+  const merged = [...coinListData.coins];
+  extraCoins.forEach(c => {
+    if (!merged.some(m => m.id === c.id)) merged.push(c);
+  });
+  return merged;
+}
+
+let COINS = buildCoinsList();
+
+async function searchCoins() {
+  const query = document.getElementById('coinSearchInput').value.trim();
+  const resultsEl = document.getElementById('coinSearchResults');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+  resultsEl.innerHTML = '<div class="search-result muted">Recherche…</div>';
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    const matches = (data.coins || []).slice(0, 8);
+    if (!matches.length) {
+      resultsEl.innerHTML = '<div class="search-result muted">Aucun résultat trouvé sur CoinGecko.</div>';
+      return;
+    }
+    resultsEl.innerHTML = matches.map(c => `
+      <div class="search-result">
+        <span>${c.name} <span class="muted">(${c.symbol.toUpperCase()})${c.market_cap_rank ? ' — rang #' + c.market_cap_rank : ''}</span></span>
+        <button data-id="${c.id}" data-symbol="${c.symbol.toUpperCase()}" data-name="${c.name.replace(/"/g,'&quot;')}" class="addCoinBtn">Ajouter</button>
+      </div>
+    `).join('');
+    resultsEl.querySelectorAll('.addCoinBtn').forEach(btn => {
+      btn.addEventListener('click', () => addExtraCoin(btn.dataset.id, btn.dataset.symbol, btn.dataset.name));
+    });
+  } catch (e) {
+    resultsEl.innerHTML = '<div class="search-result muted">Erreur de recherche. Réessaie.</div>';
+  }
+}
+
+async function addExtraCoin(id, symbol, name) {
+  if (!extraCoins.some(c => c.id === id)) {
+    extraCoins.push({ id, symbol, name });
+    saveExtraCoins(extraCoins);
+  }
+  COINS = buildCoinsList();
+  initSelect();
+  document.getElementById('coinSelect').value = id;
+  document.getElementById('coinSearchResults').innerHTML = '';
+  document.getElementById('coinSearchInput').value = '';
+  await fetchPrices();
+  setStatus(`${name} ajoutée à la liste.`);
+}
 
 async function refreshCoinList() {
   const btn = document.getElementById('refreshCoinsBtn');
@@ -187,7 +267,7 @@ async function refreshCoinList() {
     const coins = data.map(c => ({ id: c.id, symbol: c.symbol.toUpperCase(), name: c.name }));
     coinListData = { coins, updatedAt: Date.now() };
     localStorage.setItem(COIN_LIST_KEY, JSON.stringify(coinListData));
-    COINS = coins;
+    COINS = buildCoinsList();
     const currentId = document.getElementById('coinSelect').value;
     initSelect();
     if (COINS.some(c => c.id === currentId)) document.getElementById('coinSelect').value = currentId;
@@ -256,7 +336,8 @@ function fmt(n, decimals = 2) {
 
 function initSelect() {
   const sel = document.getElementById('coinSelect');
-  sel.innerHTML = COINS.map(c => `<option value="${c.id}">${c.name} (${c.symbol})</option>`).join('');
+  const sorted = [...COINS].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  sel.innerHTML = sorted.map(c => `<option value="${c.id}">${c.name} (${c.symbol})</option>`).join('');
   sel.addEventListener('change', updatePriceTag);
 }
 
@@ -425,6 +506,10 @@ document.getElementById('startBalance').addEventListener('change', (e) => {
 document.getElementById('feeRate').addEventListener('change', saveState);
 
 document.getElementById('refreshCoinsBtn').addEventListener('click', refreshCoinList);
+document.getElementById('coinSearchBtn').addEventListener('click', searchCoins);
+document.getElementById('coinSearchInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') searchCoins();
+});
 
 document.getElementById('startBalance').value = state.startBalance;
 document.getElementById('feeRate').value = state.feeRate;
