@@ -10,5 +10,11 @@
     "description": "Table de jeu virtuelle pour lancer des dés (D4 à D20), historique des jets.",
     "icone": "🎲",
     "categorie": "Jeux"
+  },
+  "calcul-hauteur-texte-autocad.html": {
+    "titre": "Calcul hauteur de texte AutoCAD",
+    "description": "Calcule la hauteur de texte à configurer sur l'espace objet à partir de l'échelle et de la hauteur souhaitée sur l'espace papier.",
+    "icone": "📐",
+    "categorie": "Outils"
   }
 }

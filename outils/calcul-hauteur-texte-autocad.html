@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calcul hauteur de texte — AutoCAD</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1216;
+    color: #e6e8eb;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 24px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .sub { color: #8b9099; font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
+  .panel {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: block; font-size: 12px; color: #8b9099; margin-bottom: 6px; }
+  input, select {
+    width: 100%;
+    background: #0f1216;
+    border: 1px solid #2c313a;
+    color: #e6e8eb;
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input:focus, select:focus { outline: none; border-color: #37414f; }
+  button {
+    cursor: pointer;
+    background: #1f2733;
+    border: 1px solid #37414f;
+    color: #e6e8eb;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    transition: background .15s;
+    width: 100%;
+    margin-top: 4px;
+  }
+  button:hover { background: #2a3444; }
+  .result-panel {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+  }
+  .result-panel .label { font-size: 12px; color: #8b9099; margin-bottom: 8px; }
+  .result-panel .value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; color: #3ecf8e; }
+  .result-panel .value.empty { font-size: 14px; color: #ef5a6f; font-weight: 500; }
+  .result-panel .unit { font-size: 13px; color: #8b9099; margin-left: 4px; }
+</style>
+</head>
+<body>
+
+<h1>Calcul hauteur de texte AutoCAD</h1>
+<div class="sub">Échelle × hauteur sur l'espace papier / unités (mm = 1, cm = 10, m = 1000)</div>
+
+<div class="panel">
+  <div class="field">
+    <label for="echelle">Échelle (1:x)</label>
+    <input type="number" id="echelle" step="any" placeholder="ex : 50">
+  </div>
+  <div class="field">
+    <label for="unite">Unité de l'espace objet</label>
+    <select id="unite">
+      <option value="1">mm</option>
+      <option value="10" selected>cm</option>
+      <option value="1000">m</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="hauteurTexte">Hauteur texte sur l'espace papier (mm)</label>
+    <input type="number" id="hauteurTexte" step="any" placeholder="ex : 2.5">
+  </div>
+  <button id="calcBtn">Calculer</button>
+</div>
+
+<div class="result-panel">
+  <div class="label">Valeur à configurer sur l'espace objet</div>
+  <div class="value empty" id="result">—</div>
+</div>
+
+<script>
+function calculateScale() {
+  const echelle = parseFloat(document.getElementById('echelle').value);
+  const unite = parseFloat(document.getElementById('unite').value);
+  const hauteurTexte = parseFloat(document.getElementById('hauteurTexte').value);
+  const resultEl = document.getElementById('result');
+
+  if (!isNaN(echelle) && !isNaN(unite) && !isNaN(hauteurTexte)) {
+    const result = (echelle * hauteurTexte) / unite;
+    resultEl.className = 'value';
+    resultEl.innerHTML = `${result.toLocaleString('fr-FR', { maximumFractionDigits: 4 })}`;
+  } else {
+    resultEl.className = 'value empty';
+    resultEl.textContent = 'Veuillez remplir tous les champs.';
+  }
+}
+
+document.getElementById('calcBtn').addEventListener('click', calculateScale);
+[document.getElementById('echelle'), document.getElementById('hauteurTexte')].forEach(el => {
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') calculateScale(); });
+});
+document.getElementById('unite').addEventListener('change', calculateScale);
+</script>
+</body>
+</html>

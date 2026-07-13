@@ -16,6 +16,26 @@
   }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
   .sub { color: #8b9099; font-size: 13px; margin-bottom: 20px; }
+  .filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .filter-btn {
+    cursor: pointer;
+    background: #171b21;
+    border: 1px solid #262b33;
+    color: #8b9099;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .filter-btn:hover { border-color: #37414f; color: #c7cbd1; }
+  .filter-btn.active { background: #16412f; border-color: #1f6b4c; color: #6fe3ab; }
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -72,6 +92,7 @@
 <h1>Boîte à outils</h1>
 <div class="sub">Simulateurs, jeux et mini-outils — vanilla JS, hébergés via GitHub Pages</div>
 
+<div class="filters" id="filtersContainer"></div>
 <div class="cards" id="cardsContainer"></div>
 <div class="empty" id="cardsEmpty" style="display:none">Aucun outil référencé pour l'instant.</div>
 
@@ -92,6 +113,7 @@ const CACHE_KEY = 'toolbox_detect_cache_v1';
 const REPO_KEY = 'toolbox_owner_repo_v1';
 
 let metadata = {};
+let activeCategory = 'Toutes';
 
 async function loadMetadata() {
   try {
@@ -100,12 +122,30 @@ async function loadMetadata() {
   } catch (e) {
     metadata = {};
   }
+  renderFilters();
   renderCards();
+}
+
+function renderFilters() {
+  const container = document.getElementById('filtersContainer');
+  const categories = ['Toutes', ...new Set(Object.values(metadata).map(m => m.categorie || 'Autre'))];
+  container.innerHTML = categories.map(cat => `
+    <button class="filter-btn${cat === activeCategory ? ' active' : ''}" data-cat="${cat}">${cat}</button>
+  `).join('');
+  container.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeCategory = btn.dataset.cat;
+      renderFilters();
+      renderCards();
+    });
+  });
 }
 
 function renderCards() {
   const container = document.getElementById('cardsContainer');
-  const entries = Object.entries(metadata);
+  const entries = Object.entries(metadata).filter(([file, meta]) =>
+    activeCategory === 'Toutes' || (meta.categorie || 'Autre') === activeCategory
+  );
   document.getElementById('cardsEmpty').style.display = entries.length ? 'none' : 'block';
   container.innerHTML = entries.map(([file, meta]) => `
     <a class="card" href="${OUTILS_DIR}/${encodeURIComponent(file)}">
