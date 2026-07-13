@@ -114,8 +114,10 @@
     <button class="buy" id="buyBtn">Acheter</button>
     <button class="sell" id="sellBtn">Vendre</button>
     <button id="refreshBtn">Rafraîchir les prix</button>
+    <button id="refreshCoinsBtn">Actualiser la liste des cryptos</button>
   </div>
   <div class="status" id="statusMsg"></div>
+  <div class="status" id="coinListStatus"></div>
 </div>
 
 <div class="panel">
@@ -141,7 +143,7 @@
 </div>
 
 <script>
-const COINS = [
+const DEFAULT_COINS = [
   { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' },
   { id: 'ethereum', symbol: 'ETH', name: 'Ethereum' },
   { id: 'solana', symbol: 'SOL', name: 'Solana' },
@@ -153,6 +155,61 @@ const COINS = [
   { id: 'chainlink', symbol: 'LINK', name: 'Chainlink' },
   { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche' }
 ];
+
+const COIN_LIST_KEY = 'crypto_sim_coin_list_v1';
+
+function loadCoinList() {
+  try {
+    const raw = localStorage.getItem(COIN_LIST_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (Array.isArray(saved.coins) && saved.coins.length) {
+        return { coins: saved.coins, updatedAt: saved.updatedAt || null };
+      }
+    }
+  } catch (e) {
+    console.warn('Impossible de charger la liste de cryptos en cache.', e);
+  }
+  return { coins: DEFAULT_COINS, updatedAt: null };
+}
+
+let coinListData = loadCoinList();
+let COINS = coinListData.coins;
+
+async function refreshCoinList() {
+  const btn = document.getElementById('refreshCoinsBtn');
+  const prevLabel = btn.textContent;
+  btn.textContent = 'Récupération…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&order=market_cap_desc&per_page=150&page=1&sparkline=false');
+    const data = await res.json();
+    const coins = data.map(c => ({ id: c.id, symbol: c.symbol.toUpperCase(), name: c.name }));
+    coinListData = { coins, updatedAt: Date.now() };
+    localStorage.setItem(COIN_LIST_KEY, JSON.stringify(coinListData));
+    COINS = coins;
+    const currentId = document.getElementById('coinSelect').value;
+    initSelect();
+    if (COINS.some(c => c.id === currentId)) document.getElementById('coinSelect').value = currentId;
+    updateCoinListStatus();
+    await fetchPrices();
+    setStatus(`Liste des cryptos actualisée (${COINS.length} disponibles).`);
+  } catch (e) {
+    setStatus("Erreur lors de la récupération de la liste des cryptos. Réessaie plus tard.");
+  }
+  btn.textContent = prevLabel;
+  btn.disabled = false;
+}
+
+function updateCoinListStatus() {
+  const el = document.getElementById('coinListStatus');
+  if (!el) return;
+  if (coinListData.updatedAt) {
+    el.textContent = `Liste de ${COINS.length} cryptos — actualisée le ${new Date(coinListData.updatedAt).toLocaleString('fr-FR')}`;
+  } else {
+    el.textContent = `Liste par défaut (${COINS.length} cryptos) — clique sur "Actualiser la liste" pour charger l'offre complète Bitpanda/CoinGecko.`;
+  }
+}
 
 const STORAGE_KEY = 'crypto_sim_state_v1';
 
@@ -367,10 +424,13 @@ document.getElementById('startBalance').addEventListener('change', (e) => {
 });
 document.getElementById('feeRate').addEventListener('change', saveState);
 
+document.getElementById('refreshCoinsBtn').addEventListener('click', refreshCoinList);
+
 document.getElementById('startBalance').value = state.startBalance;
 document.getElementById('feeRate').value = state.feeRate;
 
 initSelect();
+updateCoinListStatus();
 fetchPrices();
 setInterval(fetchPrices, 30000);
 </script>
