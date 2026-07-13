@@ -4,5 +4,11 @@
     "description": "Paper trading crypto en temps réel (CoinGecko), frais paramétrables, positions et historique.",
     "icone": "📈",
     "categorie": "Finance"
+  },
+  "lanceur-de-des.html": {
+    "titre": "Lanceur de dés",
+    "description": "Table de jeu virtuelle pour lancer des dés (D4 à D20), historique des jets.",
+    "icone": "🎲",
+    "categorie": "Jeux"
   }
 }

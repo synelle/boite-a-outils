@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lanceur de dés — Table de jeu</title>
+<style>
+  :root{
+    --bg:#13151a;
+    --surface:#1d2128;
+    --surface-2:#262b34;
+    --border:#2a2f38;
+    --text:#e8e3d8;
+    --text-dim:#8b95a6;
+    --ember:#ff6b35;
+    --ember-dim:#c44f24;
+    --crit:#4ade80;
+    --fail:#e84545;
+    --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --sans:"Inter",-apple-system,"Segoe UI",system-ui,sans-serif;
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+
+  html,body{
+    margin:0; padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body{
+    min-height:100vh;
+    background-image:
+      radial-gradient(ellipse 600px 400px at 20% -10%, rgba(255,107,53,0.06), transparent),
+      radial-gradient(ellipse 500px 500px at 100% 20%, rgba(139,149,166,0.04), transparent);
+    padding-bottom:48px;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    padding:28px 20px 18px;
+    text-align:center;
+    position:relative;
+  }
+  header .settings-btn{
+    position:absolute;
+    top:20px;
+    right:16px;
+    width:38px;
+    height:38px;
+    border-radius:10px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  header .settings-btn:active{ transform:scale(0.92); }
+  header .settings-btn svg{ width:19px; height:19px; }
+  header .profile-pill{
+    position:absolute;
+    top:20px;
+    left:16px;
+    font-size:0.68rem;
+    letter-spacing:0.04em;
+    color:var(--text-dim);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:9px 13px;
+    max-width:120px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    cursor:pointer;
+  }
+  header .profile-pill:active{ transform:scale(0.95); }
+  header h1{
+    font-family:var(--serif);
+    font-weight:600;
+    font-size:1.5rem;
+    letter-spacing:0.01em;
+    margin:0;
+    color:var(--text);
+  }
+  header .sub{
+    font-size:0.72rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-top:6px;
+  }
+  header .sub em{
+    color:var(--ember);
+    font-style:normal;
+  }
+
+  main{
+    max-width:560px;
+    margin:0 auto;
+    padding:0 16px;
+  }
+
+  section{ margin-top:26px; }
+
+  .section-label{
+    font-size:0.68rem;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin:0 0 10px 4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .section-label::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--border);
+  }
+
+  /* ---------- Dice quick row ---------- */
+  .dice-grid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:10px;
+  }
+  .die-btn{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 4px 12px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    cursor:pointer;
+    transition:transform .12s ease, border-color .12s ease, background .12s ease;
+    color:var(--text);
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  .die-btn:active{ transform:scale(0.94); background:var(--surface-2); }
+  .die-btn .face{
+    font-family:var(--serif);
+    font-size:1.05rem;
+    font-weight:600;
+  }
+  .die-btn .face svg{ width:28px; height:28px; display:block; }
+  .die-btn .lbl{
+    font-size:0.68rem;
+    letter-spacing:0.05em;
+    color:var(--text-dim);
+  }
+  .die-btn.active{
+    border-color:var(--ember-dim);
+    box-shadow:0 0 0 1px rgba(255,107,53,0.25) inset;
+  }
+
+  /* ---------- Result stage ---------- */
+  .stage{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:26px 18px 20px;
+    min-height:150px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    overflow:hidden;
+  }
+  .stage.flash::before{
+    content:"";
+    position:absolute; inset:0;
+    background:radial-gradient(circle at 50% 35%, rgba(255,107,53,0.25), transparent 70%);
+    animation:flashfade .6s ease-out forwards;
+  }
+  @keyframes flashfade{ from{opacity:1;} to{opacity:0;} }
+
+  .stage .empty-hint{
+    color:var(--text-dim);
+    font-size:0.85rem;
+    text-align:center;
+    line-height:1.5;
+  }
+
+  .roll-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+    align-items:center;
+  }
+
+  .die3d{
+    width:54px;
+    height:54px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:1.25rem;
+    border-radius:10px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    perspective:240px;
+  }
+  .die3d .inner{
+    display:flex; align-items:center; justify-content:center;
+    width:100%; height:100%;
+  }
+  .die3d.rolling .inner{
+    animation:tumble 0.55s cubic-bezier(.3,.1,.3,1) forwards;
+  }
+  @keyframes tumble{
+    0%{ transform:rotateX(0) rotateY(0) scale(1); }
+    35%{ transform:rotateX(280deg) rotateY(180deg) scale(1.08); }
+    70%{ transform:rotateX(620deg) rotateY(420deg) scale(0.96); }
+    100%{ transform:rotateX(720deg) rotateY(720deg) scale(1); }
+  }
+  .die3d.crit{ border-color:var(--crit); color:var(--crit); box-shadow:0 0 14px rgba(74,222,128,0.35); }
+  .die3d.fail{ border-color:var(--fail); color:var(--fail); }
+
+  /* ---------- Percentile pair (D100 = tens D10 + units D10) ---------- */
+  .pct-pair{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    background:var(--surface-2);
+    border:1px solid var(--ember-dim);
+    border-radius:12px;
+    padding:6px;
+  }
+  .pct-die{
+    width:38px;
+    height:38px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:0.95rem;
+    border-radius:8px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    line-height:1;
+  }
+  .pct-die .pct-tag{
+    font-family:var(--sans);
+    font-size:0.46rem;
+    letter-spacing:0.05em;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    margin-bottom:1px;
+  }
+  .pct-sep{
+    font-family:var(--serif);
+    color:var(--text-dim);
+    font-size:0.9rem;
+    padding:0 1px;
+  }
+  .pct-total{
+    font-family:var(--serif);
+    font-weight:700;
+    font-size:1.05rem;
+    color:var(--ember);
+    padding:0 8px 0 4px;
+    min-width:28px;
+    text-align:center;
+  }
+  .pct-pair.crit{ border-color:var(--crit); }
+  .pct-pair.crit .pct-total{ color:var(--crit); }
+  .pct-pair.fail{ border-color:var(--fail); }
+  .pct-pair.fail .pct-total{ color:var(--fail); }
+
+  .total-line{
+    margin-top:16px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .total-line .formula{
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .total-line .total{
+    font-family:var(--serif);
+    font-size:2.4rem;
+    font-weight:700;
+    color:var(--text);
+    line-height:1;
+  }
+  .total-line .total.crit{ color:var(--crit); }
+  .total-line .total.fail{ color:var(--fail); }
+
+  .modifier-note{
+    font-size:0.72rem;
+    color:var(--text-dim);
+    margin-top:4px;
+  }
+
+  /* ---------- Lot builder ---------- */
+  .builder{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:16px;
+  }
+  .builder-row{
+    display:flex;
+    gap:8px;
+  }
+  .builder-row input{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:0.95rem;
+    font-family:var(--sans);
+  }
+  .builder-row input::placeholder{ color:var(--text-dim); }
+  .builder-row input:focus{ outline:none; border-color:var(--ember-dim); }
+
+  .builder-row2{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  .builder-row2 input{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:0.85rem;
+    font-family:var(--sans);
+  }
+
+  .btn{
+    border:none;
+    border-radius:10px;
+    padding:12px 18px;
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:0.88rem;
+    cursor:pointer;
+    transition:transform .1s ease, opacity .1s ease;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  .btn:active{ transform:scale(0.96); }
+  .btn-ember{ background:var(--ember); color:#1a0f08; }
+  .btn-ghost{ background:transparent; color:var(--text-dim); border:1px solid var(--border); }
+
+  .syntax-hint{
+    font-size:0.72rem;
+    color:var(--text-dim);
+    margin-top:10px;
+    line-height:1.5;
+  }
+  .syntax-hint code{
+    background:var(--surface-2);
+    padding:2px 6px;
+    border-radius:5px;
+    color:var(--ember);
+    font-family:var(--serif);
+  }
+  .syntax-error{
+    color:var(--fail);
+    font-size:0.78rem;
+    margin-top:8px;
+    display:none;
+  }
+
+  /* ---------- Lot grid (display like quick dice) ---------- */
+  .lots-header-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin:0 0 10px 4px;
+    gap:8px;
+  }
+  .lots-header-row .section-label{ margin:0; flex:1; }
+  .edit-toggle{
+    font-size:0.7rem;
+    letter-spacing:0.05em;
+    color:var(--text-dim);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:7px 12px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .edit-toggle.active{
+    color:var(--ember);
+    border-color:var(--ember-dim);
+  }
+  .edit-toggle:active{ transform:scale(0.95); }
+
+  .lot-grid{
+    display:grid;
+    gap:10px;
+  }
+  .lot-grid.cols-2{ grid-template-columns:repeat(2, 1fr); }
+  .lot-grid.cols-3{ grid-template-columns:repeat(3, 1fr); }
+  .lot-grid.cols-4{ grid-template-columns:repeat(4, 1fr); }
+
+  .lot-tile{
+    position:relative;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:13px 8px 11px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    cursor:pointer;
+    text-align:center;
+    min-height:64px;
+    transition:transform .12s ease, background .12s ease;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  .lot-tile:active{ transform:scale(0.94); background:var(--surface-2); }
+  .lot-tile .lot-tile-name{
+    font-size:0.78rem;
+    font-weight:600;
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:100%;
+  }
+  .lot-tile .lot-tile-formula{
+    font-family:var(--serif);
+    font-size:0.7rem;
+    color:var(--ember);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:100%;
+  }
+  .lot-tile .remove-x{
+    position:absolute;
+    top:-7px; right:-7px;
+    width:24px; height:24px;
+    border-radius:50%;
+    background:var(--fail);
+    color:#fff;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    font-size:0.85rem;
+    line-height:1;
+    border:2px solid var(--bg);
+    cursor:pointer;
+    z-index:2;
+  }
+  .lot-grid.editing .lot-tile .remove-x{ display:flex; }
+  .lot-grid.editing .lot-tile{ animation:wiggle 0.32s ease-in-out; }
+  @keyframes wiggle{
+    0%,100%{ transform:rotate(0deg); }
+    25%{ transform:rotate(-1.5deg); }
+    75%{ transform:rotate(1.5deg); }
+  }
+
+  /* ---------- Settings panel ---------- */
+  .panel-overlay{
+    position:fixed; inset:0;
+    background:rgba(8,9,11,0.72);
+    display:none;
+    align-items:flex-end;
+    justify-content:center;
+    z-index:50;
+  }
+  .panel-overlay.open{ display:flex; }
+  .panel{
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    border-radius:20px 20px 0 0;
+    width:100%;
+    max-width:560px;
+    max-height:88vh;
+    overflow-y:auto;
+    padding:18px 18px 28px;
+  }
+  .panel-handle{
+    width:36px; height:4px;
+    background:var(--border);
+    border-radius:3px;
+    margin:0 auto 16px;
+  }
+  .panel h2{
+    font-family:var(--serif);
+    font-size:1.15rem;
+    margin:0 0 18px;
+    color:var(--text);
+  }
+  .panel-section{
+    margin-bottom:22px;
+  }
+  .panel-section:last-child{ margin-bottom:4px; }
+  .panel-section-title{
+    font-size:0.68rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:10px;
+  }
+  .panel-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .panel-row label{
+    font-size:0.86rem;
+    color:var(--text);
+  }
+  .speed-slider{
+    width:100%;
+    -webkit-appearance:none;
+    height:4px;
+    border-radius:3px;
+    background:var(--border);
+    outline:none;
+  }
+  .speed-slider::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:var(--ember);
+    cursor:pointer;
+  }
+  .speed-slider::-moz-range-thumb{
+    width:20px; height:20px;
+    border-radius:50%;
+    background:var(--ember);
+    border:none;
+    cursor:pointer;
+  }
+  .speed-labels{
+    display:flex;
+    justify-content:space-between;
+    font-size:0.68rem;
+    color:var(--text-dim);
+    margin-top:6px;
+  }
+
+  .col-choice{
+    display:flex;
+    gap:8px;
+  }
+  .col-choice button{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    border-radius:9px;
+    padding:9px;
+    font-size:0.82rem;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .col-choice button.active{
+    background:var(--ember);
+    border-color:var(--ember);
+    color:#1a0f08;
+  }
+
+  .profile-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .profile-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .profile-row.active{ border-color:var(--ember-dim); }
+  .profile-row .pname{
+    flex:1;
+    font-size:0.86rem;
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .profile-row .pcount{
+    font-size:0.7rem;
+    color:var(--text-dim);
+    flex-shrink:0;
+  }
+  .profile-row button{
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    cursor:pointer;
+    padding:4px 6px;
+    flex-shrink:0;
+  }
+  .profile-row button svg{ width:15px; height:15px; display:block; }
+
+  .new-profile-row{
+    display:flex;
+    gap:8px;
+  }
+  .new-profile-row input{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:9px;
+    padding:10px 12px;
+    font-size:0.85rem;
+    font-family:var(--sans);
+  }
+
+  .panel-btn-row{
+    display:flex;
+    gap:8px;
+  }
+  .panel-btn-row .btn{ flex:1; }
+  input[type="file"]{ display:none; }
+
+  .panel-note{
+    font-size:0.72rem;
+    color:var(--text-dim);
+    margin-top:8px;
+    line-height:1.5;
+  }
+
+  .toast{
+    position:fixed;
+    bottom:24px;
+    left:50%;
+    transform:translateX(-50%) translateY(10px);
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:11px 18px;
+    border-radius:10px;
+    font-size:0.82rem;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+    z-index:60;
+    max-width:85%;
+    text-align:center;
+  }
+  .toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+
+  .empty-lots{
+    color:var(--text-dim);
+    font-size:0.82rem;
+    text-align:center;
+    padding:18px 10px;
+    border:1px dashed var(--border);
+    border-radius:14px;
+  }
+
+  /* ---------- History ---------- */
+  .history{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .history-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:9px 12px;
+    border-bottom:1px solid var(--border);
+    font-size:0.82rem;
+  }
+  .history-item:last-child{ border-bottom:none; }
+  .history-item .h-formula{ color:var(--text-dim); }
+  .history-item .h-total{
+    font-family:var(--serif);
+    font-weight:700;
+    color:var(--text);
+  }
+  .history-item .h-total.crit{ color:var(--crit); }
+  .history-item .h-total.fail{ color:var(--fail); }
+
+  @media (prefers-reduced-motion: reduce){
+    .die3d.rolling .inner{ animation:none; }
+    .stage.flash::before{ animation:none; display:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="profile-pill" id="profilePill" title="Changer de profil">Défaut</button>
+  <h1>Table de jeu</h1>
+  <div class="sub">le sort en a décidé <em>ainsi</em></div>
+  <button class="settings-btn" id="settingsBtn" title="Options">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+</header>
+
+<main>
+
+  <section>
+    <div class="section-label">Lancer rapide</div>
+    <div class="dice-grid" id="quickDice"></div>
+  </section>
+
+  <section>
+    <div class="section-label">Résultat</div>
+    <div class="stage" id="stage">
+      <div class="empty-hint">Touchez un dé, ou lancez un lot ci-dessous.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lots-header-row">
+      <div class="section-label">Mes lots</div>
+      <button class="edit-toggle" id="editToggle">Modifier</button>
+    </div>
+    <div class="lot-grid cols-3" id="lotGrid"></div>
+  </section>
+
+  <section>
+    <div class="section-label">Composer un lot</div>
+    <div class="builder">
+      <div class="builder-row">
+        <input type="text" id="formulaInput" placeholder="ex : 3d8, d10+3, 2d10+1d6-1" autocomplete="off" autocapitalize="none">
+        <button class="btn btn-ember" id="rollFormulaBtn">Lancer</button>
+      </div>
+      <div class="builder-row2">
+        <input type="text" id="nameInput" placeholder="Nom du lot (optionnel)" autocomplete="off">
+        <button class="btn btn-ghost" id="saveLotBtn">Enregistrer</button>
+      </div>
+      <div class="syntax-error" id="syntaxError"></div>
+      <div class="syntax-hint">
+        Syntaxe : <code>NdF</code> pour N dés à F faces. Additionnez plusieurs groupes et un modificateur fixe : <code>2d10+1d6+2</code>. D100 = <code>d100</code> (paire dizaine + unité, 00+0 = 100).
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">Historique</div>
+    <div class="history" id="history"></div>
+  </section>
+
+</main>
+
+<!-- ---------- Settings panel ---------- -->
+<div class="panel-overlay" id="panelOverlay">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <h2>Options</h2>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Profils</div>
+      <div class="profile-list" id="profileList"></div>
+      <div class="new-profile-row">
+        <input type="text" id="newProfileInput" placeholder="Nouveau profil (ex : Durak)" autocomplete="off">
+        <button class="btn btn-ember" id="addProfileBtn">Créer</button>
+      </div>
+      <div class="panel-note">Chaque profil a ses propres lots. Idéal pour séparer vos personnages ou vos campagnes.</div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Vitesse de défilement</div>
+      <input type="range" min="1" max="5" step="1" value="3" class="speed-slider" id="speedSlider">
+      <div class="speed-labels"><span>Lent</span><span>Instantané</span></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Colonnes de la grille de lots</div>
+      <div class="col-choice" id="colChoice">
+        <button data-cols="2">2</button>
+        <button data-cols="3">3</button>
+        <button data-cols="4">4</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-section-title">Sauvegarde des lots</div>
+      <div class="panel-btn-row">
+        <button class="btn btn-ghost" id="exportBtn">Exporter (.json)</button>
+        <button class="btn btn-ghost" id="importBtn">Importer (.json)</button>
+      </div>
+      <input type="file" id="importFile" accept=".json,application/json">
+      <div class="panel-note">L'export demande si vous voulez le profil actif ou tous les profils. L'import ajoute les lots sans écraser ceux déjà présents.</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Dice icon paths (simple, recognizable per face count) ----------
+  function diceIconSVG(faces){
+    const stroke = 'stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"';
+    switch(faces){
+      case 2:
+        return `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" ${stroke}/><line x1="12" y1="3" x2="12" y2="21" stroke="currentColor" stroke-width="1.2"/></svg>`;
+      case 4:
+        return `<svg viewBox="0 0 24 24"><polygon points="12,3 21,19 3,19" ${stroke}/></svg>`;
+      case 6:
+        return `<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5" ${stroke}/></svg>`;
+      case 8:
+        return `<svg viewBox="0 0 24 24"><polygon points="12,2 21,12 12,22 3,12" ${stroke}/></svg>`;
+      case 10:
+        return `<svg viewBox="0 0 24 24"><polygon points="12,2 19,9 15,21 9,21 5,9" ${stroke}/><line x1="12" y1="2" x2="12" y2="13" stroke="currentColor" stroke-width="1" opacity="0.6"/><line x1="5" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="1" opacity="0.6"/><line x1="19" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="1" opacity="0.6"/></svg>`;
+      case 12:
+        return `<svg viewBox="0 0 24 24"><polygon points="12,2 18,5 21,11 18,18 12,22 6,18 3,11 6,5" ${stroke}/><polygon points="12,7 16,10 14,15 10,15 8,10" stroke="currentColor" stroke-width="0.9" fill="none" opacity="0.6"/></svg>`;
+      case 20:
+        return `<svg viewBox="0 0 24 24"><polygon points="12,2 21,8 18,20 6,20 3,8" ${stroke}/><line x1="12" y1="2" x2="12" y2="20" stroke="currentColor" stroke-width="1" opacity="0.55"/><line x1="3" y1="8" x2="21" y2="8" stroke="currentColor" stroke-width="1" opacity="0.55"/></svg>`;
+      case 100:
+        return `<svg viewBox="0 0 24 24"><polygon points="12,2 19,9 15,21 9,21 5,9" ${stroke}/><circle cx="9.5" cy="12.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="14.5" cy="15.5" r="1.4" fill="currentColor" stroke="none"/><line x1="9" y1="16.5" x2="15" y2="11.5" stroke="currentColor" stroke-width="1.1"/></svg>`;
+      default:
+        return `<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2.5" ${stroke}/></svg>`;
+    }
+  }
+
+  const QUICK_FACES = [2,4,6,8,10,12,20,100];
+
+  const quickDiceEl = document.getElementById('quickDice');
+  QUICK_FACES.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'die-btn';
+    btn.dataset.faces = f;
+    btn.innerHTML = `<span class="face">${diceIconSVG(f)}</span><span class="lbl">D${f}</span>`;
+    btn.addEventListener('click', () => rollQuick(f));
+    quickDiceEl.appendChild(btn);
+  });
+
+  // ---------- Formula parsing ----------
+  // Accepts terms separated by + or -, each term either "NdF" / "dF" or a flat integer.
+  // D100 is special-cased as 2d10 (tens+units, 00+0 = 100 per classic percentile convention -> but
+  // we keep it intuitive: 2d10 summed, simplest read for a generic roller).
+  function parseFormula(raw){
+    const cleaned = raw.toLowerCase().replace(/\s+/g, '');
+    if(!cleaned) return {error:"Formule vide."};
+
+    // tokenize with leading sign
+    const termRe = /([+-]?)(\d*)d(\d+)|([+-]?)(\d+)(?!d)/g;
+    let match;
+    let lastIndex = 0;
+    const terms = [];
+
+    // Validate the whole string is consumed by valid tokens (no garbage characters)
+    const validationRe = /^([+-]?(\d*d\d+|\d+))+$/;
+    if(!validationRe.test(cleaned)){
+      return {error:"Syntaxe non reconnue. Exemple valide : 2d10+1d6-1"};
+    }
+
+    while((match = termRe.exec(cleaned)) !== null){
+      if(match[3] !== undefined){
+        // dice term: sign, count, faces
+        const sign = match[1] === '-' ? -1 : 1;
+        let count = match[2] === '' ? 1 : parseInt(match[2], 10);
+        let faces = parseInt(match[3], 10);
+        if(faces === 0){ return {error:"Un dé ne peut pas avoir 0 face."}; }
+        if(count > 100){ return {error:"100 dés maximum par groupe."}; }
+        if(faces > 1000){ return {error:"1000 faces maximum."}; }
+        // D100 = convention percentile classique : 2D10 (dizaines + unités), 00+0 = 100
+        if(faces === 100){
+          terms.push({type:'percentile', sign, count});
+        } else {
+          terms.push({type:'dice', sign, count, faces});
+        }
+      } else if(match[5] !== undefined){
+        // flat modifier
+        const sign = match[4] === '-' ? -1 : 1;
+        const value = parseInt(match[5], 10);
+        terms.push({type:'flat', sign, value});
+      }
+      lastIndex = termRe.lastIndex;
+    }
+
+    if(terms.length === 0){
+      return {error:"Aucun terme valide trouvé."};
+    }
+    return {terms, display: formatFormula(terms)};
+  }
+
+  function formatFormula(terms){
+    return terms.map((t, i) => {
+      let s = '';
+      if(i > 0) s += t.sign < 0 ? ' − ' : ' + ';
+      else if(t.sign < 0) s += '−';
+      if(t.type === 'percentile'){
+        s += `${t.count}D100`;
+      } else if(t.type === 'dice'){
+        s += `${t.count}D${t.faces}`;
+      } else {
+        s += `${t.value}`;
+      }
+      return s;
+    }).join('');
+  }
+
+  function rollDie(faces){
+    return 1 + Math.floor(Math.random() * faces);
+  }
+
+  function rollPercentile(){
+    // Convention percentile classique : un D10 "dizaines" (0,10,20...90) + un D10 "unités" (0-9).
+    // 00 + 0 est lu comme 100 (et non 0).
+    const tensRoll = Math.floor(Math.random() * 10); // 0..9 -> représente 0,10,...,90
+    const unitsRoll = Math.floor(Math.random() * 10); // 0..9
+    const tensValue = tensRoll === 0 ? 0 : tensRoll * 10; // affiché tel quel (0 = "00")
+    const unitsValue = unitsRoll; // affiché tel quel (0 = "0")
+    let total = tensValue + unitsValue;
+    if(total === 0) total = 100;
+    return { tens: tensValue, units: unitsValue, value: total };
+  }
+
+  // Executes a parsed formula, returns:
+  // { rolls: [{faces, value, sign}], percentiles: [{sign, pairs:[{tens,units,value}]}], flat, total }
+  function executeFormula(terms){
+    const rolls = [];
+    const percentiles = [];
+    let flat = 0;
+    terms.forEach(t => {
+      if(t.type === 'dice'){
+        for(let i = 0; i < t.count; i++){
+          rolls.push({faces: t.faces, value: rollDie(t.faces), sign: t.sign});
+        }
+      } else if(t.type === 'percentile'){
+        const pairs = [];
+        for(let i = 0; i < t.count; i++){
+          pairs.push(rollPercentile());
+        }
+        percentiles.push({ sign: t.sign, pairs });
+      } else {
+        flat += t.sign * t.value;
+      }
+    });
+    const diceSum = rolls.reduce((acc, r) => acc + r.sign * r.value, 0);
+    const percentileSum = percentiles.reduce((acc, grp) =>
+      acc + grp.sign * grp.pairs.reduce((s, p) => s + p.value, 0), 0);
+    return { rolls, percentiles, flat, total: diceSum + percentileSum + flat };
+  }
+
+  // ---------- Rendering the stage ----------
+  const stageEl = document.getElementById('stage');
+
+  // ---------- Settings: scroll speed ----------
+  // speedLevel: 1 (lent) .. 5 (instantané). Mappe sur nombre de "ticks" et intervalle.
+  const SPEED_PRESETS = {
+    1: { ticks: 11, interval: 90 },
+    2: { ticks: 9,  interval: 70 },
+    3: { ticks: 7,  interval: 55 },
+    4: { ticks: 4,  interval: 40 },
+    5: { ticks: 0,  interval: 0  } // instantané : pas de défilement
+  };
+  function getSpeedPreset(){
+    return SPEED_PRESETS[settings.speedLevel] || SPEED_PRESETS[3];
+  }
+
+  function isCritOnSingleDie(result){
+    // "crit" visual flag only meaningful when exactly one die (or one percentile pair) was rolled total
+    const totalDiceCount = result.rolls.length + result.percentiles.reduce((a,g) => a + g.pairs.length, 0);
+    if(totalDiceCount !== 1) return null;
+    if(result.rolls.length === 1){
+      const r = result.rolls[0];
+      if(r.value === r.faces) return 'crit';
+      if(r.value === 1) return 'fail';
+      return null;
+    }
+    if(result.percentiles.length === 1 && result.percentiles[0].pairs.length === 1){
+      const v = result.percentiles[0].pairs[0].value;
+      if(v === 100) return 'crit';
+      if(v === 1) return 'fail';
+      return null;
+    }
+    return null;
+  }
+
+  function renderRoll(label, terms, result){
+    stageEl.innerHTML = '';
+    stageEl.classList.remove('flash');
+
+    const row = document.createElement('div');
+    row.className = 'roll-row';
+
+    const preset = getSpeedPreset();
+    const instant = preset.ticks === 0;
+    let pendingAnimations = 0;
+    let maxAnimDuration = 0;
+
+    // ----- Classic dice (D2, D4, D6, D8, D10, D12, D20...) -----
+    result.rolls.forEach(r => {
+      const die = document.createElement('div');
+      die.className = instant ? 'die3d' : 'die3d rolling';
+      const inner = document.createElement('div');
+      inner.className = 'inner';
+      inner.textContent = instant ? r.value : '';
+      die.appendChild(inner);
+      row.appendChild(die);
+
+      if(instant){
+        if(r.value === r.faces) die.classList.add('crit');
+        else if(r.value === 1) die.classList.add('fail');
+        return;
+      }
+
+      let ticks = 0;
+      const tickInterval = setInterval(() => {
+        inner.textContent = 1 + Math.floor(Math.random() * r.faces);
+        ticks++;
+        if(ticks >= preset.ticks){
+          clearInterval(tickInterval);
+          inner.textContent = r.value;
+          die.classList.remove('rolling');
+          if(r.value === r.faces) die.classList.add('crit');
+          else if(r.value === 1) die.classList.add('fail');
+        }
+      }, preset.interval);
+    });
+    if(!instant && result.rolls.length){
+      maxAnimDuration = Math.max(maxAnimDuration, preset.interval * preset.ticks);
+    }
+
+    // ----- Percentile pairs (D100 = tens D10 + units D10, shown linked together) -----
+    result.percentiles.forEach(grp => {
+      grp.pairs.forEach(pair => {
+        const pairEl = document.createElement('div');
+        pairEl.className = 'pct-pair';
+
+        const tensDie = document.createElement('div');
+        tensDie.className = 'pct-die';
+        const tensTag = document.createElement('div');
+        tensTag.className = 'pct-tag';
+        tensTag.textContent = 'dizaine';
+        const tensVal = document.createElement('div');
+        tensVal.textContent = instant ? formatTens(pair.tens) : '';
+        tensDie.appendChild(tensTag);
+        tensDie.appendChild(tensVal);
+
+        const sep = document.createElement('div');
+        sep.className = 'pct-sep';
+        sep.textContent = '+';
+
+        const unitsDie = document.createElement('div');
+        unitsDie.className = 'pct-die';
+        const unitsTag = document.createElement('div');
+        unitsTag.className = 'pct-tag';
+        unitsTag.textContent = 'unité';
+        const unitsVal = document.createElement('div');
+        unitsVal.textContent = instant ? formatUnits(pair.units) : '';
+        unitsDie.appendChild(unitsTag);
+        unitsDie.appendChild(unitsVal);
+
+        const totalEl = document.createElement('div');
+        totalEl.className = 'pct-total';
+        totalEl.textContent = instant ? pair.value : '';
+
+        pairEl.appendChild(tensDie);
+        pairEl.appendChild(sep);
+        pairEl.appendChild(unitsDie);
+        pairEl.appendChild(totalEl);
+        row.appendChild(pairEl);
+
+        if(instant){
+          if(pair.value === 100) pairEl.classList.add('crit');
+          else if(pair.value === 1) pairEl.classList.add('fail');
+          return;
+        }
+
+        let ticks = 0;
+        const tickInterval = setInterval(() => {
+          tensVal.textContent = formatTens(Math.floor(Math.random() * 10) * 10);
+          unitsVal.textContent = formatUnits(Math.floor(Math.random() * 10));
+          ticks++;
+          if(ticks >= preset.ticks){
+            clearInterval(tickInterval);
+            tensVal.textContent = formatTens(pair.tens);
+            unitsVal.textContent = formatUnits(pair.units);
+            totalEl.textContent = pair.value;
+            if(pair.value === 100) pairEl.classList.add('crit');
+            else if(pair.value === 1) pairEl.classList.add('fail');
+          }
+        }, preset.interval);
+      });
+    });
+    if(!instant && result.percentiles.length){
+      maxAnimDuration = Math.max(maxAnimDuration, preset.interval * preset.ticks);
+    }
+
+    stageEl.appendChild(row);
+
+    const totalLine = document.createElement('div');
+    totalLine.className = 'total-line';
+
+    const formulaSpan = document.createElement('div');
+    formulaSpan.className = 'formula';
+    formulaSpan.textContent = label;
+
+    const totalSpan = document.createElement('div');
+    totalSpan.className = 'total';
+
+    totalLine.appendChild(formulaSpan);
+    totalLine.appendChild(totalSpan);
+    stageEl.appendChild(totalLine);
+
+    const critFlag = isCritOnSingleDie(result);
+    if(critFlag === 'crit') totalSpan.classList.add('crit');
+    if(critFlag === 'fail') totalSpan.classList.add('fail');
+
+    const revealDelay = instant ? 0 : (maxAnimDuration + 30);
+    setTimeout(() => {
+      totalSpan.textContent = result.total;
+      stageEl.classList.add('flash');
+      if(critFlag === 'crit' || critFlag === 'fail'){
+        const note = document.createElement('div');
+        note.className = 'modifier-note';
+        note.style.textAlign = 'center';
+        note.style.width = '100%';
+        note.textContent = critFlag === 'crit' ? '✦ Réussite critique' : '✦ Échec critique';
+        stageEl.appendChild(note);
+      }
+    }, revealDelay);
+
+    pushHistory(label, result, critFlag);
+  }
+
+  function formatTens(v){
+    // v is 0,10,20...90 -> display as "00","10",...,"90"
+    return v === 0 ? '00' : String(v);
+  }
+  function formatUnits(v){
+    return String(v);
+  }
+
+  function rollQuick(faces){
+    hideSyntaxError();
+    document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.die-btn[data-faces="${faces}"]`);
+    if(btn) btn.classList.add('active');
+
+    let terms, label;
+    if(faces === 100){
+      terms = [{type:'percentile', sign:1, count:1}];
+      label = 'D100';
+    } else {
+      terms = [{type:'dice', sign:1, count:1, faces:faces}];
+      label = `D${faces}`;
+    }
+    const result = executeFormula(terms);
+    renderRoll(label, terms, result);
+  }
+
+  // ---------- Formula builder ----------
+  const formulaInput = document.getElementById('formulaInput');
+  const nameInput = document.getElementById('nameInput');
+  const syntaxErrorEl = document.getElementById('syntaxError');
+  const rollFormulaBtn = document.getElementById('rollFormulaBtn');
+  const saveLotBtn = document.getElementById('saveLotBtn');
+
+  function rollFromInput(){
+    const raw = formulaInput.value.trim();
+    if(!raw){
+      showSyntaxError("Entrez d'abord une formule.");
+      return null;
+    }
+    const parsed = parseFormula(raw);
+    if(parsed.error){
+      showSyntaxError(parsed.error);
+      return null;
+    }
+    hideSyntaxError();
+    document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('active'));
+    const result = executeFormula(parsed.terms);
+    renderRoll(parsed.display, parsed.terms, result);
+    return parsed;
+  }
+
+  function showSyntaxError(msg){
+    syntaxErrorEl.textContent = msg;
+    syntaxErrorEl.style.display = 'block';
+  }
+  function hideSyntaxError(){
+    syntaxErrorEl.style.display = 'none';
+  }
+
+  rollFormulaBtn.addEventListener('click', rollFromInput);
+  formulaInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter') rollFromInput();
+  });
+
+  // ---------- Settings persistence ----------
+  const SETTINGS_KEY = 'diceRoller.settings.v1';
+  const DEFAULT_SETTINGS = { speedLevel: 3, lotCols: 3 };
+
+  function loadSettings(){
+    try{
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      return raw ? Object.assign({}, DEFAULT_SETTINGS, JSON.parse(raw)) : Object.assign({}, DEFAULT_SETTINGS);
+    }catch(e){ return Object.assign({}, DEFAULT_SETTINGS); }
+  }
+  function saveSettings(){
+    try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }catch(e){}
+  }
+  let settings = loadSettings();
+
+  // ---------- Profiles + lots persistence ----------
+  // Data shape: { profiles: [{id, name, lots:[{name, display, terms}]}], activeProfileId }
+  const PROFILES_KEY = 'diceRoller.profiles.v1';
+  const LEGACY_LOTS_KEY = 'diceRoller.lots.v1';
+
+  function uid(){
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function loadProfilesData(){
+    try{
+      const raw = localStorage.getItem(PROFILES_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        if(parsed && Array.isArray(parsed.profiles) && parsed.profiles.length){
+          return parsed;
+        }
+      }
+    }catch(e){ /* fall through to migration */ }
+
+    // Migration: recover legacy flat lot list into a "Défaut" profile
+    let legacyLots = [];
+    try{
+      const rawLegacy = localStorage.getItem(LEGACY_LOTS_KEY);
+      if(rawLegacy) legacyLots = JSON.parse(rawLegacy) || [];
+    }catch(e){ legacyLots = []; }
+
+    const defaultProfile = { id: uid(), name: 'Défaut', lots: legacyLots };
+    return { profiles: [defaultProfile], activeProfileId: defaultProfile.id };
+  }
+
+  function saveProfilesData(){
+    try{ localStorage.setItem(PROFILES_KEY, JSON.stringify(profilesData)); }catch(e){}
+  }
+
+  let profilesData = loadProfilesData();
+  saveProfilesData(); // persist migration result immediately
+
+  function getActiveProfile(){
+    let p = profilesData.profiles.find(p => p.id === profilesData.activeProfileId);
+    if(!p){ p = profilesData.profiles[0]; profilesData.activeProfileId = p.id; }
+    return p;
+  }
+
+  // ---------- Toast ----------
+  const toastEl = document.getElementById('toast');
+  let toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+
+  // ---------- Lot grid rendering ----------
+  let editMode = false;
+  const lotGridEl = document.getElementById('lotGrid');
+  const editToggleBtn = document.getElementById('editToggle');
+
+  function lotIconSVG(){
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><polygon points="12,2 21,8 18,20 6,20 3,8"/></svg>`;
+  }
+
+  function renderLotGrid(){
+    const profile = getActiveProfile();
+    lotGridEl.className = 'lot-grid cols-' + settings.lotCols + (editMode ? ' editing' : '');
+    lotGridEl.innerHTML = '';
+
+    if(profile.lots.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-lots';
+      empty.style.gridColumn = '1 / -1';
+      empty.textContent = "Aucun lot dans ce profil. Composez une formule ci-dessous et faites « Enregistrer ».";
+      lotGridEl.appendChild(empty);
+      return;
+    }
+
+    profile.lots.forEach((lot, idx) => {
+      const tile = document.createElement('div');
+      tile.className = 'lot-tile';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'lot-tile-name';
+      nameEl.textContent = lot.name;
+      const formulaEl = document.createElement('div');
+      formulaEl.className = 'lot-tile-formula';
+      formulaEl.textContent = lot.display;
+
+      const removeBtn = document.createElement('div');
+      removeBtn.className = 'remove-x';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profile.lots.splice(idx, 1);
+        saveProfilesData();
+        renderLotGrid();
+      });
+
+      tile.appendChild(nameEl);
+      tile.appendChild(formulaEl);
+      tile.appendChild(removeBtn);
+
+      tile.addEventListener('click', () => {
+        if(editMode) return; // tap does nothing extra in edit mode (X handles removal)
+        hideSyntaxError();
+        document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('active'));
+        const result = executeFormula(lot.terms);
+        renderRoll(`${lot.name} — ${lot.display}`, lot.terms, result);
+      });
+
+      lotGridEl.appendChild(tile);
+    });
+  }
+
+  editToggleBtn.addEventListener('click', () => {
+    editMode = !editMode;
+    editToggleBtn.textContent = editMode ? 'Terminé' : 'Modifier';
+    editToggleBtn.classList.toggle('active', editMode);
+    renderLotGrid();
+  });
+
+  function renderLots(){ renderLotGrid(); }
+
+  saveLotBtn.addEventListener('click', () => {
+    const raw = formulaInput.value.trim();
+    if(!raw){
+      showSyntaxError("Entrez une formule avant d'enregistrer.");
+      return;
+    }
+    const parsed = parseFormula(raw);
+    if(parsed.error){
+      showSyntaxError(parsed.error);
+      return;
+    }
+    hideSyntaxError();
+    const name = nameInput.value.trim() || parsed.display;
+    const profile = getActiveProfile();
+    profile.lots.push({ name, display: parsed.display, terms: parsed.terms });
+    saveProfilesData();
+    renderLotGrid();
+    nameInput.value = '';
+    showToast(`« ${name} » enregistré dans « ${profile.name} »`);
+  });
+
+  // ---------- Profile pill + panel ----------
+  const profilePill = document.getElementById('profilePill');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const panelOverlay = document.getElementById('panelOverlay');
+  const profileListEl = document.getElementById('profileList');
+  const newProfileInput = document.getElementById('newProfileInput');
+  const addProfileBtn = document.getElementById('addProfileBtn');
+
+  function refreshProfilePill(){
+    profilePill.textContent = getActiveProfile().name;
+  }
+
+  function renderProfileList(){
+    profileListEl.innerHTML = '';
+    profilesData.profiles.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'profile-row' + (p.id === profilesData.activeProfileId ? ' active' : '');
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'pname';
+      nameEl.textContent = p.name;
+
+      const countEl = document.createElement('div');
+      countEl.className = 'pcount';
+      countEl.textContent = p.lots.length + (p.lots.length === 1 ? ' lot' : ' lots');
+
+      row.appendChild(nameEl);
+      row.appendChild(countEl);
+
+      if(p.id !== profilesData.activeProfileId){
+        const useBtn = document.createElement('button');
+        useBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg>`;
+        useBtn.title = "Activer ce profil";
+        useBtn.addEventListener('click', () => {
+          profilesData.activeProfileId = p.id;
+          saveProfilesData();
+          renderProfileList();
+          refreshProfilePill();
+          renderLotGrid();
+        });
+        row.appendChild(useBtn);
+      }
+
+      if(profilesData.profiles.length > 1){
+        const delBtn = document.createElement('button');
+        delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>`;
+        delBtn.title = "Supprimer ce profil";
+        delBtn.addEventListener('click', () => {
+          const idx = profilesData.profiles.findIndex(x => x.id === p.id);
+          if(idx === -1) return;
+          profilesData.profiles.splice(idx, 1);
+          if(profilesData.activeProfileId === p.id){
+            profilesData.activeProfileId = profilesData.profiles[0].id;
+          }
+          saveProfilesData();
+          renderProfileList();
+          refreshProfilePill();
+          renderLotGrid();
+        });
+        row.appendChild(delBtn);
+      }
+
+      profileListEl.appendChild(row);
+    });
+  }
+
+  addProfileBtn.addEventListener('click', () => {
+    const name = newProfileInput.value.trim();
+    if(!name){ showToast("Entrez un nom de profil."); return; }
+    const p = { id: uid(), name, lots: [] };
+    profilesData.profiles.push(p);
+    profilesData.activeProfileId = p.id;
+    saveProfilesData();
+    newProfileInput.value = '';
+    renderProfileList();
+    refreshProfilePill();
+    renderLotGrid();
+    showToast(`Profil « ${name} » créé et activé`);
+  });
+  newProfileInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter') addProfileBtn.click();
+  });
+
+  function openPanel(){
+    renderProfileList();
+    panelOverlay.classList.add('open');
+  }
+  function closePanel(){
+    panelOverlay.classList.remove('open');
+  }
+  settingsBtn.addEventListener('click', openPanel);
+  profilePill.addEventListener('click', openPanel);
+  panelOverlay.addEventListener('click', (e) => {
+    if(e.target === panelOverlay) closePanel();
+  });
+
+  // ---------- Speed slider ----------
+  const speedSlider = document.getElementById('speedSlider');
+  speedSlider.value = settings.speedLevel;
+  speedSlider.addEventListener('input', () => {
+    settings.speedLevel = parseInt(speedSlider.value, 10);
+    saveSettings();
+  });
+
+  // ---------- Column choice ----------
+  const colChoiceEl = document.getElementById('colChoice');
+  function refreshColChoice(){
+    colChoiceEl.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.cols, 10) === settings.lotCols);
+    });
+  }
+  colChoiceEl.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      settings.lotCols = parseInt(b.dataset.cols, 10);
+      saveSettings();
+      refreshColChoice();
+      renderLotGrid();
+    });
+  });
+  refreshColChoice();
+
+  // ---------- Export / Import ----------
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const importFileEl = document.getElementById('importFile');
+
+  function downloadJSON(data, filename){
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  exportBtn.addEventListener('click', () => {
+    ask_export_scope();
+  });
+
+  function ask_export_scope(){
+    // Simple inline confirm-style choice via two buttons injected momentarily isn't available;
+    // use a lightweight native confirm to pick scope, since this is a one-off binary choice.
+    const wantsAll = confirm("Exporter TOUS les profils ?\n\nOK = tous les profils\nAnnuler = uniquement le profil actif (" + getActiveProfile().name + ")");
+    if(wantsAll){
+      downloadJSON(
+        { type: 'dice-roller-export', scope: 'all-profiles', profiles: profilesData.profiles },
+        'lots-tous-profils.json'
+      );
+      showToast('Tous les profils exportés');
+    } else {
+      const p = getActiveProfile();
+      downloadJSON(
+        { type: 'dice-roller-export', scope: 'single-profile', profile: p },
+        'lots-' + slugify(p.name) + '.json'
+      );
+      showToast(`Profil « ${p.name} » exporté`);
+    }
+  }
+
+  function slugify(s){
+    return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'profil';
+  }
+
+  importBtn.addEventListener('click', () => importFileEl.click());
+
+  importFileEl.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        handleImport(data);
+      }catch(err){
+        showToast("Fichier JSON invalide.");
+      }
+      importFileEl.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  function isValidLot(l){
+    return l && typeof l.name === 'string' && typeof l.display === 'string' && Array.isArray(l.terms);
+  }
+
+  function handleImport(data){
+    let importedProfiles = [];
+
+    if(data && data.scope === 'all-profiles' && Array.isArray(data.profiles)){
+      importedProfiles = data.profiles;
+    } else if(data && data.scope === 'single-profile' && data.profile){
+      importedProfiles = [data.profile];
+    } else if(data && Array.isArray(data.lots)){
+      // single profile object without wrapper
+      importedProfiles = [data];
+    } else if(Array.isArray(data)){
+      // raw array of lots (legacy export)
+      importedProfiles = [{ name: 'Importé', lots: data }];
+    } else {
+      showToast("Format de fichier non reconnu.");
+      return;
+    }
+
+    let totalLotsAdded = 0;
+    let profilesAdded = 0;
+
+    importedProfiles.forEach(ip => {
+      if(!ip || !Array.isArray(ip.lots)) return;
+      const validLots = ip.lots.filter(isValidLot);
+      const name = (typeof ip.name === 'string' && ip.name.trim()) ? ip.name.trim() : 'Importé';
+
+      // merge into existing profile with same name, or create a new one
+      let target = profilesData.profiles.find(p => p.name === name);
+      if(!target){
+        target = { id: uid(), name, lots: [] };
+        profilesData.profiles.push(target);
+        profilesAdded++;
+      }
+      validLots.forEach(l => {
+        target.lots.push({ name: l.name, display: l.display, terms: l.terms });
+        totalLotsAdded++;
+      });
+    });
+
+    saveProfilesData();
+    renderProfileList();
+    refreshProfilePill();
+    renderLotGrid();
+    showToast(`${totalLotsAdded} lot(s) importé(s)${profilesAdded ? `, ${profilesAdded} profil(s) créé(s)` : ''}`);
+  }
+
+  // ---------- History ----------
+  let history = [];
+  const MAX_HISTORY = 12;
+
+  function pushHistory(label, result, critFlag){
+    history.unshift({ label, total: result.total, critFlag });
+    if(history.length > MAX_HISTORY) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory(){
+    const histEl = document.getElementById('history');
+    histEl.innerHTML = '';
+    if(history.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-lots';
+      empty.textContent = "Vos lancers apparaîtront ici.";
+      histEl.appendChild(empty);
+      return;
+    }
+    history.forEach(h => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const f = document.createElement('div');
+      f.className = 'h-formula';
+      f.textContent = h.label;
+      const t = document.createElement('div');
+      t.className = 'h-total';
+      if(h.critFlag === 'crit') t.classList.add('crit');
+      if(h.critFlag === 'fail') t.classList.add('fail');
+      t.textContent = h.total;
+      item.appendChild(f);
+      item.appendChild(t);
+      histEl.appendChild(item);
+    });
+  }
+
+  // ---------- Init ----------
+  refreshProfilePill();
+  renderLotGrid();
+  renderHistory();
+
+})();
+</script>
+</body>
+</html>
