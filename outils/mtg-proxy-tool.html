@@ -1444,18 +1444,31 @@ async function exportPDF() {
     progressEl.max = uniqueUrls.length || 1;
     progressEl.value = 0;
 
-    await Promise.all(uniqueUrls.map(async (url) => {
-      try {
-        imageData[url] = await fetchImageAsDataURL(url);
-      } catch (e) {
-        imageData[url] = null;
+    const failedUrls = [];
+    const concurrency = 6; // avoid firing dozens of requests at once (causes transient network errors)
+    let cursor = 0;
+    async function worker() {
+      while (cursor < uniqueUrls.length) {
+        const url = uniqueUrls[cursor++];
+        try {
+          imageData[url] = await fetchImageAsDataURL(url);
+        } catch (e) {
+          imageData[url] = null;
+          failedUrls.push(url);
+        }
+        loaded++;
+        progressEl.value = loaded;
+        statusEl.textContent = `Préparation des images du PDF… (${loaded}/${uniqueUrls.length})`;
       }
-      loaded++;
-      progressEl.value = loaded;
-      statusEl.textContent = `Préparation des images du PDF… (${loaded}/${uniqueUrls.length})`;
-    }));
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, uniqueUrls.length) }, worker));
 
     progressEl.style.display = 'none';
+
+    if (failedUrls.length) {
+      document.getElementById('errors').textContent =
+        `${failedUrls.length} image(s) n'ont pas pu être téléchargées (erreur réseau passagère) et apparaîtront en blanc dans le PDF. Réessayez l'export.`;
+    }
 
     const pageCount = Math.ceil(cardImages.length / perPage);
 
@@ -1502,18 +1515,27 @@ async function exportPDF() {
   }
 }
 
-async function fetchImageAsDataURL(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('image fetch failed');
-  const blob = await res.blob();
-  const format = blob.type.includes('png') ? 'PNG' : 'JPEG';
-  const dataUrl = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-  return { dataUrl, format };
+async function fetchImageAsDataURL(url, attempts = 3) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const format = blob.type.includes('png') ? 'PNG' : 'JPEG';
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      return { dataUrl, format };
+    } catch (e) {
+      lastError = e;
+      if (i < attempts - 1) await sleep(300 * (i + 1)); // brief backoff before retrying
+    }
+  }
+  throw lastError;
 }
 
 function hexToRgb(hex) {
