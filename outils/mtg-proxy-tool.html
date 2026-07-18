@@ -904,12 +904,28 @@ function parseDecklist(text) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Scryfall lookups occasionally hit a transient network error (not a real
+// 404 — the request itself fails, e.g. "Failed to fetch"). Retrying a couple
+// of times before giving up avoids wrongly reporting a card as "not found".
+async function fetchWithRetry(url, attempts = 3) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(url);
+    } catch (e) {
+      lastError = e;
+      if (i < attempts - 1) await sleep(300 * (i + 1));
+    }
+  }
+  throw lastError;
+}
+
 async function fetchCardImage(name) {
   // 1. Try the fuzzy named endpoint (handles English names + typos well,
   // but Scryfall's fuzzy index does not cover foreign printed names).
   let card = null;
   try {
-    const res = await fetch(SCRYFALL_NAMED + encodeURIComponent(name));
+    const res = await fetchWithRetry(SCRYFALL_NAMED + encodeURIComponent(name));
     if (res.ok) card = await res.json();
   } catch (e) { /* ignore */ }
 
@@ -918,13 +934,13 @@ async function fetchCardImage(name) {
   if (card) {
     // Known (English) card resolved: look for its French printing.
     try {
-      const frRes = await fetch(SCRYFALL_PRINT_FR(card.set, card.collector_number));
+      const frRes = await fetchWithRetry(SCRYFALL_PRINT_FR(card.set, card.collector_number));
       if (frRes.ok) frCard = await frRes.json();
     } catch (e) { /* ignore */ }
 
     if (!frCard) {
       try {
-        const searchRes = await fetch(SCRYFALL_SEARCH(`oracleid:${card.oracle_id} lang:fr unique:prints`));
+        const searchRes = await fetchWithRetry(SCRYFALL_SEARCH(`oracleid:${card.oracle_id} lang:fr unique:prints`));
         if (searchRes.ok) {
           const data = await searchRes.json();
           if (data.data && data.data.length) frCard = data.data[0];
@@ -934,7 +950,7 @@ async function fetchCardImage(name) {
   } else {
     // Fuzzy lookup failed: the name is likely French. Search exact printed name.
     try {
-      const searchRes = await fetch(SCRYFALL_SEARCH(`!"${name}" lang:fr`));
+      const searchRes = await fetchWithRetry(SCRYFALL_SEARCH(`!"${name}" lang:fr`));
       if (searchRes.ok) {
         const data = await searchRes.json();
         if (data.data && data.data.length) {
@@ -1251,8 +1267,8 @@ function removeCard(idx) {
 async function fetchAllPrintings(oracleId) {
   // French printings first, then English, newest first within each group.
   const [frRes, enRes] = await Promise.all([
-    fetch(SCRYFALL_SEARCH(`oracleid:${oracleId} lang:fr unique:prints`)),
-    fetch(SCRYFALL_SEARCH(`oracleid:${oracleId} lang:en unique:prints`))
+    fetchWithRetry(SCRYFALL_SEARCH(`oracleid:${oracleId} lang:fr unique:prints`)),
+    fetchWithRetry(SCRYFALL_SEARCH(`oracleid:${oracleId} lang:en unique:prints`))
   ]);
   const frData = frRes.ok ? (await frRes.json()).data || [] : [];
   const enData = enRes.ok ? (await enRes.json()).data || [] : [];
