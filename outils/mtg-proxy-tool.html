@@ -1478,6 +1478,25 @@ async function exportPDF() {
     for (let p = 0; p < pageCount; p++) {
       if (p > 0) doc.addPage('a4', 'portrait');
 
+      // Pass 1: draw every card's bleed background first. Neighbouring cards
+      // touch edge-to-edge, so each bleed rect necessarily spills a few mm
+      // into the next cell — drawing all of them before any artwork means
+      // every card image (pass 2) always ends up fully on top, instead of a
+      // later card's bleed painting over an earlier card's edge.
+      if (bleed > 0) {
+        doc.setFillColor(bleedRGB.r, bleedRGB.g, bleedRGB.b);
+        for (let i = 0; i < perPage; i++) {
+          const idx = p * perPage + i;
+          if (idx >= cardImages.length) break;
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const x = offsetXmm + col * cardWmm;
+          const y = offsetYmm + row * cardHmm;
+          doc.rect(x - bleed, y - bleed, cardWmm + bleed * 2, cardHmm + bleed * 2, 'F');
+        }
+      }
+
+      // Pass 2: draw the actual card artwork on top of all bleed backgrounds.
       for (let i = 0; i < perPage; i++) {
         const idx = p * perPage + i;
         if (idx >= cardImages.length) break;
@@ -1486,11 +1505,6 @@ async function exportPDF() {
         const x = offsetXmm + col * cardWmm;
         const y = offsetYmm + row * cardHmm;
         const card = cardImages[idx];
-
-        if (bleed > 0) {
-          doc.setFillColor(bleedRGB.r, bleedRGB.g, bleedRGB.b);
-          doc.rect(x - bleed, y - bleed, cardWmm + bleed * 2, cardHmm + bleed * 2, 'F');
-        }
 
         const data = card.imgUrl ? imageData[card.imgUrl] : null;
         if (data) {
