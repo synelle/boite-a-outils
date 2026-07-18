@@ -1346,12 +1346,12 @@ function exportSVG() {
 function downloadCutSVG(slots, offsetX, offsetY, cardW, cardH, cornerR, pageWmm, pageHmm, filename) {
   const cutPath = buildCutPath(slots, offsetX, offsetY, cardW, cardH, cornerR);
 
-  // No viewBox: child coordinates carry explicit "mm" units, so mixing them
-  // with a unitless viewBox can make some vector/laser software (LightBurn,
-  // Inkscape, …) apply the unit conversion twice and rescale the cut lines.
+  // viewBox "0 0 pageWmm pageHmm" maps 1 user unit to 1mm, matching the
+  // physical width/height below — so every unitless coordinate in the path
+  // (SVG path data cannot carry unit suffixes) is a real millimetre.
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${pageWmm}mm" height="${pageHmm}mm">
-<path d="${cutPath}" fill="none" stroke="#ff0000" stroke-width="0.1mm"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="${pageWmm}mm" height="${pageHmm}mm" viewBox="0 0 ${pageWmm} ${pageHmm}">
+<path d="${cutPath}" fill="none" stroke="#ff0000" stroke-width="0.1"/>
 </svg>`;
 
   const blob = new Blob([svg], { type: 'image/svg+xml' });
@@ -1381,12 +1381,15 @@ function buildCutPath(slots, offsetX, offsetY, cardW, cardH, r) {
     const key = a < b ? `${a}|${b}` : `${b}|${a}`;
     if (seenSegments.has(key)) return;
     seenSegments.add(key);
-    segments.push(`M${x1}mm,${y1}mm L${x2}mm,${y2}mm`);
+    // SVG path data ("d") only allows plain unitless numbers — a "mm" suffix
+    // here is invalid syntax. The viewBox on the <svg> root maps 1 unit to
+    // 1mm instead, so these numbers are still real millimetres.
+    segments.push(`M${x1},${y1} L${x2},${y2}`);
   };
 
   const addArc = (x1, y1, x2, y2) => {
     if (r <= 0) return;
-    segments.push(`M${x1}mm,${y1}mm A${r}mm,${r}mm 0 0 1 ${x2}mm,${y2}mm`);
+    segments.push(`M${x1},${y1} A${r},${r} 0 0 1 ${x2},${y2}`);
   };
 
   for (const { col, row } of slots) {
