@@ -494,7 +494,6 @@ function renderPreview() {
         if (c.imgUrl) {
           const img = document.createElement('img');
           img.src = c.imgUrl;
-          img.crossOrigin = 'anonymous';
           slot.appendChild(img);
         } else {
           const missing = document.createElement('div');
