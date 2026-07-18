@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>MTG Proxy Maker</title>
+<style>
+  :root {
+    --card-w: 63mm;
+    --card-h: 88mm;
+    --page-w: 210mm;
+    --page-h: 297mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, Arial, sans-serif;
+    margin: 0;
+    background: #2b2b2b;
+    color: #eee;
+  }
+  #app {
+    display: flex;
+    min-height: 100vh;
+  }
+  #controls {
+    width: 380px;
+    flex-shrink: 0;
+    padding: 16px;
+    background: #1e1e1e;
+    overflow-y: auto;
+  }
+  #controls h1 { font-size: 18px; margin-top: 0; }
+  #controls label { display: block; margin: 12px 0 4px; font-size: 13px; color: #ccc; }
+  textarea {
+    width: 100%;
+    height: 220px;
+    background: #111;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+  button {
+    background: #3a6df0;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    margin: 4px 4px 4px 0;
+  }
+  button:hover { background: #2c58c9; }
+  button:disabled { background: #555; cursor: not-allowed; }
+  button.secondary { background: #444; }
+  button.secondary:hover { background: #555; }
+  input[type=file] { display: none; }
+  .file-btn { display: inline-block; }
+  #langNote { font-size: 12px; color: #999; margin-top: 4px; }
+  #status {
+    margin-top: 14px;
+    font-size: 13px;
+    color: #9fd;
+    white-space: pre-wrap;
+  }
+  #errors {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #f88;
+    white-space: pre-wrap;
+  }
+  progress { width: 100%; margin-top: 8px; }
+  #actions { margin-top: 16px; border-top: 1px solid #444; padding-top: 12px; }
+  #preview {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    background: #555;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .page {
+    width: var(--page-w);
+    height: var(--page-h);
+    background: white;
+    position: relative;
+    box-shadow: 0 0 10px rgba(0,0,0,.5);
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .grid {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(var(--card-w) * 3);
+    height: calc(var(--card-h) * 3);
+  }
+  .slot {
+    width: var(--card-w);
+    height: var(--card-h);
+    position: absolute;
+    overflow: visible;
+    cursor: pointer;
+  }
+  .slot::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    outline: 1px dashed #ccc;
+    outline-offset: -1px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .slot:hover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(58, 109, 240, 0.15);
+    box-shadow: inset 0 0 0 2px #3a6df0;
+    z-index: 6;
+    pointer-events: none;
+  }
+  .bleed-box {
+    position: absolute;
+    overflow: hidden;
+  }
+  .slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .slot .missing {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 10px;
+    color: #900;
+    padding: 4px;
+    font-family: sans-serif;
+  }
+  .crop-mark {
+    position: absolute;
+    background: #000;
+  }
+
+  #versionMenu {
+    position: absolute;
+    z-index: 1000;
+    background: #222;
+    border: 1px solid #555;
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 6px;
+    display: none;
+  }
+  #versionMenu.open { display: block; }
+  #versionMenu .vm-title {
+    font-size: 11px;
+    color: #999;
+    padding: 4px 6px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  #versionMenu .vm-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #eee;
+    white-space: nowrap;
+  }
+  #versionMenu .vm-item:hover { background: #3a6df0; }
+  #versionMenu .vm-item img {
+    width: 28px;
+    height: 39px;
+    object-fit: cover;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: #111;
+  }
+  #versionMenu .vm-loading {
+    font-size: 12px;
+    color: #ccc;
+    padding: 8px;
+  }
+
+  @media print {
+    body { background: white; }
+    #controls { display: none; }
+    #preview {
+      padding: 0;
+      background: white;
+      display: block;
+    }
+    .page {
+      box-shadow: none;
+      page-break-after: always;
+      margin: 0;
+    }
+    .slot::before { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="controls">
+    <h1>MTG Proxy Maker</h1>
+
+    <label for="decklist">Decklist (FR ou EN)</label>
+    <textarea id="decklist" placeholder="4 Île&#10;4 Foudre&#10;1 Colosse de jaspe&#10;&#10;// ou en anglais&#10;4 Island&#10;4 Lightning Bolt"></textarea>
+
+    <div class="file-btn">
+      <button class="secondary" onclick="document.getElementById('csvInput').click()">Charger un CSV</button>
+      <input type="file" id="csvInput" accept=".csv,text/csv">
+    </div>
+    <div id="langNote">Format CSV: colonnes "nom" et "quantite" (ou "name"/"quantity"). Une carte par ligne sinon (nom seul = quantité 1).</div>
+
+    <label for="bleedInput">Fond perdu (bleed, mm)</label>
+    <input type="number" id="bleedInput" value="3" min="0" max="8" step="0.5" style="width:80px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px;">
+
+    <label style="display:flex;align-items:center;gap:6px;margin-top:10px;">
+      <input type="checkbox" id="marksCheckbox" checked style="width:auto;margin:0;">
+      Traits de coupe (repères d'alignement)
+    </label>
+
+    <div id="actions">
+      <button id="genBtn" onclick="generate()">Générer les proxys</button>
+      <button id="printBtn" class="secondary" onclick="window.print()" disabled>Imprimer / PDF</button>
+      <button id="svgBtn" class="secondary" onclick="exportSVG()" disabled>Exporter SVG (découpe laser)</button>
+    </div>
+
+    <progress id="progress" max="100" value="0" style="display:none"></progress>
+    <div id="status"></div>
+    <div id="errors"></div>
+  </div>
+
+  <div id="preview"></div>
+</div>
+<div id="versionMenu"></div>
+
+<script>
+const SCRYFALL_NAMED = 'https://api.scryfall.com/cards/named?fuzzy=';
+const SCRYFALL_PRINT_FR = (set, num) => `https://api.scryfall.com/cards/${set}/${num}/fr`;
+const SCRYFALL_SEARCH = (q) => `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=released`;
+
+let cardImages = []; // {name, qty, imgUrl, ok}
+
+document.getElementById('csvInput').addEventListener('change', handleCSV);
+document.getElementById('bleedInput').addEventListener('input', () => { if (cardImages.length) renderPreview(); });
+document.getElementById('marksCheckbox').addEventListener('change', () => { if (cardImages.length) renderPreview(); });
+
+function handleCSV(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = reader.result;
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+    if (!lines.length) return;
+    const header = lines[0].toLowerCase();
+    let start = 0;
+    let nameIdx = 0, qtyIdx = -1;
+    if (header.includes('nom') || header.includes('name')) {
+      const cols = lines[0].split(',').map(c => c.trim().toLowerCase());
+      nameIdx = cols.findIndex(c => c === 'nom' || c === 'name');
+      qtyIdx = cols.findIndex(c => c === 'quantite' || c === 'quantité' || c === 'quantity' || c === 'qty');
+      start = 1;
+    }
+    const rows = [];
+    for (let i = start; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+      const name = cols[nameIdx];
+      if (!name) continue;
+      const qty = qtyIdx >= 0 ? (parseInt(cols[qtyIdx], 10) || 1) : 1;
+      rows.push(`${qty} ${name}`);
+    }
+    const ta = document.getElementById('decklist');
+    ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + rows.join('\n');
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseDecklist(text) {
+  const lines = text.split(/\r?\n/);
+  const entries = [];
+  for (let raw of lines) {
+    let line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('//') || line.startsWith('#')) continue;
+    if (/^(sideboard|deck|maindeck|commander)/i.test(line)) continue;
+    const m = line.match(/^(\d+)\s*x?\s+(.+)$/i);
+    let qty = 1, name = line;
+    if (m) {
+      qty = parseInt(m[1], 10);
+      name = m[2];
+    }
+    name = name.replace(/\s*\(.*?\)\s*$/, '').replace(/\s+\d+$/, '').trim();
+    if (name) entries.push({ name, qty });
+  }
+  return entries;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchCardImage(name) {
+  // 1. Try the fuzzy named endpoint (handles English names + typos well,
+  // but Scryfall's fuzzy index does not cover foreign printed names).
+  let card = null;
+  try {
+    const res = await fetch(SCRYFALL_NAMED + encodeURIComponent(name));
+    if (res.ok) card = await res.json();
+  } catch (e) { /* ignore */ }
+
+  let frCard = null;
+
+  if (card) {
+    // Known (English) card resolved: look for its French printing.
+    try {
+      const frRes = await fetch(SCRYFALL_PRINT_FR(card.set, card.collector_number));
+      if (frRes.ok) frCard = await frRes.json();
+    } catch (e) { /* ignore */ }
+
+    if (!frCard) {
+      try {
+        const searchRes = await fetch(SCRYFALL_SEARCH(`oracleid:${card.oracle_id} lang:fr unique:prints`));
+        if (searchRes.ok) {
+          const data = await searchRes.json();
+          if (data.data && data.data.length) frCard = data.data[0];
+        }
+      } catch (e) { /* ignore */ }
+    }
+  } else {
+    // Fuzzy lookup failed: the name is likely French. Search exact printed name.
+    try {
+      const searchRes = await fetch(SCRYFALL_SEARCH(`!"${name}" lang:fr`));
+      if (searchRes.ok) {
+        const data = await searchRes.json();
+        if (data.data && data.data.length) {
+          const lower = name.toLowerCase();
+          frCard = data.data.find(c => (c.printed_name || '').toLowerCase() === lower) || data.data[0];
+          card = frCard;
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  if (!card) throw new Error(`Carte introuvable: "${name}"`);
+
+  const imgUrl = extractImage(frCard) || extractImage(card);
+  return {
+    name: (frCard && frCard.printed_name) || card.name,
+    imgUrl,
+    ok: !!imgUrl,
+    oracleId: card.oracle_id
+  };
+}
+
+function extractImage(card) {
+  if (card.image_uris) return card.image_uris.large || card.image_uris.normal || card.image_uris.png;
+  if (card.card_faces && card.card_faces[0].image_uris) {
+    return card.card_faces[0].image_uris.large || card.card_faces[0].image_uris.normal;
+  }
+  return null;
+}
+
+async function generate() {
+  const genBtn = document.getElementById('genBtn');
+  const printBtn = document.getElementById('printBtn');
+  const svgBtn = document.getElementById('svgBtn');
+  const statusEl = document.getElementById('status');
+  const errEl = document.getElementById('errors');
+  const progressEl = document.getElementById('progress');
+
+  const entries = parseDecklist(document.getElementById('decklist').value);
+  if (!entries.length) {
+    statusEl.textContent = 'Aucune carte détectée dans la decklist.';
+    return;
+  }
+
+  genBtn.disabled = true;
+  printBtn.disabled = true;
+  svgBtn.disabled = true;
+  errEl.textContent = '';
+  cardImages = [];
+  progressEl.style.display = 'block';
+  progressEl.max = entries.length;
+  progressEl.value = 0;
+
+  const errors = [];
+  let done = 0;
+
+  for (const entry of entries) {
+    statusEl.textContent = `Recherche: ${entry.name} (${done + 1}/${entries.length})`;
+    try {
+      const result = await fetchCardImage(entry.name);
+      for (let i = 0; i < entry.qty; i++) {
+        cardImages.push({ name: result.name, imgUrl: result.imgUrl, ok: !!result.imgUrl, oracleId: result.oracleId });
+      }
+      if (!result.imgUrl) errors.push(`Pas d'image trouvée pour "${entry.name}"`);
+    } catch (e) {
+      errors.push(e.message);
+      for (let i = 0; i < entry.qty; i++) {
+        cardImages.push({ name: entry.name, imgUrl: null, ok: false, oracleId: null });
+      }
+    }
+    done++;
+    progressEl.value = done;
+    await sleep(80); // respect Scryfall rate limits
+  }
+
+  progressEl.style.display = 'none';
+  statusEl.textContent = `${cardImages.length} carte(s) prête(s) sur ${entries.reduce((a, e) => a + e.qty, 0)} demandée(s).`;
+  errEl.textContent = errors.length ? errors.join('\n') : '';
+
+  renderPreview();
+
+  genBtn.disabled = false;
+  printBtn.disabled = false;
+  svgBtn.disabled = false;
+}
+
+function renderPreview() {
+  const preview = document.getElementById('preview');
+  preview.innerHTML = '';
+  const perPage = 9;
+  const cols = 3, rows = 3;
+  const cardWmm = 63, cardHmm = 88;
+  const pageWmm = 210, pageHmm = 297;
+  const gridWmm = cardWmm * cols;
+  const gridHmm = cardHmm * rows;
+  const offsetXmm = (pageWmm - gridWmm) / 2;
+  const offsetYmm = (pageHmm - gridHmm) / 2;
+
+  const bleed = Math.max(0, parseFloat(document.getElementById('bleedInput').value) || 0);
+  const showMarks = document.getElementById('marksCheckbox').checked;
+
+  const pageCount = Math.ceil(cardImages.length / perPage);
+
+  for (let p = 0; p < pageCount; p++) {
+    const page = document.createElement('div');
+    page.className = 'page';
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+
+    for (let i = 0; i < perPage; i++) {
+      const idx = p * perPage + i;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.style.left = `${col * cardWmm}mm`;
+      slot.style.top = `${row * cardHmm}mm`;
+
+      if (idx < cardImages.length) {
+        const c = cardImages[idx];
+        const bleedBox = document.createElement('div');
+        bleedBox.className = 'bleed-box';
+        bleedBox.style.left = `${-bleed}mm`;
+        bleedBox.style.top = `${-bleed}mm`;
+        bleedBox.style.width = `calc(100% + ${bleed * 2}mm)`;
+        bleedBox.style.height = `calc(100% + ${bleed * 2}mm)`;
+
+        if (c.imgUrl) {
+          const img = document.createElement('img');
+          img.src = c.imgUrl;
+          img.crossOrigin = 'anonymous';
+          bleedBox.appendChild(img);
+        } else {
+          const missing = document.createElement('div');
+          missing.className = 'missing';
+          missing.textContent = c.name;
+          bleedBox.appendChild(missing);
+        }
+        slot.appendChild(bleedBox);
+
+        if (c.oracleId) {
+          slot.addEventListener('click', (ev) => openVersionMenu(idx, slot));
+        }
+      }
+      grid.appendChild(slot);
+    }
+    page.appendChild(grid);
+
+    if (showMarks) {
+      addCropMarks(page, offsetXmm, offsetYmm, gridWmm, gridHmm, cardWmm, cardHmm, bleed);
+    }
+
+    preview.appendChild(page);
+  }
+}
+
+function addCropMarks(page, offsetXmm, offsetYmm, gridWmm, gridHmm, cardWmm, cardHmm, bleed) {
+  const gap = 1.5; // mm blank space between bleed edge and the mark
+  const tickLen = 3; // mm
+  const thickness = 0.15; // mm
+
+  const addMark = (xMm, yMm, wMm, hMm) => {
+    const mark = document.createElement('div');
+    mark.className = 'crop-mark';
+    mark.style.left = `${xMm}mm`;
+    mark.style.top = `${yMm}mm`;
+    mark.style.width = `${wMm}mm`;
+    mark.style.height = `${hMm}mm`;
+    page.appendChild(mark);
+  };
+
+  const colBoundaries = [0, 1, 2, 3].map(i => offsetXmm + i * cardWmm);
+  const rowBoundaries = [0, 1, 2, 3].map(i => offsetYmm + i * cardHmm);
+
+  const topStart = offsetYmm - bleed - gap - tickLen;
+  const bottomStart = offsetYmm + gridHmm + bleed + gap;
+  for (const x of colBoundaries) {
+    addMark(x - thickness / 2, topStart, thickness, tickLen);
+    addMark(x - thickness / 2, bottomStart, thickness, tickLen);
+  }
+
+  const leftStart = offsetXmm - bleed - gap - tickLen;
+  const rightStart = offsetXmm + gridWmm + bleed + gap;
+  for (const y of rowBoundaries) {
+    addMark(leftStart, y - thickness / 2, tickLen, thickness);
+    addMark(rightStart, y - thickness / 2, tickLen, thickness);
+  }
+}
+
+const printingsCache = {}; // oracleId -> array of card objects (all prints)
+let versionMenuSlotIdx = null;
+
+async function openVersionMenu(idx, slotEl) {
+  const entry = cardImages[idx];
+  if (!entry || !entry.oracleId) return;
+
+  const menu = document.getElementById('versionMenu');
+  versionMenuSlotIdx = idx;
+  positionMenu(menu, slotEl);
+  menu.innerHTML = '<div class="vm-loading">Chargement des versions…</div>';
+  menu.classList.add('open');
+
+  let printings = printingsCache[entry.oracleId];
+  if (!printings) {
+    try {
+      printings = await fetchAllPrintings(entry.oracleId);
+      printingsCache[entry.oracleId] = printings;
+    } catch (e) {
+      menu.innerHTML = '<div class="vm-loading">Erreur de chargement.</div>';
+      return;
+    }
+  }
+
+  if (versionMenuSlotIdx !== idx) return; // menu was reassigned while awaiting
+
+  renderVersionMenu(menu, idx, printings);
+}
+
+async function fetchAllPrintings(oracleId) {
+  // French printings first, then English, newest first within each group.
+  const [frRes, enRes] = await Promise.all([
+    fetch(SCRYFALL_SEARCH(`oracleid:${oracleId} lang:fr unique:prints`)),
+    fetch(SCRYFALL_SEARCH(`oracleid:${oracleId} lang:en unique:prints`))
+  ]);
+  const frData = frRes.ok ? (await frRes.json()).data || [] : [];
+  const enData = enRes.ok ? (await enRes.json()).data || [] : [];
+  return { fr: frData, en: enData };
+}
+
+function renderVersionMenu(menu, idx, printings) {
+  menu.innerHTML = '';
+
+  const addGroup = (title, list) => {
+    if (!list.length) return;
+    const heading = document.createElement('div');
+    heading.className = 'vm-title';
+    heading.textContent = title;
+    menu.appendChild(heading);
+    for (const card of list) {
+      const img = extractImage(card);
+      if (!img) continue;
+      const item = document.createElement('div');
+      item.className = 'vm-item';
+      const thumb = document.createElement('img');
+      thumb.src = img;
+      const label = document.createElement('span');
+      label.textContent = `${card.set_name} (${card.set.toUpperCase()} #${card.collector_number})`;
+      item.appendChild(thumb);
+      item.appendChild(label);
+      item.addEventListener('click', () => selectVersion(idx, card));
+      menu.appendChild(item);
+    }
+  };
+
+  addGroup('Français', printings.fr);
+  addGroup('Anglais', printings.en);
+
+  if (!printings.fr.length && !printings.en.length) {
+    menu.innerHTML = '<div class="vm-loading">Aucune autre version trouvée.</div>';
+  }
+}
+
+function selectVersion(idx, card) {
+  const img = extractImage(card);
+  if (!img) return;
+  cardImages[idx].imgUrl = img;
+  cardImages[idx].name = card.printed_name || card.name;
+  closeVersionMenu();
+  renderPreview();
+}
+
+function closeVersionMenu() {
+  const menu = document.getElementById('versionMenu');
+  menu.classList.remove('open');
+  versionMenuSlotIdx = null;
+}
+
+function positionMenu(menu, slotEl) {
+  const rect = slotEl.getBoundingClientRect();
+  const scrollX = window.scrollX, scrollY = window.scrollY;
+  let left = rect.right + scrollX + 6;
+  let top = rect.top + scrollY;
+  const menuWidth = 240;
+  if (left + menuWidth > window.innerWidth + scrollX) {
+    left = rect.left + scrollX - menuWidth - 6;
+  }
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.width = `${menuWidth}px`;
+}
+
+document.addEventListener('click', (ev) => {
+  const menu = document.getElementById('versionMenu');
+  if (!menu.classList.contains('open')) return;
+  if (menu.contains(ev.target)) return;
+  if (ev.target.closest('.slot')) return; // slot click handles its own open
+  closeVersionMenu();
+});
+
+function exportSVG() {
+  const perPage = 9;
+  const pageCount = Math.max(1, Math.ceil(cardImages.length / perPage));
+
+  const pageWmm = 210, pageHmm = 297;
+  const cardWmm = 63, cardHmm = 88;
+  const cols = 3, rows = 3;
+  const gridWmm = cardWmm * cols;
+  const gridHmm = cardHmm * rows;
+  const offsetXmm = (pageWmm - gridWmm) / 2;
+  const offsetYmm = (pageHmm - gridHmm) / 2;
+
+  for (let p = 0; p < pageCount; p++) {
+    let rects = '';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = offsetXmm + c * cardWmm;
+        const y = offsetYmm + r * cardHmm;
+        rects += `<rect x="${x}mm" y="${y}mm" width="${cardWmm}mm" height="${cardHmm}mm" fill="none" stroke="#ff0000" stroke-width="0.1mm"/>\n`;
+      }
+    }
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${pageWmm}mm" height="${pageHmm}mm" viewBox="0 0 ${pageWmm} ${pageHmm}">
+${rects}</svg>`;
+
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `decoupe-laser-page${p + 1}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+}
+</script>
+</body>
+</html>

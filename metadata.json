@@ -16,5 +16,11 @@
     "description": "Calcule la hauteur de texte à configurer sur l'espace objet à partir de l'échelle et de la hauteur souhaitée sur l'espace papier.",
     "icone": "📐",
     "categorie": "Outils"
+  },
+  "mtg-proxy-tool.html": {
+    "titre": "MTG Proxy Maker",
+    "description": "Génère des planches de proxys Magic the Gathering à imprimer à partir d'une decklist (FR/EN), via l'API Scryfall.",
+    "icone": "🃏",
+    "categorie": "Jeux"
   }
 }
