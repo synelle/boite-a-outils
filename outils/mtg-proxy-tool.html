@@ -251,6 +251,12 @@
       <button id="svgBtn" class="secondary" onclick="exportSVG()" disabled>Exporter SVG (découpe laser)</button>
     </div>
 
+    <div id="projectActions" style="margin-top:10px;border-top:1px solid #444;padding-top:12px;">
+      <button id="saveProjectBtn" class="secondary" onclick="saveProject()" disabled>Enregistrer le projet</button>
+      <button class="secondary" onclick="document.getElementById('projectInput').click()">Charger un projet</button>
+      <input type="file" id="projectInput" accept=".json,application/json">
+    </div>
+
     <progress id="progress" max="100" value="0" style="display:none"></progress>
     <div id="status"></div>
     <div id="errors"></div>
@@ -272,6 +278,65 @@ document.getElementById('bleedInput').addEventListener('input', () => { if (card
 document.getElementById('bleedColorInput').addEventListener('input', () => { if (cardImages.length) renderPreview(); });
 document.getElementById('cornerInput').addEventListener('input', () => { if (cardImages.length) renderPreview(); });
 document.getElementById('marksCheckbox').addEventListener('change', () => { if (cardImages.length) renderPreview(); });
+document.getElementById('projectInput').addEventListener('change', handleProjectLoad);
+
+const PROJECT_FORMAT_VERSION = 1;
+
+function saveProject() {
+  const project = {
+    formatVersion: PROJECT_FORMAT_VERSION,
+    decklist: document.getElementById('decklist').value,
+    bleed: document.getElementById('bleedInput').value,
+    bleedColor: document.getElementById('bleedColorInput').value,
+    cornerRadius: document.getElementById('cornerInput').value,
+    showMarks: document.getElementById('marksCheckbox').checked,
+    cardImages
+  };
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mtg-proxy-project.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function handleProjectLoad(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let project;
+    try {
+      project = JSON.parse(reader.result);
+    } catch (err) {
+      document.getElementById('status').textContent = 'Fichier de projet invalide.';
+      return;
+    }
+
+    document.getElementById('decklist').value = project.decklist || '';
+    if (project.bleed !== undefined) document.getElementById('bleedInput').value = project.bleed;
+    if (project.bleedColor !== undefined) document.getElementById('bleedColorInput').value = project.bleedColor;
+    if (project.cornerRadius !== undefined) document.getElementById('cornerInput').value = project.cornerRadius;
+    if (project.showMarks !== undefined) document.getElementById('marksCheckbox').checked = project.showMarks;
+
+    cardImages = Array.isArray(project.cardImages) ? project.cardImages : [];
+
+    document.getElementById('status').textContent = `Projet chargé : ${cardImages.length} carte(s).`;
+    document.getElementById('errors').textContent = '';
+
+    if (cardImages.length) {
+      renderPreview();
+      document.getElementById('printBtn').disabled = false;
+      document.getElementById('svgBtn').disabled = false;
+      document.getElementById('saveProjectBtn').disabled = false;
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+  e.target.value = '';
+}
 
 function handleCSV(e) {
   const file = e.target.files[0];
@@ -392,6 +457,7 @@ async function generate() {
   const genBtn = document.getElementById('genBtn');
   const printBtn = document.getElementById('printBtn');
   const svgBtn = document.getElementById('svgBtn');
+  const saveBtn = document.getElementById('saveProjectBtn');
   const statusEl = document.getElementById('status');
   const errEl = document.getElementById('errors');
   const progressEl = document.getElementById('progress');
@@ -405,6 +471,7 @@ async function generate() {
   genBtn.disabled = true;
   printBtn.disabled = true;
   svgBtn.disabled = true;
+  saveBtn.disabled = true;
   errEl.textContent = '';
   cardImages = [];
   progressEl.style.display = 'block';
@@ -442,6 +509,7 @@ async function generate() {
   genBtn.disabled = false;
   printBtn.disabled = false;
   svgBtn.disabled = false;
+  saveBtn.disabled = false;
 }
 
 function renderPreview() {
