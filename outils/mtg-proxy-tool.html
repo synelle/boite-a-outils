@@ -107,6 +107,10 @@
     overflow: visible;
     cursor: pointer;
   }
+  .bleed-frame {
+    position: absolute;
+    z-index: 1;
+  }
   .slot::before {
     content: '';
     position: absolute;
@@ -125,11 +129,9 @@
     z-index: 6;
     pointer-events: none;
   }
-  .bleed-box {
-    position: absolute;
-    overflow: hidden;
-  }
   .slot img {
+    position: relative;
+    z-index: 2;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -232,6 +234,12 @@
     <label for="bleedInput">Fond perdu (bleed, mm)</label>
     <input type="number" id="bleedInput" value="3" min="0" max="8" step="0.5" style="width:80px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px;">
 
+    <label for="bleedColorInput">Couleur du fond perdu</label>
+    <input type="color" id="bleedColorInput" value="#000000" style="width:60px;height:32px;background:#111;border:1px solid #444;border-radius:4px;padding:2px;cursor:pointer;">
+
+    <label for="cornerInput">Arrondi des coins (découpe SVG, mm)</label>
+    <input type="number" id="cornerInput" value="3.5" min="0" max="6" step="0.5" style="width:80px;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px;">
+
     <label style="display:flex;align-items:center;gap:6px;margin-top:10px;">
       <input type="checkbox" id="marksCheckbox" checked style="width:auto;margin:0;">
       Traits de coupe (repères d'alignement)
@@ -261,6 +269,8 @@ let cardImages = []; // {name, qty, imgUrl, ok}
 
 document.getElementById('csvInput').addEventListener('change', handleCSV);
 document.getElementById('bleedInput').addEventListener('input', () => { if (cardImages.length) renderPreview(); });
+document.getElementById('bleedColorInput').addEventListener('input', () => { if (cardImages.length) renderPreview(); });
+document.getElementById('cornerInput').addEventListener('input', () => { if (cardImages.length) renderPreview(); });
 document.getElementById('marksCheckbox').addEventListener('change', () => { if (cardImages.length) renderPreview(); });
 
 function handleCSV(e) {
@@ -370,6 +380,7 @@ async function fetchCardImage(name) {
 }
 
 function extractImage(card) {
+  if (!card) return null;
   if (card.image_uris) return card.image_uris.large || card.image_uris.normal || card.image_uris.png;
   if (card.card_faces && card.card_faces[0].image_uris) {
     return card.card_faces[0].image_uris.large || card.card_faces[0].image_uris.normal;
@@ -446,6 +457,7 @@ function renderPreview() {
   const offsetYmm = (pageHmm - gridHmm) / 2;
 
   const bleed = Math.max(0, parseFloat(document.getElementById('bleedInput').value) || 0);
+  const bleedColor = document.getElementById('bleedColorInput').value;
   const showMarks = document.getElementById('marksCheckbox').checked;
 
   const pageCount = Math.ceil(cardImages.length / perPage);
@@ -467,25 +479,29 @@ function renderPreview() {
 
       if (idx < cardImages.length) {
         const c = cardImages[idx];
-        const bleedBox = document.createElement('div');
-        bleedBox.className = 'bleed-box';
-        bleedBox.style.left = `${-bleed}mm`;
-        bleedBox.style.top = `${-bleed}mm`;
-        bleedBox.style.width = `calc(100% + ${bleed * 2}mm)`;
-        bleedBox.style.height = `calc(100% + ${bleed * 2}mm)`;
+
+        if (bleed > 0) {
+          const frame = document.createElement('div');
+          frame.className = 'bleed-frame';
+          frame.style.left = `${-bleed}mm`;
+          frame.style.top = `${-bleed}mm`;
+          frame.style.width = `calc(100% + ${bleed * 2}mm)`;
+          frame.style.height = `calc(100% + ${bleed * 2}mm)`;
+          frame.style.background = bleedColor;
+          slot.appendChild(frame);
+        }
 
         if (c.imgUrl) {
           const img = document.createElement('img');
           img.src = c.imgUrl;
           img.crossOrigin = 'anonymous';
-          bleedBox.appendChild(img);
+          slot.appendChild(img);
         } else {
           const missing = document.createElement('div');
           missing.className = 'missing';
           missing.textContent = c.name;
-          bleedBox.appendChild(missing);
+          slot.appendChild(missing);
         }
-        slot.appendChild(bleedBox);
 
         if (c.oracleId) {
           slot.addEventListener('click', (ev) => openVersionMenu(idx, slot));
@@ -657,6 +673,7 @@ function exportSVG() {
   const gridHmm = cardHmm * rows;
   const offsetXmm = (pageWmm - gridWmm) / 2;
   const offsetYmm = (pageHmm - gridHmm) / 2;
+  const cornerR = Math.max(0, parseFloat(document.getElementById('cornerInput').value) || 0);
 
   for (let p = 0; p < pageCount; p++) {
     let rects = '';
@@ -664,7 +681,7 @@ function exportSVG() {
       for (let c = 0; c < cols; c++) {
         const x = offsetXmm + c * cardWmm;
         const y = offsetYmm + r * cardHmm;
-        rects += `<rect x="${x}mm" y="${y}mm" width="${cardWmm}mm" height="${cardHmm}mm" fill="none" stroke="#ff0000" stroke-width="0.1mm"/>\n`;
+        rects += `<rect x="${x}mm" y="${y}mm" width="${cardWmm}mm" height="${cardHmm}mm" rx="${cornerR}mm" ry="${cornerR}mm" fill="none" stroke="#ff0000" stroke-width="0.1mm"/>\n`;
       }
     }
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
