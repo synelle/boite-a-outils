@@ -948,11 +948,8 @@ async function fetchCardImage(name) {
 
   if (!card) throw new Error(`Carte introuvable: "${name}"`);
 
-  const imgUrl = extractImage(frCard) || extractImage(card);
   return {
-    name: (frCard && frCard.printed_name) || card.name,
-    imgUrl,
-    ok: !!imgUrl,
+    faces: extractFaces(frCard, card),
     oracleId: card.oracle_id
   };
 }
@@ -964,6 +961,34 @@ function extractImage(card) {
     return card.card_faces[0].image_uris.large || card.card_faces[0].image_uris.normal;
   }
   return null;
+}
+
+// True double-faced cards (transform, modal DFC — e.g. werewolves) have no
+// top-level image_uris: each side only exists inside card_faces. Split,
+// adventure and aftermath cards also have card_faces (for the rules text)
+// but print as a single physical face, so they keep a top-level image_uris
+// and must NOT be treated as double-sided.
+function isDoubleFaced(card) {
+  return !!card && !card.image_uris && Array.isArray(card.card_faces) && card.card_faces.length === 2 &&
+    !!card.card_faces[0].image_uris && !!card.card_faces[1].image_uris;
+}
+
+// Returns one entry per physical face to print: length 1 for ordinary cards
+// (split/adventure included), length 2 for true double-faced cards — so the
+// caller can add both sides as separate proxies.
+function extractFaces(frCard, card) {
+  if (!isDoubleFaced(card)) {
+    const imgUrl = extractImage(frCard) || extractImage(card);
+    return [{ name: (frCard && frCard.printed_name) || card.name, imgUrl }];
+  }
+
+  return card.card_faces.map((engFace, i) => {
+    const frFace = frCard && frCard.card_faces && frCard.card_faces[i];
+    const imgUrl = (frFace && frFace.image_uris && (frFace.image_uris.large || frFace.image_uris.normal))
+      || engFace.image_uris.large || engFace.image_uris.normal || null;
+    const name = (frFace && frFace.printed_name) || engFace.name;
+    return { name, imgUrl };
+  });
 }
 
 async function generate() {
@@ -1001,9 +1026,11 @@ async function generate() {
     try {
       const result = await fetchCardImage(entry.name);
       for (let i = 0; i < entry.qty; i++) {
-        cardImages.push({ name: result.name, imgUrl: result.imgUrl, ok: !!result.imgUrl, oracleId: result.oracleId });
+        for (const face of result.faces) {
+          cardImages.push({ name: face.name, imgUrl: face.imgUrl, ok: !!face.imgUrl, oracleId: result.oracleId });
+        }
       }
-      if (!result.imgUrl) errors.push(`Pas d'image trouvée pour "${entry.name}"`);
+      if (result.faces.some(f => !f.imgUrl)) errors.push(`Pas d'image trouvée pour "${entry.name}"`);
     } catch (e) {
       errors.push(e.message);
       for (let i = 0; i < entry.qty; i++) {
