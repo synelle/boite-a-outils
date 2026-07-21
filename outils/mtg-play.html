@@ -245,6 +245,7 @@
     border-top: 1px solid #333;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 10px 14px;
     overflow-x: auto;
@@ -1508,8 +1509,7 @@ function buildCardEl(card) {
 
   el.addEventListener('mousedown', (ev) => startDrag(ev, card));
   el.addEventListener('touchstart', (ev) => startDrag(ev, card), { passive: false });
-  el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
-  el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); dispatch({ type: 'toggleTapped', id: card.id }); });
+  el.addEventListener('click', (ev) => { ev.stopPropagation(); handleCardClick(card.id); });
   el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openCardMenu(card.id, ev.clientX, ev.clientY); });
   // Long-press-to-zoom is handled inside startDrag itself for table cards
   // (single source of truth for "did the pointer move" — see there).
@@ -1757,6 +1757,22 @@ function selectCard(id) {
   selectedCardId = id;
   inspectorPos = null;
   render();
+}
+
+// Manual double-click detection (tracked by card id, not by DOM element)
+// for tapping/untapping a table card — more reliable than the native
+// 'dblclick' event here, since a re-render can swap out the card's DOM
+// element between the two clicks of a real double-click.
+let lastCardClick = { id: null, time: 0 };
+function handleCardClick(id) {
+  const now = Date.now();
+  if (lastCardClick.id === id && now - lastCardClick.time < 400) {
+    lastCardClick = { id: null, time: 0 };
+    dispatch({ type: 'toggleTapped', id });
+    return;
+  }
+  lastCardClick = { id, time: now };
+  selectCard(id);
 }
 
 function openCardMenu(id, clientX, clientY) {
