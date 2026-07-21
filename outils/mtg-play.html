@@ -673,6 +673,16 @@ function applyAction(byPeerId, action) {
       if (top) { top.zone = 'hand'; }
       break;
     }
+    case 'shuffleLibrary': {
+      const owned = Object.values(state.cards).filter(c => c.ownerId === action.ownerId && c.zone === 'library');
+      const orders = owned.map(c => c.libOrder ?? 0);
+      for (let i = orders.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [orders[i], orders[j]] = [orders[j], orders[i]];
+      }
+      owned.forEach((c, i) => { c.libOrder = orders[i]; });
+      break;
+    }
     case 'setLife': {
       const p = state.players[action.playerId];
       if (p) p.life = action.value;
@@ -891,7 +901,8 @@ async function loadDeck() {
     statusEl.textContent = `Chargement… ${done}/${total}`;
     if (!wasCached) await sleep(80);
   }
-  statusEl.textContent = `Terminé : ${total - errors.length}/${total} cartes chargées (${cacheHits} depuis le cache local).` + (errors.length ? '\n' + errors.join('\n') : '');
+  dispatch({ type: 'shuffleLibrary', ownerId: myId });
+  statusEl.textContent = `Terminé : ${total - errors.length}/${total} cartes chargées et mélangées (${cacheHits} depuis le cache local).` + (errors.length ? '\n' + errors.join('\n') : '');
   btn.disabled = false;
   saveJSON(LS_LAST_DECKLIST, document.getElementById('decklist').value);
 }
@@ -933,6 +944,12 @@ async function addToken() {
 function drawCard() {
   if (!myId) return;
   dispatch({ type: 'drawCard', ownerId: myId });
+}
+
+function shuffleLibrary() {
+  if (!myId) return;
+  dispatch({ type: 'shuffleLibrary', ownerId: myId });
+  setStatus('Bibliothèque mélangée.');
 }
 
 // ---------------- rendering ----------------
@@ -1050,8 +1067,9 @@ function renderHand() {
   const libCount = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === 'library').length;
   const libPile = document.createElement('div');
   libPile.className = 'zonePile';
-  libPile.innerHTML = `<b>${libCount}</b>Bibliothèque<br><small>(clic = piocher)</small>`;
-  libPile.onclick = drawCard;
+  libPile.innerHTML = `<b>${libCount}</b>Bibliothèque<br><small>(clic = piocher)</small><button class="secondary" style="margin-top:4px;width:100%;" title="Mélanger">🔀</button>`;
+  libPile.addEventListener('click', (ev) => { if (ev.target.tagName !== 'BUTTON') drawCard(); });
+  libPile.querySelector('button').onclick = (ev) => { ev.stopPropagation(); shuffleLibrary(); };
   tray.appendChild(libPile);
 
   ['graveyard', 'exile'].forEach(zone => {
