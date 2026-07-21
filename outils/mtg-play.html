@@ -659,7 +659,14 @@ function initPeer(onOpen, onFail) {
     settled = true;
     clearTimeout(timeout);
     myId = id;
-    onOpen(id);
+    try {
+      onOpen(id);
+    } catch (e) {
+      // A bug here must never leave the UI stuck on "Connexion..." forever.
+      logDebug('Erreur JS après connexion : ' + e.message);
+      console.error(e);
+      onFail('La connexion PeerJS a réussi, mais une erreur interne a empêché l\'affichage de la partie : ' + e.message);
+    }
   });
   peer.on('error', (err) => {
     logDebug('Événement "error" reçu : type=' + err.type + ' — ' + (err.message || ''));
@@ -1219,7 +1226,7 @@ function renderLifeWindow() {
         <button class="miniBtn">+</button>
         ${key !== 'life' ? '<button class="counterRemoveBtn" title="Retirer ce compteur">✕</button>' : ''}
       `;
-      const [minusBtn, , plusBtn] = row.querySelectorAll('button');
+      const [minusBtn, plusBtn] = row.querySelectorAll('button');
       minusBtn.onclick = () => dispatch({ type: 'adjPlayerCounter', playerId: pid, key, delta: -1 });
       plusBtn.onclick = () => dispatch({ type: 'adjPlayerCounter', playerId: pid, key, delta: 1 });
       const rmBtn = row.querySelector('.counterRemoveBtn');
