@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MTG Play — Table en ligne</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --card-w: 110px;
+    --card-h: 153px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, Arial, sans-serif;
+    background: #202020;
+    color: #eee;
+    overflow: hidden;
+  }
+  #app { display: flex; height: 100vh; }
+
+  /* ---------- sidebar ---------- */
+  #sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: #1a1a1a;
+    padding: 14px;
+    border-right: 1px solid #333;
+  }
+  #menuToggleBtn {
+    display: none;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 2000;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #3a6df0;
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  h1 { font-size: 17px; margin: 0 0 10px; }
+  h2 { font-size: 13px; margin: 18px 0 6px; color: #9ad; text-transform: uppercase; letter-spacing: .05em; border-top: 1px solid #333; padding-top: 12px; }
+  h2:first-of-type { border-top: none; padding-top: 0; }
+  label { display: block; font-size: 12px; color: #bbb; margin: 8px 0 3px; }
+  input[type=text], input[type=number] {
+    width: 100%;
+    background: #111;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  textarea {
+    width: 100%;
+    height: 130px;
+    background: #111;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+  }
+  button {
+    background: #3a6df0;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 7px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin: 4px 4px 0 0;
+  }
+  button:hover { background: #2c58c9; }
+  button:disabled { background: #555; cursor: not-allowed; }
+  button.secondary { background: #444; }
+  button.secondary:hover { background: #555; }
+  button.danger { background: #a33; }
+  button.danger:hover { background: #c44; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row > * { flex: 1; }
+  #status { font-size: 12px; color: #9fd; white-space: pre-wrap; margin-top: 8px; min-height: 14px; }
+  #roomCodeBox {
+    background: #111; border: 1px dashed #3a6df0; border-radius: 4px;
+    padding: 8px; margin-top: 8px; font-size: 13px; text-align: center;
+    word-break: break-all; cursor: pointer;
+  }
+  .playerCard {
+    background: #262626; border-radius: 6px; padding: 8px; margin-top: 8px;
+    border-left: 3px solid #666;
+  }
+  .playerCard.me { border-left-color: #3a6df0; }
+  .playerName { font-weight: bold; font-size: 13px; display:flex; justify-content: space-between; }
+  .counterRow { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; }
+  .counterRow .val { min-width: 28px; text-align: center; font-weight: bold; }
+  .miniBtn {
+    width: 22px; height: 22px; padding: 0; line-height: 20px; text-align: center;
+    border-radius: 50%; font-size: 14px; margin: 0;
+  }
+
+  /* ---------- table ---------- */
+  #tableWrap {
+    flex: 1;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #board {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background: #35633f;
+    background-image: radial-gradient(circle at 25% 25%, #3d6e48 0%, #2f5539 60%, #244228 100%);
+  }
+  #playArea {
+    position: relative;
+    width: 2400px;
+    height: 1600px;
+  }
+  .card {
+    position: absolute;
+    width: var(--card-w);
+    height: var(--card-h);
+    border-radius: 7px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.5);
+    cursor: grab;
+    user-select: none;
+    background-size: cover;
+    background-position: center;
+    border: 2px solid transparent;
+    display: flex;
+    align-items: flex-end;
+  }
+  .card.selected { border-color: #ffd23a; box-shadow: 0 0 0 2px #ffd23a, 0 3px 8px rgba(0,0,0,.5); }
+  .card.dragging { cursor: grabbing; z-index: 9999 !important; opacity: .92; }
+  .card.faceDown {
+    background: repeating-linear-gradient(45deg,#4a2a6a,#4a2a6a 6px,#3a2054 6px,#3a2054 12px);
+    border: 2px solid #6a3f9a;
+  }
+  .card .cardLabel {
+    width: 100%;
+    font-size: 9px;
+    background: rgba(0,0,0,.55);
+    padding: 2px 4px;
+    border-radius: 0 0 5px 5px;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .card.faceDown .cardLabel { display: none; }
+  .badges {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .badge {
+    background: #111;
+    border: 1px solid #999;
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 10px;
+    padding: 1px 6px;
+    white-space: nowrap;
+  }
+  .badge.plus { border-color: #6f6; color: #9f9; }
+  .badge.minus { border-color: #f66; color: #f99; }
+  .badge.loyalty { border-color: #ffd23a; color: #ffd23a; }
+  .ownerTag {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    font-size: 9px;
+    background: #222;
+    border-radius: 8px;
+    padding: 1px 5px;
+    border: 1px solid #555;
+  }
+
+  /* hand tray */
+  #handTray {
+    height: 175px;
+    flex-shrink: 0;
+    background: #161616;
+    border-top: 1px solid #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    overflow-x: auto;
+  }
+  #handTray .card { position: static; flex-shrink: 0; }
+  #handTray .empty { color: #777; font-size: 12px; }
+  .zonePile {
+    flex-shrink: 0;
+    width: var(--card-w);
+    height: var(--card-h);
+    border-radius: 7px;
+    background: #222;
+    border: 2px dashed #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    font-size: 11px;
+    color: #aaa;
+    cursor: pointer;
+    text-align: center;
+    gap: 4px;
+  }
+  .zonePile:hover { border-color: #888; }
+  .zonePile b { font-size: 18px; color: #fff; }
+
+  /* card inspector panel */
+  #inspector {
+    position: fixed;
+    bottom: 185px;
+    right: 14px;
+    width: 260px;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px;
+    display: none;
+    z-index: 500;
+  }
+  #inspector h3 { margin: 0 0 8px; font-size: 13px; }
+  #inspector .row { margin-bottom: 6px; }
+
+  @media (max-width: 850px) {
+    #menuToggleBtn { display: flex; align-items:center; justify-content:center; }
+    #sidebar {
+      position: fixed; inset: 0; width: 100%; z-index: 1500;
+      transition: transform .25s ease;
+    }
+    #sidebar.hidden { transform: translateX(-100%); }
+    #inspector { right: 8px; left: 8px; width: auto; bottom: 190px; }
+  }
+</style>
+</head>
+<body>
+
+<button id="menuToggleBtn" onclick="document.getElementById('sidebar').classList.toggle('hidden')">☰</button>
+
+<div id="app">
+  <div id="sidebar">
+    <h1>🃏 MTG Play</h1>
+
+    <h2>Connexion</h2>
+    <label>Ton pseudo</label>
+    <input type="text" id="nameInput" placeholder="Ton nom" value="Joueur">
+    <div class="row" style="margin-top:8px;">
+      <button id="hostBtn" onclick="hostGame()">Créer une partie</button>
+    </div>
+    <label>Code de partie à rejoindre</label>
+    <div class="row">
+      <input type="text" id="joinCodeInput" placeholder="Coller le code ici">
+      <button id="joinBtn" onclick="joinGame()">Rejoindre</button>
+    </div>
+    <div id="roomCodeBox" style="display:none;" onclick="copyRoomCode()"></div>
+    <div id="status"></div>
+
+    <h2>Joueurs</h2>
+    <div id="playersPanel"></div>
+
+    <h2>Deck</h2>
+    <label>Liste de cartes (ex: "4 Foudre" ou "Foudre")</label>
+    <textarea id="decklist" placeholder="4 Foudre&#10;1 Griffe acharnée&#10;Île"></textarea>
+    <div class="row">
+      <button id="loadDeckBtn" onclick="loadDeck()">Charger dans la bibliothèque</button>
+    </div>
+    <div id="deckStatus" style="font-size:12px;color:#9fd;margin-top:6px;white-space:pre-wrap;"></div>
+
+    <h2>Jeton</h2>
+    <label>Nom du jeton</label>
+    <input type="text" id="tokenName" placeholder="Sylvestre 1/1">
+    <div class="row" style="margin-top:6px;">
+      <button class="secondary" onclick="addToken()">Ajouter sur la table</button>
+    </div>
+  </div>
+
+  <div id="tableWrap">
+    <div id="board">
+      <div id="playArea"></div>
+    </div>
+
+    <div id="handTray"></div>
+  </div>
+</div>
+
+<div id="inspector">
+  <h3 id="inspTitle">Carte</h3>
+  <div class="row">
+    <button class="secondary" onclick="toggleFaceDown()">Retourner (face cachée)</button>
+  </div>
+  <div class="row" id="flipFaceRow" style="display:none;">
+    <button class="secondary" onclick="flipFace()">Changer de face (recto/verso)</button>
+  </div>
+  <div class="counterRow">
+    <span style="flex:1;">+1/+1</span>
+    <button class="miniBtn secondary" onclick="adjCounter('plus',-1)">–</button>
+    <span class="val" id="plusVal">0</span>
+    <button class="miniBtn" onclick="adjCounter('plus',1)">+</button>
+  </div>
+  <div class="counterRow">
+    <span style="flex:1;">Loyauté</span>
+    <button class="miniBtn secondary" onclick="adjCounter('loyalty',-1)">–</button>
+    <span class="val" id="loyaltyVal">0</span>
+    <button class="miniBtn" onclick="adjCounter('loyalty',1)">+</button>
+  </div>
+  <div class="row" style="margin-top:8px;">
+    <select id="zoneSelect" onchange="moveSelectedToZone(this.value)" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px;">
+      <option value="">Envoyer vers…</option>
+      <option value="hand">Main</option>
+      <option value="library-top">Bibliothèque (dessus)</option>
+      <option value="library-bottom">Bibliothèque (dessous)</option>
+      <option value="graveyard">Cimetière</option>
+      <option value="exile">Exil</option>
+    </select>
+  </div>
+  <div class="row" style="margin-top:6px;">
+    <button class="danger" onclick="deleteSelected()">Supprimer</button>
+    <button class="secondary" onclick="closeInspector()">Fermer</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Data model (host-authoritative, replicated in full on change)
+   state = {
+     players: { peerId: { name, life, poison, color } },
+     cards: { cardId: {
+        ownerId, name, faces:[{name,imgUrl}], faceIndex, faceDown,
+        zone: 'table'|'hand'|'library'|'graveyard'|'exile',
+        x, y, z, isToken
+     } },
+     nextZ: number
+   }
+   ============================================================ */
+
+const SCRYFALL_NAMED = 'https://api.scryfall.com/cards/named?fuzzy=';
+const SCRYFALL_PRINT_FR = (set, num) => `https://api.scryfall.com/cards/${set}/${num}/fr`;
+const SCRYFALL_SEARCH = (q) => `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=released`;
+
+let peer = null;
+let myId = null;
+let isHost = false;
+let hostConn = null;          // client -> host connection
+let connections = {};         // host: peerId -> connection
+
+let state = { players: {}, cards: {}, nextZ: 1 };
+
+let selectedCardId = null;
+let dragInfo = null;
+const playerColors = ['#3a6df0', '#e0523a', '#3ac97a', '#c93ae0', '#e0c53a', '#3ae0d6'];
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+// ---------------- networking ----------------
+
+function initPeer(onOpen) {
+  peer = new Peer();
+  peer.on('open', (id) => { myId = id; onOpen(id); });
+  peer.on('error', (err) => setStatus('Erreur réseau : ' + err.type));
+}
+
+function hostGame() {
+  document.getElementById('hostBtn').disabled = true;
+  setStatus('Connexion au serveur relais…');
+  initPeer((id) => {
+    isHost = true;
+    const name = document.getElementById('nameInput').value.trim() || 'Hôte';
+    state.players[id] = { name, life: 20, poison: 0, color: playerColors[0] };
+    render();
+
+    const box = document.getElementById('roomCodeBox');
+    box.style.display = 'block';
+    box.textContent = 'Code de la partie (clique pour copier) : ' + id;
+    setStatus('Partie créée. Partage le code avec tes amis.');
+
+    peer.on('connection', (conn) => {
+      connections[conn.peer] = conn;
+      conn.on('open', () => {});
+      conn.on('data', (msg) => handleHostMessage(conn.peer, msg));
+      conn.on('close', () => {
+        delete connections[conn.peer];
+        delete state.players[conn.peer];
+        broadcastState();
+      });
+    });
+  });
+}
+
+function joinGame() {
+  const code = document.getElementById('joinCodeInput').value.trim();
+  if (!code) { setStatus('Colle le code de partie fourni par l\'hôte.'); return; }
+  document.getElementById('joinBtn').disabled = true;
+  setStatus('Connexion au serveur relais…');
+  initPeer((id) => {
+    isHost = false;
+    hostConn = peer.connect(code, { reliable: true });
+    hostConn.on('open', () => {
+      const name = document.getElementById('nameInput').value.trim() || 'Joueur';
+      setStatus('Connecté. En attente de la partie…');
+      send({ type: 'join', name });
+    });
+    hostConn.on('data', (msg) => handleClientMessage(msg));
+    hostConn.on('close', () => setStatus('Connexion à l\'hôte perdue.'));
+    hostConn.on('error', (e) => setStatus('Erreur de connexion : ' + e));
+  });
+}
+
+function copyRoomCode() {
+  if (!myId) return;
+  navigator.clipboard?.writeText(myId).then(() => setStatus('Code copié dans le presse-papiers.'));
+}
+
+// Generic "send an action" helper used by both host (applies locally) and clients (sends to host)
+function send(msg) {
+  if (isHost) {
+    handleHostMessage(myId, msg);
+  } else if (hostConn && hostConn.open) {
+    hostConn.send(msg);
+  }
+}
+
+function handleHostMessage(fromPeerId, msg) {
+  switch (msg.type) {
+    case 'join': {
+      if (!state.players[fromPeerId]) {
+        const color = playerColors[Object.keys(state.players).length % playerColors.length];
+        state.players[fromPeerId] = { name: msg.name || 'Joueur', life: 20, poison: 0, color };
+      }
+      break;
+    }
+    case 'action': applyAction(fromPeerId, msg.action); break;
+  }
+  broadcastState();
+  render();
+}
+
+function handleClientMessage(msg) {
+  if (msg.type === 'state') {
+    state = msg.state;
+    render();
+  }
+}
+
+function broadcastState() {
+  if (!isHost) return;
+  const payload = { type: 'state', state };
+  Object.values(connections).forEach(c => { if (c.open) c.send(payload); });
+}
+
+// Client-side actions are always routed through send({type:'action', action})
+function dispatch(action) {
+  if (isHost) {
+    applyAction(myId, action);
+    broadcastState();
+    render();
+  } else {
+    send({ type: 'action', action });
+  }
+}
+
+// ---------------- state mutation (host only ever calls this for real, but
+// both host & itself-as-client share the same reducer) ----------------
+
+function applyAction(byPeerId, action) {
+  switch (action.type) {
+    case 'addCard': {
+      state.cards[action.card.id] = action.card;
+      break;
+    }
+    case 'moveCard': {
+      const c = state.cards[action.id];
+      if (!c) break;
+      c.x = action.x; c.y = action.y; c.zone = 'table';
+      c.z = state.nextZ++;
+      break;
+    }
+    case 'bringToFront': {
+      const c = state.cards[action.id];
+      if (c) c.z = state.nextZ++;
+      break;
+    }
+    case 'toggleFaceDown': {
+      const c = state.cards[action.id];
+      if (c) c.faceDown = !c.faceDown;
+      break;
+    }
+    case 'flipFace': {
+      const c = state.cards[action.id];
+      if (c && c.faces.length > 1) c.faceIndex = (c.faceIndex + 1) % c.faces.length;
+      break;
+    }
+    case 'adjCounter': {
+      const c = state.cards[action.id];
+      if (!c) break;
+      c.counters = c.counters || {};
+      c.counters[action.key] = (c.counters[action.key] || 0) + action.delta;
+      break;
+    }
+    case 'setZone': {
+      const c = state.cards[action.id];
+      if (!c) break;
+      c.zone = action.zone;
+      if (action.zone === 'hand') { c.faceDown = false; }
+      if (action.zone === 'library-top' || action.zone === 'library-bottom') {
+        c.zone = 'library';
+        c.libOrder = action.zone === 'library-top' ? (minLibOrder(c.ownerId) - 1) : (maxLibOrder(c.ownerId) + 1);
+      }
+      break;
+    }
+    case 'deleteCard': {
+      delete state.cards[action.id];
+      break;
+    }
+    case 'drawCard': {
+      const owned = Object.values(state.cards).filter(c => c.ownerId === action.ownerId && c.zone === 'library');
+      owned.sort((a, b) => (a.libOrder ?? 0) - (b.libOrder ?? 0));
+      const top = owned[0];
+      if (top) { top.zone = 'hand'; }
+      break;
+    }
+    case 'setLife': {
+      const p = state.players[action.playerId];
+      if (p) p.life = action.value;
+      break;
+    }
+    case 'setPoison': {
+      const p = state.players[action.playerId];
+      if (p) p.poison = action.value;
+      break;
+    }
+  }
+}
+
+function minLibOrder(ownerId) {
+  const vals = Object.values(state.cards).filter(c => c.ownerId === ownerId && c.zone === 'library').map(c => c.libOrder ?? 0);
+  return vals.length ? Math.min(...vals) : 0;
+}
+function maxLibOrder(ownerId) {
+  const vals = Object.values(state.cards).filter(c => c.ownerId === ownerId && c.zone === 'library').map(c => c.libOrder ?? 0);
+  return vals.length ? Math.max(...vals) : 0;
+}
+
+// ---------------- deck loading (Scryfall, mirrors mtg-proxy-tool.html) ----------------
+
+function parseDecklist(text) {
+  const lines = text.split(/\r?\n/);
+  const entries = [];
+  for (let raw of lines) {
+    let line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith('//') || line.startsWith('#')) continue;
+    if (/^(sideboard|deck|maindeck|commander)/i.test(line)) continue;
+    const m = line.match(/^(\d+)\s*x?\s+(.+)$/i);
+    let qty = 1, name = line;
+    if (m) { qty = parseInt(m[1], 10); name = m[2]; }
+    name = name.replace(/\s*\(.*?\)\s*$/, '').replace(/\s+\d+$/, '').trim();
+    if (name) entries.push({ name, qty });
+  }
+  return entries;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchWithRetry(url, attempts = 3) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fetch(url); }
+    catch (e) { lastError = e; if (i < attempts - 1) await sleep(300 * (i + 1)); }
+  }
+  throw lastError;
+}
+
+function extractImage(card) {
+  if (!card) return null;
+  if (card.image_uris) return card.image_uris.normal || card.image_uris.large || card.image_uris.png;
+  if (card.card_faces && card.card_faces[0].image_uris) {
+    return card.card_faces[0].image_uris.normal || card.card_faces[0].image_uris.large;
+  }
+  return null;
+}
+
+function isDoubleFaced(card) {
+  return !!card && !card.image_uris && Array.isArray(card.card_faces) && card.card_faces.length === 2 &&
+    !!card.card_faces[0].image_uris && !!card.card_faces[1].image_uris;
+}
+
+function extractFaces(frCard, card) {
+  if (!isDoubleFaced(card)) {
+    const imgUrl = extractImage(frCard) || extractImage(card);
+    return [{ name: (frCard && frCard.printed_name) || card.name, imgUrl }];
+  }
+  return card.card_faces.map((engFace, i) => {
+    const frFace = frCard && frCard.card_faces && frCard.card_faces[i];
+    const imgUrl = (frFace && frFace.image_uris && (frFace.image_uris.normal || frFace.image_uris.large))
+      || engFace.image_uris.normal || engFace.image_uris.large || null;
+    const name = (frFace && frFace.printed_name) || engFace.name;
+    return { name, imgUrl };
+  });
+}
+
+async function fetchCardFaces(name) {
+  let card = null;
+  try {
+    const res = await fetchWithRetry(SCRYFALL_NAMED + encodeURIComponent(name));
+    if (res.ok) card = await res.json();
+  } catch (e) {}
+
+  let frCard = null;
+  if (card) {
+    try {
+      const frRes = await fetchWithRetry(SCRYFALL_PRINT_FR(card.set, card.collector_number));
+      if (frRes.ok) frCard = await frRes.json();
+    } catch (e) {}
+    if (!frCard) {
+      try {
+        const searchRes = await fetchWithRetry(SCRYFALL_SEARCH(`oracleid:${card.oracle_id} lang:fr unique:prints`));
+        if (searchRes.ok) {
+          const data = await searchRes.json();
+          if (data.data && data.data.length) frCard = data.data[0];
+        }
+      } catch (e) {}
+    }
+  } else {
+    try {
+      const searchRes = await fetchWithRetry(SCRYFALL_SEARCH(`!"${name}" lang:fr`));
+      if (searchRes.ok) {
+        const data = await searchRes.json();
+        if (data.data && data.data.length) {
+          const lower = name.toLowerCase();
+          frCard = data.data.find(c => (c.printed_name || '').toLowerCase() === lower) || data.data[0];
+          card = frCard;
+        }
+      }
+    } catch (e) {}
+  }
+  if (!card) throw new Error(`Carte introuvable : "${name}"`);
+  return extractFaces(frCard, card);
+}
+
+async function loadDeck() {
+  if (!myId) { setStatus('Crée ou rejoins une partie avant de charger un deck.'); return; }
+  const statusEl = document.getElementById('deckStatus');
+  const entries = parseDecklist(document.getElementById('decklist').value);
+  if (!entries.length) { statusEl.textContent = 'Aucune carte détectée.'; return; }
+
+  const btn = document.getElementById('loadDeckBtn');
+  btn.disabled = true;
+  let done = 0, errors = [];
+  const total = entries.reduce((s, e) => s + e.qty, 0);
+
+  let order = minLibOrder(myId) - 1;
+  for (const entry of entries) {
+    let faces;
+    try {
+      faces = await fetchCardFaces(entry.name);
+    } catch (e) {
+      errors.push(e.message);
+      done += entry.qty;
+      statusEl.textContent = `Chargement… ${done}/${total}`;
+      continue;
+    }
+    for (let i = 0; i < entry.qty; i++) {
+      const card = {
+        id: uid(),
+        ownerId: myId,
+        name: faces[0].name,
+        faces,
+        faceIndex: 0,
+        faceDown: true,
+        zone: 'library',
+        libOrder: order--,
+        x: 0, y: 0, z: 0,
+        isToken: false
+      };
+      dispatch({ type: 'addCard', card });
+      done++;
+    }
+    statusEl.textContent = `Chargement… ${done}/${total}`;
+    await sleep(80);
+  }
+  statusEl.textContent = `Terminé : ${total - errors.length}/${total} cartes chargées.` + (errors.length ? '\n' + errors.join('\n') : '');
+  btn.disabled = false;
+}
+
+async function addToken() {
+  if (!myId) { setStatus('Crée ou rejoins une partie avant d\'ajouter un jeton.'); return; }
+  const nameEl = document.getElementById('tokenName');
+  const name = nameEl.value.trim();
+  if (!name) return;
+
+  let faces = [{ name, imgUrl: null }];
+  try {
+    const res = await fetchWithRetry(SCRYFALL_SEARCH(`is:token "${name}"`));
+    if (res.ok) {
+      const data = await res.json();
+      if (data.data && data.data.length) {
+        faces = extractFaces(null, data.data[0]);
+      }
+    }
+  } catch (e) { /* fall back to plain token */ }
+
+  const card = {
+    id: uid(),
+    ownerId: myId,
+    name: faces[0].name,
+    faces,
+    faceIndex: 0,
+    faceDown: false,
+    zone: 'table',
+    x: 40 + Math.random() * 300,
+    y: 40 + Math.random() * 200,
+    z: state.nextZ,
+    isToken: true
+  };
+  dispatch({ type: 'addCard', card });
+  nameEl.value = '';
+}
+
+function drawCard() {
+  if (!myId) return;
+  dispatch({ type: 'drawCard', ownerId: myId });
+}
+
+// ---------------- rendering ----------------
+
+function render() {
+  renderPlayers();
+  renderTable();
+  renderHand();
+  renderInspector();
+}
+
+function renderPlayers() {
+  const panel = document.getElementById('playersPanel');
+  panel.innerHTML = '';
+  Object.entries(state.players).forEach(([pid, p]) => {
+    const div = document.createElement('div');
+    div.className = 'playerCard' + (pid === myId ? ' me' : '');
+    div.style.borderLeftColor = p.color;
+    div.innerHTML = `
+      <div class="playerName"><span>${escapeHtml(p.name)}${pid === myId ? ' (toi)' : ''}</span></div>
+      <div class="counterRow">
+        <span style="flex:1;">❤️ Vie</span>
+        <button class="miniBtn secondary" data-act="life" data-pid="${pid}" data-d="-1">–</button>
+        <span class="val">${p.life}</span>
+        <button class="miniBtn" data-act="life" data-pid="${pid}" data-d="1">+</button>
+      </div>
+      <div class="counterRow">
+        <span style="flex:1;">☠️ Poison</span>
+        <button class="miniBtn secondary" data-act="poison" data-pid="${pid}" data-d="-1">–</button>
+        <span class="val">${p.poison}</span>
+        <button class="miniBtn" data-act="poison" data-pid="${pid}" data-d="1">+</button>
+      </div>
+    `;
+    panel.appendChild(div);
+  });
+  panel.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.onclick = () => {
+      const pid = btn.dataset.pid;
+      const d = parseInt(btn.dataset.d, 10);
+      if (pid !== myId && !isHost) { /* only allow adjusting own counters from clients unless host */ }
+      const p = state.players[pid];
+      if (!p) return;
+      if (btn.dataset.act === 'life') dispatch({ type: 'setLife', playerId: pid, value: p.life + d });
+      else dispatch({ type: 'setPoison', playerId: pid, value: p.poison + d });
+    };
+  });
+}
+
+function cardBgStyle(card) {
+  if (card.faceDown) return '';
+  const face = card.faces[card.faceIndex] || card.faces[0];
+  return face.imgUrl ? `background-image:url('${face.imgUrl}');` : 'background:#333;';
+}
+
+function renderTable() {
+  const area = document.getElementById('playArea');
+  area.innerHTML = '';
+  Object.values(state.cards)
+    .filter(c => c.zone === 'table')
+    .sort((a, b) => a.z - b.z)
+    .forEach(card => area.appendChild(buildCardEl(card)));
+}
+
+function buildCardEl(card) {
+  const el = document.createElement('div');
+  el.className = 'card' + (card.faceDown ? ' faceDown' : '') + (card.id === selectedCardId ? ' selected' : '');
+  el.style.left = card.x + 'px';
+  el.style.top = card.y + 'px';
+  el.style.zIndex = card.z;
+  el.style.cssText += cardBgStyle(card);
+  el.dataset.id = card.id;
+
+  const owner = state.players[card.ownerId];
+  const face = card.faces[card.faceIndex] || card.faces[0];
+  el.innerHTML = `<div class="cardLabel">${escapeHtml(face.name)}</div>`;
+
+  const counters = card.counters || {};
+  if (counters.plus || counters.loyalty) {
+    const badges = document.createElement('div');
+    badges.className = 'badges';
+    if (counters.plus) {
+      const b = document.createElement('div');
+      b.className = 'badge ' + (counters.plus > 0 ? 'plus' : 'minus');
+      b.textContent = (counters.plus > 0 ? '+' : '') + counters.plus + '/' + (counters.plus > 0 ? '+' : '') + counters.plus;
+      badges.appendChild(b);
+    }
+    if (counters.loyalty) {
+      const b = document.createElement('div');
+      b.className = 'badge loyalty';
+      b.textContent = '⟡ ' + counters.loyalty;
+      badges.appendChild(b);
+    }
+    el.appendChild(badges);
+  }
+  if (owner) {
+    const tag = document.createElement('div');
+    tag.className = 'ownerTag';
+    tag.style.color = owner.color;
+    tag.textContent = owner.name;
+    el.appendChild(tag);
+  }
+
+  el.addEventListener('mousedown', (ev) => startDrag(ev, card));
+  el.addEventListener('touchstart', (ev) => startDrag(ev, card), { passive: false });
+  el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
+
+  return el;
+}
+
+function renderHand() {
+  const tray = document.getElementById('handTray');
+  tray.innerHTML = '';
+  if (!myId) { tray.innerHTML = '<span class="empty">Crée ou rejoins une partie pour voir ta main.</span>'; return; }
+
+  const libCount = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === 'library').length;
+  const libPile = document.createElement('div');
+  libPile.className = 'zonePile';
+  libPile.innerHTML = `<b>${libCount}</b>Bibliothèque<br><small>(clic = piocher)</small>`;
+  libPile.onclick = drawCard;
+  tray.appendChild(libPile);
+
+  ['graveyard', 'exile'].forEach(zone => {
+    const cards = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === zone);
+    const pile = document.createElement('div');
+    pile.className = 'zonePile';
+    pile.innerHTML = `<b>${cards.length}</b>${zone === 'graveyard' ? 'Cimetière' : 'Exil'}`;
+    tray.appendChild(pile);
+  });
+
+  const handCards = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === 'hand');
+  if (!handCards.length) {
+    const span = document.createElement('span');
+    span.className = 'empty';
+    span.textContent = 'Main vide.';
+    tray.appendChild(span);
+  } else {
+    handCards.forEach(card => {
+      const el = buildHandCardEl(card);
+      tray.appendChild(el);
+    });
+  }
+}
+
+function buildHandCardEl(card) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.style.cssText = cardBgStyle(card);
+  el.dataset.id = card.id;
+  const face = card.faces[card.faceIndex] || card.faces[0];
+  el.innerHTML = `<div class="cardLabel">${escapeHtml(face.name)}</div>`;
+  el.title = 'Glisse la carte sur la table pour la jouer';
+  el.draggable = true;
+  el.addEventListener('dragstart', (ev) => {
+    ev.dataTransfer.setData('text/card-id', card.id);
+  });
+  el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
+  return el;
+}
+
+document.getElementById('board').addEventListener('dragover', (ev) => ev.preventDefault());
+document.getElementById('board').addEventListener('drop', (ev) => {
+  ev.preventDefault();
+  const id = ev.dataTransfer.getData('text/card-id');
+  if (!id) return;
+  const board = document.getElementById('board');
+  const rect = board.getBoundingClientRect();
+  const x = ev.clientX - rect.left + board.scrollLeft - 55;
+  const y = ev.clientY - rect.top + board.scrollTop - 76;
+  dispatch({ type: 'moveCard', id, x, y });
+});
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------------- drag on table ----------------
+
+function startDrag(ev, card) {
+  if (card.zone !== 'table') return;
+  ev.preventDefault();
+  selectCard(card.id);
+  const board = document.getElementById('board');
+  const rect = board.getBoundingClientRect();
+  const point = ev.touches ? ev.touches[0] : ev;
+  const startX = point.clientX, startY = point.clientY;
+  const origX = card.x, origY = card.y;
+  const el = document.querySelector(`.card[data-id="${card.id}"]`);
+  if (el) el.classList.add('dragging');
+  dispatch({ type: 'bringToFront', id: card.id });
+
+  let lastSend = 0;
+  function move(e) {
+    const p = e.touches ? e.touches[0] : e;
+    const dx = p.clientX - startX, dy = p.clientY - startY;
+    const nx = origX + dx, ny = origY + dy;
+    if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
+    const now = Date.now();
+    if (now - lastSend > 60) { lastSend = now; dispatch({ type: 'moveCard', id: card.id, x: nx, y: ny }); }
+  }
+  function up(e) {
+    const p = e.changedTouches ? e.changedTouches[0] : e;
+    const dx = p.clientX - startX, dy = p.clientY - startY;
+    dispatch({ type: 'moveCard', id: card.id, x: origX + dx, y: origY + dy });
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', up);
+  }
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+  document.addEventListener('touchmove', move, { passive: false });
+  document.addEventListener('touchend', up);
+}
+
+// ---------------- inspector ----------------
+
+function selectCard(id) {
+  selectedCardId = id;
+  render();
+}
+function closeInspector() { selectedCardId = null; render(); }
+
+function renderInspector() {
+  const panel = document.getElementById('inspector');
+  const card = selectedCardId && state.cards[selectedCardId];
+  if (!card) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  document.getElementById('inspTitle').textContent = (card.faces[card.faceIndex] || card.faces[0]).name;
+  document.getElementById('flipFaceRow').style.display = card.faces.length > 1 ? 'flex' : 'none';
+  document.getElementById('plusVal').textContent = (card.counters && card.counters.plus) || 0;
+  document.getElementById('loyaltyVal').textContent = (card.counters && card.counters.loyalty) || 0;
+  document.getElementById('zoneSelect').value = '';
+}
+
+function toggleFaceDown() { if (selectedCardId) dispatch({ type: 'toggleFaceDown', id: selectedCardId }); }
+function flipFace() { if (selectedCardId) dispatch({ type: 'flipFace', id: selectedCardId }); }
+function adjCounter(key, delta) { if (selectedCardId) dispatch({ type: 'adjCounter', id: selectedCardId, key, delta }); }
+function moveSelectedToZone(zone) {
+  if (!selectedCardId || !zone) return;
+  dispatch({ type: 'setZone', id: selectedCardId, zone });
+  closeInspector();
+}
+function deleteSelected() {
+  if (!selectedCardId) return;
+  dispatch({ type: 'deleteCard', id: selectedCardId });
+  closeInspector();
+}
+
+document.getElementById('board').addEventListener('mousedown', (ev) => {
+  if (ev.target.id === 'board' || ev.target.id === 'playArea') closeInspector();
+});
+
+render();
+</script>
+</body>
+</html>

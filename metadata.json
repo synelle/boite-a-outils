@@ -22,5 +22,11 @@
     "description": "Génère des planches de proxys Magic the Gathering à imprimer à partir d'une decklist (FR/EN), via l'API Scryfall.",
     "icone": "🃏",
     "categorie": "Jeux"
+  },
+  "mtg-play.html": {
+    "titre": "MTG Play",
+    "description": "Table de jeu Magic the Gathering en ligne (peer-to-peer), decklist chargée via Scryfall, main, bibliothèque, cimetière, exil, jetons et compteurs.",
+    "icone": "🎴",
+    "categorie": "Jeux"
   }
 }
