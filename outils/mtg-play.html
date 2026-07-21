@@ -309,21 +309,30 @@
     background: none; border: none; color: #a55; font-size: 12px; cursor: pointer; padding: 0 0 0 4px; margin: 0;
   }
 
-  /* card inspector panel */
+  /* card inspector panel — appears as a context menu at the right-click position */
   #inspector {
     position: fixed;
-    bottom: 185px;
-    right: 14px;
     width: 260px;
     background: #1e1e1e;
     border: 1px solid #444;
     border-radius: 6px;
     padding: 10px;
     display: none;
-    z-index: 500;
+    z-index: 2500;
+    box-shadow: 0 8px 24px rgba(0,0,0,.6);
+    max-height: 90vh;
+    overflow-y: auto;
   }
   #inspector h3 { margin: 0 0 8px; font-size: 13px; }
   #inspector .row { margin-bottom: 6px; }
+
+  /* card zoom (long-press) */
+  #cardZoomOverlay img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 10px 50px rgba(0,0,0,.8);
+  }
 
   .modalOverlay {
     display: none;
@@ -415,7 +424,7 @@
       transition: transform .25s ease;
     }
     #sidebar.hidden { transform: translateX(-100%); }
-    #inspector { right: 8px; left: 8px; width: auto; bottom: 190px; }
+    #inspector { max-width: calc(100vw - 16px); }
   }
 </style>
 </head>
@@ -523,15 +532,13 @@
   </div>
   <div class="counterRow">
     <span style="flex:1;">+1/+1</span>
-    <button class="miniBtn secondary" onclick="adjCounter('plus',-1)">–</button>
+    <button class="miniBtn secondary" onclick="adjCardCounter('plus',-1)">–</button>
     <span class="val" id="plusVal">0</span>
-    <button class="miniBtn" onclick="adjCounter('plus',1)">+</button>
+    <button class="miniBtn" onclick="adjCardCounter('plus',1)">+</button>
   </div>
-  <div class="counterRow">
-    <span style="flex:1;">Loyauté</span>
-    <button class="miniBtn secondary" onclick="adjCounter('loyalty',-1)">–</button>
-    <span class="val" id="loyaltyVal">0</span>
-    <button class="miniBtn" onclick="adjCounter('loyalty',1)">+</button>
+  <div id="cardCountersExtra"></div>
+  <div class="row" style="margin-top:4px;">
+    <button class="secondary" onclick="addCustomCardCounter()">+ Compteur personnalisé</button>
   </div>
   <div class="row" style="margin-top:8px;">
     <select id="zoneSelect" onchange="moveSelectedToZone(this.value)" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px;">
@@ -547,6 +554,10 @@
     <button class="danger" onclick="deleteSelected()">Supprimer</button>
     <button class="secondary" onclick="closeInspector()">Fermer</button>
   </div>
+</div>
+
+<div id="cardZoomOverlay" class="modalOverlay" onclick="closeCardZoom()">
+  <img id="cardZoomImg" src="" alt="">
 </div>
 
 <div id="modalOverlay" class="modalOverlay" onclick="if(event.target===this) closeModals()">
@@ -864,7 +875,22 @@ function applyAction(byPeerId, action) {
       const c = state.cards[action.id];
       if (!c) break;
       c.counters = c.counters || {};
-      c.counters[action.key] = (c.counters[action.key] || 0) + action.delta;
+      if (!c.counters[action.key]) c.counters[action.key] = { label: action.label || action.key, value: 0 };
+      c.counters[action.key].value += action.delta;
+      break;
+    }
+    case 'addCardCounter': {
+      const c = state.cards[action.id];
+      if (!c) break;
+      c.counters = c.counters || {};
+      if (!c.counters[action.key]) c.counters[action.key] = { label: action.label, value: action.initial ?? 0 };
+      break;
+    }
+    case 'removeCardCounter': {
+      const c = state.cards[action.id];
+      if (!c || !c.counters) break;
+      if (action.key === 'plus') break; // +1/+1 can't be removed, only zeroed
+      delete c.counters[action.key];
       break;
     }
     case 'setZone': {
@@ -1187,6 +1213,19 @@ function shuffleLibrary() {
   setStatus('Bibliothèque mélangée.');
 }
 
+// Called when a card is dropped (drag & drop) onto a library/graveyard/exile
+// pile on the canvas. Only lets you drop your own cards onto your own piles.
+function handleDropOnZone(cardId, pid, zone) {
+  const card = state.cards[cardId];
+  if (!card || card.ownerId !== myId || pid !== myId) return;
+  if (zone === 'library') {
+    const top = confirm('Poser la carte sur le DESSUS de la bibliothèque ?\n\nOK = dessus\nAnnuler = dessous');
+    dispatch({ type: 'setZone', id: cardId, zone: top ? 'library-top' : 'library-bottom' });
+  } else {
+    dispatch({ type: 'setZone', id: cardId, zone });
+  }
+}
+
 // ---------------- rendering ----------------
 
 function render() {
@@ -1291,21 +1330,21 @@ function buildCardEl(card) {
   el.innerHTML = `<div class="cardLabel">${escapeHtml(face.name)}</div>`;
 
   const counters = card.counters || {};
-  if (counters.plus || counters.loyalty) {
+  const activeCounters = Object.entries(counters).filter(([, c]) => c.value);
+  if (activeCounters.length) {
     const badges = document.createElement('div');
     badges.className = 'badges';
-    if (counters.plus) {
+    activeCounters.forEach(([key, c]) => {
       const b = document.createElement('div');
-      b.className = 'badge ' + (counters.plus > 0 ? 'plus' : 'minus');
-      b.textContent = (counters.plus > 0 ? '+' : '') + counters.plus + '/' + (counters.plus > 0 ? '+' : '') + counters.plus;
+      if (key === 'plus') {
+        b.className = 'badge ' + (c.value > 0 ? 'plus' : 'minus');
+        b.textContent = (c.value > 0 ? '+' : '') + c.value + '/' + (c.value > 0 ? '+' : '') + c.value;
+      } else {
+        b.className = 'badge loyalty';
+        b.textContent = escapeHtml(c.label) + ' ' + c.value;
+      }
       badges.appendChild(b);
-    }
-    if (counters.loyalty) {
-      const b = document.createElement('div');
-      b.className = 'badge loyalty';
-      b.textContent = '⟡ ' + counters.loyalty;
-      badges.appendChild(b);
-    }
+    });
     el.appendChild(badges);
   }
   if (owner) {
@@ -1320,6 +1359,8 @@ function buildCardEl(card) {
   el.addEventListener('touchstart', (ev) => startDrag(ev, card), { passive: false });
   el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
   el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); dispatch({ type: 'toggleTapped', id: card.id }); });
+  el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openCardMenu(card.id, ev.clientX, ev.clientY); });
+  attachLongPress(el, () => card);
 
   return el;
 }
@@ -1358,6 +1399,8 @@ function buildHandCardEl(card) {
     ev.dataTransfer.setData('text/card-id', card.id);
   });
   el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
+  el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openCardMenu(card.id, ev.clientX, ev.clientY); });
+  attachLongPress(el, () => card);
   return el;
 }
 
@@ -1389,6 +1432,8 @@ function renderZones() {
       pile.style.top = anchor.y + 'px';
 
       const isMine = pid === myId;
+      pile.dataset.pid = pid;
+      pile.dataset.zone = zdef.zone;
       const shuffleBtn = zdef.zone === 'library' && isMine ? `<button class="secondary" style="margin-top:2px;width:100%;" title="Mélanger">🔀</button>` : '';
       pile.innerHTML = `
         <div class="canvasZoneLabel" style="color:${p.color};">${escapeHtml(p.name)}</div>
@@ -1403,6 +1448,17 @@ function renderZones() {
         if (btn) btn.onclick = (ev) => { ev.stopPropagation(); shuffleLibrary(); };
       } else if (zdef.zone !== 'library') {
         pile.addEventListener('click', () => openZoneViewer(pid, zdef.zone, zdef.label));
+      }
+
+      // Accept cards dropped from the hand tray (native HTML5 drag & drop).
+      if (isMine) {
+        pile.addEventListener('dragover', (ev) => ev.preventDefault());
+        pile.addEventListener('drop', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const id = ev.dataTransfer.getData('text/card-id');
+          if (id) handleDropOnZone(id, pid, zdef.zone);
+        });
       }
 
       area.appendChild(pile);
@@ -1430,6 +1486,7 @@ function escapeHtml(s) {
 
 function startDrag(ev, card) {
   if (card.zone !== 'table') return;
+  if (ev.button !== undefined && ev.button !== 0) return; // ignore right-click (context menu)
   ev.preventDefault();
   selectCard(card.id);
   const board = document.getElementById('board');
@@ -1452,12 +1509,25 @@ function startDrag(ev, card) {
   }
   function up(e) {
     const p = e.changedTouches ? e.changedTouches[0] : e;
-    const dx = p.clientX - startX, dy = p.clientY - startY;
-    dispatch({ type: 'moveCard', id: card.id, x: origX + dx, y: origY + dy });
+
+    // Dropped onto a library/graveyard/exile pile on the canvas?
+    if (el) el.style.display = 'none'; // don't let the dragged card itself be hit-tested
+    const under = document.elementFromPoint(p.clientX, p.clientY);
+    if (el) el.style.display = '';
+    const zonePile = under && under.closest('.canvasZone');
+
     document.removeEventListener('mousemove', move);
     document.removeEventListener('mouseup', up);
     document.removeEventListener('touchmove', move);
     document.removeEventListener('touchend', up);
+
+    if (zonePile) {
+      handleDropOnZone(card.id, zonePile.dataset.pid, zonePile.dataset.zone);
+      return;
+    }
+
+    const dx = p.clientX - startX, dy = p.clientY - startY;
+    dispatch({ type: 'moveCard', id: card.id, x: origX + dx, y: origY + dy });
   }
   document.addEventListener('mousemove', move);
   document.addEventListener('mouseup', up);
@@ -1465,30 +1535,77 @@ function startDrag(ev, card) {
   document.addEventListener('touchend', up);
 }
 
-// ---------------- inspector ----------------
+// ---------------- inspector (opens as a context menu, right-click only) ----------------
 
+let inspectorPos = null;
+
+// Left-click only selects (highlight border) — it must NOT open the menu.
 function selectCard(id) {
   selectedCardId = id;
+  inspectorPos = null;
   render();
 }
-function closeInspector() { selectedCardId = null; render(); }
+
+function openCardMenu(id, clientX, clientY) {
+  selectedCardId = id;
+  inspectorPos = { x: clientX, y: clientY };
+  render();
+}
+
+function closeInspector() { selectedCardId = null; inspectorPos = null; render(); }
 
 function renderInspector() {
   const panel = document.getElementById('inspector');
   const card = selectedCardId && state.cards[selectedCardId];
-  if (!card) { panel.style.display = 'none'; return; }
+  if (!card || !inspectorPos) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
+
+  // Clamp so the menu never renders off-screen.
+  const w = 260, h = panel.offsetHeight || 300;
+  const left = Math.min(inspectorPos.x, window.innerWidth - w - 10);
+  const top = Math.min(inspectorPos.y, window.innerHeight - h - 10);
+  panel.style.left = Math.max(10, left) + 'px';
+  panel.style.top = Math.max(10, top) + 'px';
+
   document.getElementById('inspTitle').textContent = (card.faces[card.faceIndex] || card.faces[0]).name;
   document.getElementById('flipFaceRow').style.display = card.faces.length > 1 ? 'flex' : 'none';
-  document.getElementById('plusVal').textContent = (card.counters && card.counters.plus) || 0;
-  document.getElementById('loyaltyVal').textContent = (card.counters && card.counters.loyalty) || 0;
+  document.getElementById('plusVal').textContent = (card.counters && card.counters.plus && card.counters.plus.value) || 0;
   document.getElementById('zoneSelect').value = '';
+
+  const extra = document.getElementById('cardCountersExtra');
+  extra.innerHTML = '';
+  Object.entries(card.counters || {}).forEach(([key, c]) => {
+    if (key === 'plus') return;
+    const row = document.createElement('div');
+    row.className = 'counterRow';
+    row.innerHTML = `
+      <span style="flex:1;">${escapeHtml(c.label)}</span>
+      <button class="miniBtn secondary">–</button>
+      <span class="val">${c.value}</span>
+      <button class="miniBtn">+</button>
+      <button class="counterRemoveBtn" title="Retirer ce compteur">✕</button>
+    `;
+    const [minusBtn, plusBtn] = row.querySelectorAll('button');
+    minusBtn.onclick = () => adjCardCounter(key, -1);
+    plusBtn.onclick = () => adjCardCounter(key, 1);
+    row.querySelector('.counterRemoveBtn').onclick = () => dispatch({ type: 'removeCardCounter', id: selectedCardId, key });
+    extra.appendChild(row);
+  });
 }
 
 function toggleFaceDown() { if (selectedCardId) dispatch({ type: 'toggleFaceDown', id: selectedCardId }); }
 function toggleTapped() { if (selectedCardId) dispatch({ type: 'toggleTapped', id: selectedCardId }); }
 function flipFace() { if (selectedCardId) dispatch({ type: 'flipFace', id: selectedCardId }); }
-function adjCounter(key, delta) { if (selectedCardId) dispatch({ type: 'adjCounter', id: selectedCardId, key, delta }); }
+function adjCardCounter(key, delta) {
+  if (!selectedCardId) return;
+  dispatch({ type: 'adjCounter', id: selectedCardId, key, label: key === 'plus' ? '+1/+1' : key, delta });
+}
+function addCustomCardCounter() {
+  if (!selectedCardId) return;
+  const label = prompt('Nom du compteur (ex: Cendrillon, Trésors…)');
+  if (!label) return;
+  dispatch({ type: 'addCardCounter', id: selectedCardId, key: 'custom_' + uid(), label, initial: 0 });
+}
 function moveSelectedToZone(zone) {
   if (!selectedCardId || !zone) return;
   dispatch({ type: 'setZone', id: selectedCardId, zone });
@@ -1503,6 +1620,51 @@ function deleteSelected() {
 document.getElementById('board').addEventListener('mousedown', (ev) => {
   if (ev.target.id === 'board' || ev.target.id === 'playArea') closeInspector();
 });
+document.addEventListener('click', (ev) => {
+  const panel = document.getElementById('inspector');
+  if (inspectorPos && panel.style.display === 'block' && !panel.contains(ev.target) && !ev.target.closest('.card')) {
+    closeInspector();
+  }
+});
+
+// ---------------- long-press to zoom on a card ----------------
+
+function attachLongPress(el, getCard) {
+  let timer = null, sx = 0, sy = 0;
+  function clearAll() {
+    clearTimeout(timer);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onEnd);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onEnd);
+  }
+  function onMove(ev) {
+    const p = ev.touches ? ev.touches[0] : ev;
+    if (Math.hypot(p.clientX - sx, p.clientY - sy) > 6) clearAll();
+  }
+  function onEnd() { clearAll(); }
+  function onStart(ev) {
+    const p = ev.touches ? ev.touches[0] : ev;
+    sx = p.clientX; sy = p.clientY;
+    timer = setTimeout(() => { openCardZoom(getCard()); clearAll(); }, 550);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onEnd);
+  }
+  el.addEventListener('mousedown', onStart);
+  el.addEventListener('touchstart', onStart, { passive: true });
+}
+
+function openCardZoom(card) {
+  if (!card) return;
+  if (card.zone === 'table' && card.faceDown) return; // don't leak a hidden face
+  const face = card.faces[card.faceIndex] || card.faces[0];
+  if (!face.imgUrl) return;
+  document.getElementById('cardZoomImg').src = face.imgUrl;
+  document.getElementById('cardZoomOverlay').classList.add('open');
+}
+function closeCardZoom() { document.getElementById('cardZoomOverlay').classList.remove('open'); }
 
 // ---------------- saved decks (localStorage) ----------------
 
