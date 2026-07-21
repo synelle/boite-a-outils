@@ -152,8 +152,8 @@
   }
   #playArea {
     position: relative;
-    width: 2400px;
-    height: 1600px;
+    width: 2340px;
+    height: 1800px;
     transform-origin: center center;
   }
 
@@ -537,6 +537,12 @@
         <button class="secondary" onclick="rotateBoard(90)" title="Tourner à droite">⟳</button>
       </div>
       <button class="secondary" onclick="setBoardView(0, 1)" title="Réinitialiser vue">Réinitialiser</button>
+      <div class="bcGroup" title="Taille du plateau, en cartes">
+        <input type="number" id="boardColsInput" min="4" max="60" value="18" style="width:42px;">
+        <span>×</span>
+        <input type="number" id="boardRowsInput" min="4" max="40" value="10" style="width:42px;">
+        <button class="secondary" onclick="applyBoardSizeFromInputs()">Taille</button>
+      </div>
     </div>
 
     <div id="handTray"></div>
@@ -993,6 +999,13 @@ function applyAction(byPeerId, action) {
       delete p.counters[action.key];
       break;
     }
+    case 'moveZone': {
+      const p = state.players[action.playerId];
+      if (!p) break;
+      p.zonePositions = p.zonePositions || {};
+      p.zonePositions[action.zone] = { x: action.x, y: action.y };
+      break;
+    }
   }
 }
 
@@ -1265,6 +1278,49 @@ function handleDropOnZone(cardId, pid, zone) {
   }
 }
 
+// Drag a library/graveyard/exile pile to reposition it, same gesture as
+// dragging a card. Only the owner can move their own zones.
+function startZoneDrag(ev, pid, zone, pileEl) {
+  if (pid !== myId) return;
+  if (ev.button !== undefined && ev.button !== 0) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const point = ev.touches ? ev.touches[0] : ev;
+  const startX = point.clientX, startY = point.clientY;
+  const orig = getZonePosition(pid, zone);
+  let moved = 0;
+
+  function move(e) {
+    const p = e.touches ? e.touches[0] : e;
+    const rawDx = p.clientX - startX, rawDy = p.clientY - startY;
+    moved = Math.hypot(rawDx, rawDy);
+    const { dx, dy } = screenDeltaToLocal(rawDx, rawDy);
+    pileEl.style.left = (orig.x + dx) + 'px';
+    pileEl.style.top = (orig.y + dy) + 'px';
+  }
+  function up(e) {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    document.removeEventListener('touchmove', move);
+    document.removeEventListener('touchend', up);
+
+    if (moved < 4) return; // treat as a click (draw/shuffle/view), not a drag
+
+    const p = e.changedTouches ? e.changedTouches[0] : e;
+    const { dx, dy } = screenDeltaToLocal(p.clientX - startX, p.clientY - startY);
+    dispatch({ type: 'moveZone', playerId: pid, zone, x: orig.x + dx, y: orig.y + dy });
+
+    // Suppress the click event that follows this mouseup so draw/shuffle/
+    // view isn't accidentally triggered right after a real drag.
+    pileEl.dataset.justDragged = '1';
+    setTimeout(() => { delete pileEl.dataset.justDragged; }, 0);
+  }
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+  document.addEventListener('touchmove', move, { passive: false });
+  document.addEventListener('touchend', up);
+}
+
 // ---------------- board zoom & rotation (local view, not shared) ----------------
 
 function adjustZoom(delta) {
@@ -1292,6 +1348,24 @@ function applyBoardView() {
   // Cards/piles must be counter-rotated so their content stays upright and
   // readable for this player regardless of how the table itself is rotated.
   render();
+}
+
+// Board size, expressed as a number of card-widths/heights (+ a small gap),
+// so it's easy to reason about ("18 cards wide") instead of raw pixels.
+const CELL_W = 130, CELL_H = 180;
+
+function applyBoardSize(cols, rows) {
+  const area = document.getElementById('playArea');
+  area.style.width = (cols * CELL_W) + 'px';
+  area.style.height = (rows * CELL_H) + 'px';
+}
+
+function applyBoardSizeFromInputs() {
+  const cols = Math.max(4, Math.min(60, parseInt(document.getElementById('boardColsInput').value, 10) || 18));
+  const rows = Math.max(4, Math.min(40, parseInt(document.getElementById('boardRowsInput').value, 10) || 10));
+  document.getElementById('boardColsInput').value = cols;
+  document.getElementById('boardRowsInput').value = rows;
+  applyBoardSize(cols, rows);
 }
 
 document.getElementById('board').addEventListener('wheel', (ev) => {
@@ -1437,7 +1511,8 @@ function buildCardEl(card) {
   el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
   el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); dispatch({ type: 'toggleTapped', id: card.id }); });
   el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openCardMenu(card.id, ev.clientX, ev.clientY); });
-  attachLongPress(el, () => card);
+  // Long-press-to-zoom is handled inside startDrag itself for table cards
+  // (single source of truth for "did the pointer move" — see there).
 
   return el;
 }
@@ -1489,24 +1564,36 @@ function playerAnchor(pid) {
   return { x: 30, y: 30 + idx * 210 };
 }
 
+// Zones can be dragged anywhere (like a card) — position is remembered per
+// player/zone in shared state; falls back to the auto-laid-out anchor spot
+// until the owner moves it for the first time.
+function getZonePosition(pid, zone) {
+  const p = state.players[pid];
+  const stored = p && p.zonePositions && p.zonePositions[zone];
+  if (stored) return stored;
+  const anchor = playerAnchor(pid);
+  const idx = ['library', 'graveyard', 'exile'].indexOf(zone);
+  return { x: anchor.x + idx * 130, y: anchor.y };
+}
+
 function renderZones() {
   document.querySelectorAll('.canvasZone').forEach(el => el.remove());
   const area = document.getElementById('playArea');
 
   Object.keys(state.players).forEach(pid => {
     const p = state.players[pid];
-    const anchor = playerAnchor(pid);
     const zones = [
       { zone: 'library', label: 'Bibliothèque' },
       { zone: 'graveyard', label: 'Cimetière' },
       { zone: 'exile', label: 'Exil' }
     ];
-    zones.forEach((zdef, i) => {
+    zones.forEach((zdef) => {
       const cards = Object.values(state.cards).filter(c => c.ownerId === pid && c.zone === zdef.zone);
+      const pos = getZonePosition(pid, zdef.zone);
       const pile = document.createElement('div');
       pile.className = 'zonePile canvasZone';
-      pile.style.left = (anchor.x + i * 130) + 'px';
-      pile.style.top = anchor.y + 'px';
+      pile.style.left = pos.x + 'px';
+      pile.style.top = pos.y + 'px';
       pile.style.transform = `rotate(${-boardRotation}deg)`;
 
       const isMine = pid === myId;
@@ -1520,12 +1607,18 @@ function renderZones() {
         ${shuffleBtn}
       `;
 
+      if (isMine) {
+        pile.style.cursor = 'grab';
+        pile.addEventListener('mousedown', (ev) => startZoneDrag(ev, pid, zdef.zone, pile));
+        pile.addEventListener('touchstart', (ev) => startZoneDrag(ev, pid, zdef.zone, pile), { passive: false });
+      }
+
       if (zdef.zone === 'library' && isMine) {
-        pile.addEventListener('click', (ev) => { if (ev.target.tagName !== 'BUTTON') drawCard(); });
+        pile.addEventListener('click', (ev) => { if (pile.dataset.justDragged || ev.target.tagName === 'BUTTON') return; drawCard(); });
         const btn = pile.querySelector('button');
         if (btn) btn.onclick = (ev) => { ev.stopPropagation(); shuffleLibrary(); };
       } else if (zdef.zone !== 'library') {
-        pile.addEventListener('click', () => openZoneViewer(pid, zdef.zone, zdef.label));
+        pile.addEventListener('click', () => { if (pile.dataset.justDragged) return; openZoneViewer(pid, zdef.zone, zdef.label); });
       }
 
       // Accept cards dropped from the hand tray (native HTML5 drag & drop).
@@ -1544,15 +1637,26 @@ function renderZones() {
   });
 }
 
+// Converts a screen point (e.g. a mouse/drop position) into #playArea's own
+// local coordinate space, undoing its zoom + rotation (transform-origin is
+// its center, which stays fixed on screen regardless of zoom/rotation).
+function screenPointToLocal(clientX, clientY) {
+  const area = document.getElementById('playArea');
+  const rect = area.getBoundingClientRect();
+  const screenCenterX = rect.left + rect.width / 2;
+  const screenCenterY = rect.top + rect.height / 2;
+  const { dx, dy } = screenDeltaToLocal(clientX - screenCenterX, clientY - screenCenterY);
+  return { x: area.offsetWidth / 2 + dx, y: area.offsetHeight / 2 + dy };
+}
+
 document.getElementById('board').addEventListener('dragover', (ev) => ev.preventDefault());
 document.getElementById('board').addEventListener('drop', (ev) => {
   ev.preventDefault();
   const id = ev.dataTransfer.getData('text/card-id');
   if (!id) return;
-  const board = document.getElementById('board');
-  const rect = board.getBoundingClientRect();
-  const x = ev.clientX - rect.left + board.scrollLeft - 55;
-  const y = ev.clientY - rect.top + board.scrollTop - 76;
+  const local = screenPointToLocal(ev.clientX, ev.clientY);
+  const x = local.x - 55;
+  const y = local.y - 76;
   dispatch({ type: 'moveCard', id, x, y });
 });
 
@@ -1562,13 +1666,23 @@ function escapeHtml(s) {
 
 // ---------------- drag on table ----------------
 
+// Converts a screen-space pointer delta into the table's own local
+// coordinate space, undoing the table's local zoom/rotation — otherwise,
+// e.g. at 180°, moving the mouse right would move the card left.
+function screenDeltaToLocal(dx, dy) {
+  const rad = boardRotation * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  return {
+    dx: (dx * cos + dy * sin) / boardZoom,
+    dy: (-dx * sin + dy * cos) / boardZoom
+  };
+}
+
 function startDrag(ev, card) {
   if (card.zone !== 'table') return;
   if (ev.button !== undefined && ev.button !== 0) return; // ignore right-click (context menu)
   ev.preventDefault();
   selectCard(card.id);
-  const board = document.getElementById('board');
-  const rect = board.getBoundingClientRect();
   const point = ev.touches ? ev.touches[0] : ev;
   const startX = point.clientX, startY = point.clientY;
   const origX = card.x, origY = card.y;
@@ -1579,11 +1693,18 @@ function startDrag(ev, card) {
   let lastSend = 0;
   let totalMoved = 0;
   function currentEl() { return document.querySelector(`.card[data-id="${card.id}"]`); }
+
+  // The zoom preview must fire ONLY on a genuine still hold — any real
+  // drag movement (tracked below via totalMoved) cancels it immediately
+  // and for the rest of this gesture, no matter how long the hold lasts.
+  const zoomTimer = setTimeout(() => { if (totalMoved < 4) openCardZoom(card); }, 550);
+
   function move(e) {
     const p = e.touches ? e.touches[0] : e;
-    const dx = p.clientX - startX, dy = p.clientY - startY;
-    totalMoved = Math.hypot(dx, dy);
-    if (totalMoved > 3) cancelLongPress(card.id); // real drag intent: never let zoom pop up mid-drag
+    const rawDx = p.clientX - startX, rawDy = p.clientY - startY;
+    totalMoved = Math.hypot(rawDx, rawDy);
+    if (totalMoved >= 4) clearTimeout(zoomTimer);
+    const { dx, dy } = screenDeltaToLocal(rawDx, rawDy);
     const nx = origX + dx, ny = origY + dy;
     // "el" gets replaced by a fresh element whenever a dispatched moveCard
     // triggers a full re-render, so always update the CURRENT node in the DOM.
@@ -1595,6 +1716,7 @@ function startDrag(ev, card) {
   function up(e) {
     const p = e.changedTouches ? e.changedTouches[0] : e;
 
+    clearTimeout(zoomTimer);
     document.removeEventListener('mousemove', move);
     document.removeEventListener('mouseup', up);
     document.removeEventListener('touchmove', move);
@@ -1617,7 +1739,7 @@ function startDrag(ev, card) {
       return;
     }
 
-    const dx = p.clientX - startX, dy = p.clientY - startY;
+    const { dx, dy } = screenDeltaToLocal(p.clientX - startX, p.clientY - startY);
     dispatch({ type: 'moveCard', id: card.id, x: origX + dx, y: origY + dy });
   }
   document.addEventListener('mousemove', move);
@@ -2105,6 +2227,7 @@ function toggleLifeWinMin() {
     saveJSON(LS_LAST_DECKLIST, document.getElementById('decklist').value);
   });
   tryAutoLoadCacheFile();
+  applyBoardSizeFromInputs();
 })();
 
 render();
