@@ -29,7 +29,34 @@
     background: #1a1a1a;
     padding: 14px;
     border-right: 1px solid #333;
+    transition: width .18s ease, padding .18s ease;
   }
+  #sidebar.collapsed {
+    width: 0;
+    padding: 0;
+    overflow: hidden;
+    border-right: none;
+  }
+  .sidebarHead { display: flex; align-items: center; justify-content: space-between; }
+  #sidebarCollapseBtn {
+    background: #333; color: #eee; border-radius: 4px; padding: 4px 8px; font-size: 12px; margin: 0;
+  }
+  #sidebarExpandBtn {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1200;
+    background: #3a6df0;
+    color: #fff;
+    border: none;
+    border-radius: 0 6px 6px 0;
+    padding: 14px 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #sidebarExpandBtn.show { display: block; }
   #menuToggleBtn {
     display: none;
     position: fixed;
@@ -143,6 +170,7 @@
   }
   .card.selected { border-color: #ffd23a; box-shadow: 0 0 0 2px #ffd23a, 0 3px 8px rgba(0,0,0,.5); }
   .card.dragging { cursor: grabbing; z-index: 9999 !important; opacity: .92; }
+  .card.tapped { transform: rotate(90deg); }
   .card.faceDown {
     background: repeating-linear-gradient(45deg,#4a2a6a,#4a2a6a 6px,#3a2054 6px,#3a2054 12px);
     border: 2px solid #6a3f9a;
@@ -222,6 +250,64 @@
   }
   .zonePile:hover { border-color: #888; }
   .zonePile b { font-size: 18px; color: #fff; }
+
+  /* zone piles placed on the canvas (library / graveyard / exile per player) */
+  .canvasZone {
+    position: absolute;
+  }
+  .canvasZoneLabel {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    white-space: nowrap;
+  }
+
+  /* ---------- floating life/counters window ---------- */
+  .floatWin {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    width: 260px;
+    background: rgba(26,26,26,.95);
+    border: 1px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+  }
+  .floatWinHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    cursor: move;
+    background: #242424;
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid #333;
+    user-select: none;
+  }
+  .floatWinHead span { font-size: 13px; font-weight: bold; }
+  .floatWinHead button { margin: 0; padding: 2px 7px; }
+  .floatWinBody { padding: 10px; max-height: 60vh; overflow-y: auto; }
+  .floatWin.minimized .floatWinBody { display: none; }
+  .lifePlayerBlock {
+    background: #262626; border-radius: 6px; padding: 8px; margin-bottom: 8px;
+    border-left: 3px solid #666;
+  }
+  .lifePlayerBlock.me { border-left-color: #3a6df0; }
+  .lifePlayerBlock:last-child { margin-bottom: 0; }
+  .lifeName { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+  .addCounterMenu {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+  }
+  .addCounterMenu button { font-size: 11px; padding: 4px 7px; }
+  .counterRemoveBtn {
+    background: none; border: none; color: #a55; font-size: 12px; cursor: pointer; padding: 0 0 0 4px; margin: 0;
+  }
 
   /* card inspector panel */
   #inspector {
@@ -336,10 +422,14 @@
 <body>
 
 <button id="menuToggleBtn" onclick="document.getElementById('sidebar').classList.toggle('hidden')">☰</button>
+<button id="sidebarExpandBtn" onclick="toggleSidebar()">▶</button>
 
 <div id="app">
   <div id="sidebar">
-    <h1>🃏 MTG Play</h1>
+    <div class="sidebarHead">
+      <h1>🃏 MTG Play</h1>
+      <button id="sidebarCollapseBtn" class="secondary" onclick="toggleSidebar()" title="Réduire le menu">◀ Réduire</button>
+    </div>
 
     <h2>Connexion</h2>
     <label>Ton pseudo</label>
@@ -354,9 +444,6 @@
     </div>
     <div id="roomCodeBox" style="display:none;" onclick="copyRoomCode()"></div>
     <div id="status"></div>
-
-    <h2>Joueurs</h2>
-    <div id="playersPanel"></div>
 
     <h2>Deck</h2>
     <label>Liste de cartes (ex: "4 Foudre" ou "Foudre")</label>
@@ -407,8 +494,21 @@
   </div>
 </div>
 
+<div id="lifeWin" class="floatWin">
+  <div class="floatWinHead" id="lifeWinHead">
+    <span>❤️ Vie &amp; compteurs</span>
+    <div>
+      <button class="secondary" onclick="toggleLifeWinMin()" title="Réduire">—</button>
+    </div>
+  </div>
+  <div class="floatWinBody" id="lifeWinBody"></div>
+</div>
+
 <div id="inspector">
   <h3 id="inspTitle">Carte</h3>
+  <div class="row">
+    <button class="secondary" onclick="toggleTapped()">🔄 Engager / Dégager</button>
+  </div>
   <div class="row">
     <button class="secondary" onclick="toggleFaceDown()">Retourner (face cachée)</button>
   </div>
@@ -469,9 +569,9 @@
 /* ============================================================
    Data model (host-authoritative, replicated in full on change)
    state = {
-     players: { peerId: { name, life, poison, color } },
+     players: { peerId: { name, color, counters: { life: {label,value}, ... } } },
      cards: { cardId: {
-        ownerId, name, faces:[{name,imgUrl}], faceIndex, faceDown,
+        ownerId, name, faces:[{name,imgUrl}], faceIndex, faceDown, tapped,
         zone: 'table'|'hand'|'library'|'graveyard'|'exile',
         x, y, z, isToken
      } },
@@ -497,6 +597,10 @@ const playerColors = ['#3a6df0', '#e0523a', '#3ac97a', '#c93ae0', '#e0c53a', '#3
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
+function newPlayer(name, color) {
+  return { name, color, counters: { life: { label: 'Vie', value: 20 } } };
+}
+
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
 // ---------------- networking ----------------
@@ -513,7 +617,7 @@ function hostGame() {
   initPeer((id) => {
     isHost = true;
     const name = document.getElementById('nameInput').value.trim() || 'Hôte';
-    state.players[id] = { name, life: 20, poison: 0, color: playerColors[0] };
+    state.players[id] = newPlayer(name, playerColors[0]);
     render();
 
     const box = document.getElementById('roomCodeBox');
@@ -572,7 +676,7 @@ function handleHostMessage(fromPeerId, msg) {
     case 'join': {
       if (!state.players[fromPeerId]) {
         const color = playerColors[Object.keys(state.players).length % playerColors.length];
-        state.players[fromPeerId] = { name: msg.name || 'Joueur', life: 20, poison: 0, color };
+        state.players[fromPeerId] = newPlayer(msg.name || 'Joueur', color);
       }
       break;
     }
@@ -632,6 +736,11 @@ function applyAction(byPeerId, action) {
       if (c) c.faceDown = !c.faceDown;
       break;
     }
+    case 'toggleTapped': {
+      const c = state.cards[action.id];
+      if (c) c.tapped = !c.tapped;
+      break;
+    }
     case 'flipFace': {
       const c = state.cards[action.id];
       if (c && c.faces.length > 1) c.faceIndex = (c.faceIndex + 1) % c.faces.length;
@@ -670,7 +779,7 @@ function applyAction(byPeerId, action) {
       const owned = Object.values(state.cards).filter(c => c.ownerId === action.ownerId && c.zone === 'library');
       owned.sort((a, b) => (a.libOrder ?? 0) - (b.libOrder ?? 0));
       const top = owned[0];
-      if (top) { top.zone = 'hand'; }
+      if (top) { top.zone = 'hand'; top.faceDown = false; }
       break;
     }
     case 'shuffleLibrary': {
@@ -683,14 +792,26 @@ function applyAction(byPeerId, action) {
       owned.forEach((c, i) => { c.libOrder = orders[i]; });
       break;
     }
-    case 'setLife': {
+    case 'adjPlayerCounter': {
       const p = state.players[action.playerId];
-      if (p) p.life = action.value;
+      if (!p) break;
+      p.counters = p.counters || {};
+      if (!p.counters[action.key]) p.counters[action.key] = { label: action.key, value: 0 };
+      p.counters[action.key].value += action.delta;
       break;
     }
-    case 'setPoison': {
+    case 'addPlayerCounter': {
       const p = state.players[action.playerId];
-      if (p) p.poison = action.value;
+      if (!p) break;
+      p.counters = p.counters || {};
+      if (!p.counters[action.key]) p.counters[action.key] = { label: action.label, value: action.initial ?? 0 };
+      break;
+    }
+    case 'removePlayerCounter': {
+      const p = state.players[action.playerId];
+      if (!p || !p.counters) break;
+      if (action.key === 'life') break; // life can't be removed
+      delete p.counters[action.key];
       break;
     }
   }
@@ -955,46 +1076,75 @@ function shuffleLibrary() {
 // ---------------- rendering ----------------
 
 function render() {
-  renderPlayers();
+  renderLifeWindow();
   renderTable();
+  renderZones();
   renderHand();
   renderInspector();
 }
 
-function renderPlayers() {
-  const panel = document.getElementById('playersPanel');
-  panel.innerHTML = '';
+const COUNTER_PRESETS = [
+  { key: 'poison', label: 'Poison', icon: '☠️' },
+  { key: 'energy', label: 'Énergie', icon: '⚡' },
+  { key: 'experience', label: 'Expérience', icon: '🎖️' }
+];
+
+function renderLifeWindow() {
+  const body = document.getElementById('lifeWinBody');
+  body.innerHTML = '';
   Object.entries(state.players).forEach(([pid, p]) => {
-    const div = document.createElement('div');
-    div.className = 'playerCard' + (pid === myId ? ' me' : '');
-    div.style.borderLeftColor = p.color;
-    div.innerHTML = `
-      <div class="playerName"><span>${escapeHtml(p.name)}${pid === myId ? ' (toi)' : ''}</span></div>
-      <div class="counterRow">
-        <span style="flex:1;">❤️ Vie</span>
-        <button class="miniBtn secondary" data-act="life" data-pid="${pid}" data-d="-1">–</button>
-        <span class="val">${p.life}</span>
-        <button class="miniBtn" data-act="life" data-pid="${pid}" data-d="1">+</button>
-      </div>
-      <div class="counterRow">
-        <span style="flex:1;">☠️ Poison</span>
-        <button class="miniBtn secondary" data-act="poison" data-pid="${pid}" data-d="-1">–</button>
-        <span class="val">${p.poison}</span>
-        <button class="miniBtn" data-act="poison" data-pid="${pid}" data-d="1">+</button>
-      </div>
-    `;
-    panel.appendChild(div);
-  });
-  panel.querySelectorAll('button[data-act]').forEach(btn => {
-    btn.onclick = () => {
-      const pid = btn.dataset.pid;
-      const d = parseInt(btn.dataset.d, 10);
-      if (pid !== myId && !isHost) { /* only allow adjusting own counters from clients unless host */ }
-      const p = state.players[pid];
-      if (!p) return;
-      if (btn.dataset.act === 'life') dispatch({ type: 'setLife', playerId: pid, value: p.life + d });
-      else dispatch({ type: 'setPoison', playerId: pid, value: p.poison + d });
-    };
+    const block = document.createElement('div');
+    block.className = 'lifePlayerBlock' + (pid === myId ? ' me' : '');
+    block.style.borderLeftColor = p.color;
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'lifeName';
+    nameDiv.textContent = p.name + (pid === myId ? ' (toi)' : '');
+    block.appendChild(nameDiv);
+
+    Object.entries(p.counters || {}).forEach(([key, c]) => {
+      const row = document.createElement('div');
+      row.className = 'counterRow';
+      row.innerHTML = `
+        <span style="flex:1;">${escapeHtml(c.label)}</span>
+        <button class="miniBtn secondary">–</button>
+        <span class="val">${c.value}</span>
+        <button class="miniBtn">+</button>
+        ${key !== 'life' ? '<button class="counterRemoveBtn" title="Retirer ce compteur">✕</button>' : ''}
+      `;
+      const [minusBtn, , plusBtn] = row.querySelectorAll('button');
+      minusBtn.onclick = () => dispatch({ type: 'adjPlayerCounter', playerId: pid, key, delta: -1 });
+      plusBtn.onclick = () => dispatch({ type: 'adjPlayerCounter', playerId: pid, key, delta: 1 });
+      const rmBtn = row.querySelector('.counterRemoveBtn');
+      if (rmBtn) rmBtn.onclick = () => dispatch({ type: 'removePlayerCounter', playerId: pid, key });
+      block.appendChild(row);
+    });
+
+    const missingPresets = COUNTER_PRESETS.filter(cp => !(p.counters && p.counters[cp.key]));
+    if (missingPresets.length || true) {
+      const addRow = document.createElement('div');
+      addRow.className = 'addCounterMenu';
+      missingPresets.forEach(cp => {
+        const b = document.createElement('button');
+        b.className = 'secondary';
+        b.textContent = `+ ${cp.icon} ${cp.label}`;
+        b.onclick = () => dispatch({ type: 'addPlayerCounter', playerId: pid, key: cp.key, label: cp.label, initial: 0 });
+        addRow.appendChild(b);
+      });
+      const customBtn = document.createElement('button');
+      customBtn.className = 'secondary';
+      customBtn.textContent = '+ Personnalisé';
+      customBtn.onclick = () => {
+        const label = prompt('Nom du compteur (ex: Cendrillon, Trésors…)');
+        if (!label) return;
+        const key = 'custom_' + uid();
+        dispatch({ type: 'addPlayerCounter', playerId: pid, key, label, initial: 0 });
+      };
+      addRow.appendChild(customBtn);
+      block.appendChild(addRow);
+    }
+
+    body.appendChild(block);
   });
 }
 
@@ -1015,7 +1165,7 @@ function renderTable() {
 
 function buildCardEl(card) {
   const el = document.createElement('div');
-  el.className = 'card' + (card.faceDown ? ' faceDown' : '') + (card.id === selectedCardId ? ' selected' : '');
+  el.className = 'card' + (card.faceDown ? ' faceDown' : '') + (card.id === selectedCardId ? ' selected' : '') + (card.tapped ? ' tapped' : '');
   el.style.left = card.x + 'px';
   el.style.top = card.y + 'px';
   el.style.zIndex = card.z;
@@ -1055,6 +1205,7 @@ function buildCardEl(card) {
   el.addEventListener('mousedown', (ev) => startDrag(ev, card));
   el.addEventListener('touchstart', (ev) => startDrag(ev, card), { passive: false });
   el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
+  el.addEventListener('dblclick', (ev) => { ev.stopPropagation(); dispatch({ type: 'toggleTapped', id: card.id }); });
 
   return el;
 }
@@ -1064,27 +1215,11 @@ function renderHand() {
   tray.innerHTML = '';
   if (!myId) { tray.innerHTML = '<span class="empty">Crée ou rejoins une partie pour voir ta main.</span>'; return; }
 
-  const libCount = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === 'library').length;
-  const libPile = document.createElement('div');
-  libPile.className = 'zonePile';
-  libPile.innerHTML = `<b>${libCount}</b>Bibliothèque<br><small>(clic = piocher)</small><button class="secondary" style="margin-top:4px;width:100%;" title="Mélanger">🔀</button>`;
-  libPile.addEventListener('click', (ev) => { if (ev.target.tagName !== 'BUTTON') drawCard(); });
-  libPile.querySelector('button').onclick = (ev) => { ev.stopPropagation(); shuffleLibrary(); };
-  tray.appendChild(libPile);
-
-  ['graveyard', 'exile'].forEach(zone => {
-    const cards = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === zone);
-    const pile = document.createElement('div');
-    pile.className = 'zonePile';
-    pile.innerHTML = `<b>${cards.length}</b>${zone === 'graveyard' ? 'Cimetière' : 'Exil'}`;
-    tray.appendChild(pile);
-  });
-
   const handCards = Object.values(state.cards).filter(c => c.ownerId === myId && c.zone === 'hand');
   if (!handCards.length) {
     const span = document.createElement('span');
     span.className = 'empty';
-    span.textContent = 'Main vide.';
+    span.textContent = 'Main vide. (Bibliothèque / cimetière / exil sont posés sur la table.)';
     tray.appendChild(span);
   } else {
     handCards.forEach(card => {
@@ -1094,12 +1229,14 @@ function renderHand() {
   }
 }
 
+// Hand cards are always shown face-up to their owner, regardless of the
+// card's faceDown flag (which only affects how it looks on the shared table).
 function buildHandCardEl(card) {
   const el = document.createElement('div');
   el.className = 'card';
-  el.style.cssText = cardBgStyle(card);
-  el.dataset.id = card.id;
   const face = card.faces[card.faceIndex] || card.faces[0];
+  el.style.cssText = face.imgUrl ? `background-image:url('${face.imgUrl}');` : 'background:#333;';
+  el.dataset.id = card.id;
   el.innerHTML = `<div class="cardLabel">${escapeHtml(face.name)}</div>`;
   el.title = 'Glisse la carte sur la table pour la jouer';
   el.draggable = true;
@@ -1108,6 +1245,55 @@ function buildHandCardEl(card) {
   });
   el.addEventListener('click', (ev) => { ev.stopPropagation(); selectCard(card.id); });
   return el;
+}
+
+// ---------------- library / graveyard / exile piles, placed on the canvas ----------------
+
+function playerAnchor(pid) {
+  const ids = Object.keys(state.players).sort();
+  const idx = Math.max(0, ids.indexOf(pid));
+  return { x: 30, y: 30 + idx * 210 };
+}
+
+function renderZones() {
+  document.querySelectorAll('.canvasZone').forEach(el => el.remove());
+  const area = document.getElementById('playArea');
+
+  Object.keys(state.players).forEach(pid => {
+    const p = state.players[pid];
+    const anchor = playerAnchor(pid);
+    const zones = [
+      { zone: 'library', label: 'Bibliothèque' },
+      { zone: 'graveyard', label: 'Cimetière' },
+      { zone: 'exile', label: 'Exil' }
+    ];
+    zones.forEach((zdef, i) => {
+      const cards = Object.values(state.cards).filter(c => c.ownerId === pid && c.zone === zdef.zone);
+      const pile = document.createElement('div');
+      pile.className = 'zonePile canvasZone';
+      pile.style.left = (anchor.x + i * 130) + 'px';
+      pile.style.top = anchor.y + 'px';
+
+      const isMine = pid === myId;
+      const shuffleBtn = zdef.zone === 'library' && isMine ? `<button class="secondary" style="margin-top:2px;width:100%;" title="Mélanger">🔀</button>` : '';
+      pile.innerHTML = `
+        <div class="canvasZoneLabel" style="color:${p.color};">${escapeHtml(p.name)}</div>
+        <b>${cards.length}</b>${zdef.label}
+        ${zdef.zone === 'library' && isMine ? '<small>(clic = piocher)</small>' : ''}
+        ${shuffleBtn}
+      `;
+
+      if (zdef.zone === 'library' && isMine) {
+        pile.addEventListener('click', (ev) => { if (ev.target.tagName !== 'BUTTON') drawCard(); });
+        const btn = pile.querySelector('button');
+        if (btn) btn.onclick = (ev) => { ev.stopPropagation(); shuffleLibrary(); };
+      } else if (zdef.zone !== 'library') {
+        pile.addEventListener('click', () => openZoneViewer(pid, zdef.zone, zdef.label));
+      }
+
+      area.appendChild(pile);
+    });
+  });
 }
 
 document.getElementById('board').addEventListener('dragover', (ev) => ev.preventDefault());
@@ -1186,6 +1372,7 @@ function renderInspector() {
 }
 
 function toggleFaceDown() { if (selectedCardId) dispatch({ type: 'toggleFaceDown', id: selectedCardId }); }
+function toggleTapped() { if (selectedCardId) dispatch({ type: 'toggleTapped', id: selectedCardId }); }
 function flipFace() { if (selectedCardId) dispatch({ type: 'flipFace', id: selectedCardId }); }
 function adjCounter(key, delta) { if (selectedCardId) dispatch({ type: 'adjCounter', id: selectedCardId, key, delta }); }
 function moveSelectedToZone(zone) {
@@ -1335,6 +1522,46 @@ function closeModals() {
   document.getElementById('modalOverlay').classList.remove('open');
 }
 
+// ---------------- graveyard / exile viewer ----------------
+
+function openZoneViewer(pid, zone, label) {
+  const p = state.players[pid];
+  const cards = Object.values(state.cards).filter(c => c.ownerId === pid && c.zone === zone);
+  document.getElementById('appearanceTitle').textContent = `${label} — ${p ? p.name : ''}`;
+  const body = document.getElementById('appearanceBody');
+  body.innerHTML = '';
+
+  if (!cards.length) {
+    body.innerHTML = '<div style="color:#aaa;font-size:13px;">Aucune carte ici.</div>';
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'appearanceGrid';
+    cards.forEach(c => {
+      const face = c.faces[c.faceIndex] || c.faces[0];
+      const tile = document.createElement('div');
+      tile.className = 'appearanceTile';
+      const isMine = pid === myId;
+      tile.innerHTML = `
+        <img src="${face.imgUrl || ''}" alt="">
+        <div class="tName">${escapeHtml(face.name)}</div>
+        ${isMine ? '<button class="secondary" style="width:100%;margin:0 0 4px;">Vers la main</button><button class="secondary" style="width:100%;margin:0;">Vers la table</button>' : ''}
+      `;
+      if (isMine) {
+        const [toHandBtn, toTableBtn] = tile.querySelectorAll('button');
+        toHandBtn.onclick = () => { dispatch({ type: 'setZone', id: c.id, zone: 'hand' }); openZoneViewer(pid, zone, label); };
+        toTableBtn.onclick = () => {
+          dispatch({ type: 'moveCard', id: c.id, x: 400 + Math.random() * 200, y: 400 + Math.random() * 200 });
+          openZoneViewer(pid, zone, label);
+        };
+      }
+      grid.appendChild(tile);
+    });
+    body.appendChild(grid);
+  }
+
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
 function openAppearanceModal() {
   if (!myId) { setStatus('Crée ou rejoins une partie et charge un deck avant de personnaliser l\'apparence.'); return; }
   const body = document.getElementById('appearanceBody');
@@ -1445,6 +1672,43 @@ function applyAppearance(name, printCard) {
   closePrintPicker();
   openAppearanceModal();
 }
+
+// ---------------- sidebar collapse ----------------
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const expandBtn = document.getElementById('sidebarExpandBtn');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  expandBtn.classList.toggle('show', collapsed);
+}
+
+// ---------------- floating life window: drag + minimize ----------------
+
+function toggleLifeWinMin() {
+  document.getElementById('lifeWin').classList.toggle('minimized');
+}
+
+(function makeLifeWinDraggable() {
+  const win = document.getElementById('lifeWin');
+  const head = document.getElementById('lifeWinHead');
+  let startX, startY, startLeft, startTop, dragging = false;
+
+  head.addEventListener('mousedown', (ev) => {
+    if (ev.target.tagName === 'BUTTON') return;
+    dragging = true;
+    const rect = win.getBoundingClientRect();
+    startX = ev.clientX; startY = ev.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    win.style.right = 'auto';
+    ev.preventDefault();
+  });
+  document.addEventListener('mousemove', (ev) => {
+    if (!dragging) return;
+    win.style.left = Math.max(0, startLeft + (ev.clientX - startX)) + 'px';
+    win.style.top = Math.max(0, startTop + (ev.clientY - startY)) + 'px';
+  });
+  document.addEventListener('mouseup', () => { dragging = false; });
+})();
 
 // ---------------- init: restore cached decklist + saved decks list ----------------
 
