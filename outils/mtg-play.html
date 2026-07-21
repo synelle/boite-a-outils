@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MTG Play — Table en ligne</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --card-w: 110px;
@@ -535,11 +537,19 @@
     </div>
     <label>Code de partie à rejoindre</label>
     <div class="row">
-      <input type="text" id="joinCodeInput" placeholder="Coller le code ici">
+      <input type="text" id="joinCodeInput" placeholder="Ex: ABC123">
       <button id="joinBtn" onclick="joinGame()">Rejoindre</button>
     </div>
     <div id="roomCodeBox" style="display:none;" onclick="copyRoomCode()"></div>
     <div id="status"></div>
+    <div style="font-size:11px;color:#888;margin-top:8px;">La partie est sauvegardée en ligne (Firebase) en continu. Si l'hôte d'origine est hors ligne, reprends-la avec le même code — tu en deviens l'hôte.</div>
+    <div class="row" style="margin-top:6px;">
+      <input type="text" id="resumeCodeInput" placeholder="Code à reprendre">
+      <button id="resumeBtn" class="secondary" onclick="resumeGame()">▶ Reprendre</button>
+    </div>
+    <div class="row" style="margin-top:6px;">
+      <button class="secondary" onclick="saveGameNow()">💾 Sauvegarder maintenant</button>
+    </div>
     <div class="row" style="margin-top:6px;">
       <button class="secondary" onclick="diagnoseConnection()">🔍 Diagnostiquer la connexion</button>
     </div>
@@ -718,11 +728,34 @@ const SCRYFALL_SEARCH = (q) => `https://api.scryfall.com/cards/search?q=${encode
 // underneath is used as a fallback instead — see cardBackImg's onerror.
 const MTG_CARD_BACK_URL = 'https://c1.scryfall.com/file/scryfall-cardbacks/normal/59/597b79b3-7d77-4261-871a-60dd17403388.jpg';
 
+// ---------------- Firebase (persistent backup of the game state) ----------------
+// PeerJS handles live real-time play between currently-connected players;
+// Firestore is a separate, persistent copy of the shared state so a game can
+// be resumed later (even asynchronously, from a different device) using the
+// same game code, without depending on the original host being online.
+const firebaseConfig = {
+  apiKey: "AIzaSyDhI6kbxMT1_9PoQRE37YorZdUQfwyx65Q",
+  authDomain: "mtg-play-97195.firebaseapp.com",
+  projectId: "mtg-play-97195",
+  storageBucket: "mtg-play-97195.firebasestorage.app",
+  messagingSenderId: "747786535626",
+  appId: "1:747786535626:web:7aaed5197e682b696c6a33"
+};
+let db = null;
+try {
+  if (typeof firebase !== 'undefined') {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  }
+} catch (e) { console.error('Firebase init failed', e); }
+
 let peer = null;
 let myId = null;
 let isHost = false;
 let hostConn = null;          // client -> host connection
 let connections = {};         // host: peerId -> connection
+let gameCode = null;          // short shared code = PeerJS id = Firestore doc id
+let saveDebounceTimer = null;
 
 let state = { players: {}, cards: {}, nextZ: 1 };
 
@@ -784,7 +817,7 @@ function logDebug(msg) {
   if (box) box.style.display = 'block';
 }
 
-function initPeer(onOpen, onFail) {
+function initPeer(onOpen, onFail, customId) {
   if (typeof Peer === 'undefined') {
     logDebug('La librairie PeerJS (unpkg.com/peerjs) ne s\'est pas chargée.');
     onFail('La librairie PeerJS n\'a pas pu être chargée (script bloqué par un bloqueur de pub/pare-feu, ou pas de connexion internet). Vérifie ta connexion et réessaie.');
@@ -810,7 +843,7 @@ function initPeer(onOpen, onFail) {
     onFail('Le serveur relais (PeerJS) ne répond pas après 15s. Utilise le bouton "🔍 Diagnostiquer" pour voir si c\'est bloqué, ou réessaie — le service gratuit est parfois temporairement indisponible.');
   }, 15000);
 
-  peer = new Peer();
+  peer = customId ? new Peer(customId) : new Peer();
   peer.on('open', (id) => {
     logDebug('Événement "open" reçu, id = ' + id);
     if (settled) return;
@@ -862,19 +895,46 @@ function resetConnectButtons() {
   document.getElementById('joinBtn').disabled = false;
 }
 
+// Short, friendly, shareable code — used as BOTH the PeerJS peer id (so
+// joining is just "connect to this id") and the Firestore document id (so
+// the same code can later reload the saved state and resume the game).
+function generateGameCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous 0/O/1/I
+  let s = '';
+  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
 function hostGame() {
   document.getElementById('hostBtn').disabled = true;
   setStatus('Connexion au serveur relais…');
+  startHosting(generateGameCode(), null);
+}
+
+// Shared by "Créer une partie" (loadedState = null) and "Reprendre une
+// partie" (loadedState = the state restored from Firestore).
+function startHosting(code, loadedState, attempt) {
+  attempt = attempt || 0;
   initPeer((id) => {
     isHost = true;
+    gameCode = id;
     const name = document.getElementById('nameInput').value.trim() || 'Hôte';
-    state.players[id] = newPlayer(name, playerColors[0]);
+    if (loadedState) {
+      state = loadedState;
+      if (!state.players[id]) {
+        state.players[id] = newPlayer(name, playerColors[Object.keys(state.players).length % playerColors.length]);
+      }
+    } else {
+      state.players[id] = newPlayer(name, playerColors[0]);
+    }
     render();
 
     const box = document.getElementById('roomCodeBox');
     box.style.display = 'block';
     box.textContent = 'Code de la partie (clique pour copier) : ' + id;
-    setStatus('Partie créée. Partage le code avec tes amis.');
+    setStatus(loadedState ? 'Partie reprise. Partage le code avec tes amis.' : 'Partie créée. Partage le code avec tes amis.');
+    resetConnectButtons();
+    scheduleFirestoreSave();
 
     peer.on('connection', (conn) => {
       connections[conn.peer] = conn;
@@ -891,22 +951,43 @@ function hostGame() {
       peer.reconnect();
     });
   }, (message) => {
+    if (/unavailable-id/.test(message)) {
+      if (!loadedState && attempt < 5) {
+        // Fresh game + code collision (very unlikely with 6 chars) — just
+        // try a different code.
+        startHosting(generateGameCode(), null, attempt + 1);
+        return;
+      }
+      if (loadedState && attempt < 4) {
+        // Resuming: the broker can take a few seconds to release an id
+        // after the previous session closed — retry the SAME code shortly.
+        setStatus(`Code "${code}" pas encore libéré par le serveur relais, nouvelle tentative…`);
+        setTimeout(() => startHosting(code, loadedState, attempt + 1), 2500);
+        return;
+      }
+      if (loadedState) {
+        setStatus(`Le code "${code}" semble toujours actif ailleurs (un autre hôte y est peut-être déjà connecté). Réessaie dans une minute, ou vérifie que personne d'autre n'héberge déjà cette partie.`);
+        resetConnectButtons();
+        return;
+      }
+    }
     setStatus(message);
     resetConnectButtons();
-  });
+  }, code);
 }
 
 function joinGame() {
-  const code = document.getElementById('joinCodeInput').value.trim();
+  const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
   if (!code) { setStatus('Colle le code de partie fourni par l\'hôte.'); return; }
   document.getElementById('joinBtn').disabled = true;
   setStatus('Connexion au serveur relais…');
   initPeer((id) => {
     isHost = false;
+    gameCode = code;
     hostConn = peer.connect(code, { reliable: true });
 
     const connectTimeout = setTimeout(() => {
-      setStatus('Impossible de joindre cet hôte (code invalide, partie fermée, ou hôte hors ligne). Vérifie le code et réessaie.');
+      setStatus('Impossible de joindre cet hôte (code invalide, partie fermée, ou hôte hors ligne). Si la partie existe mais que son hôte est hors ligne, utilise "▶ Reprendre" avec le même code pour en devenir l\'hôte.');
       resetConnectButtons();
     }, 15000);
 
@@ -927,6 +1008,55 @@ function joinGame() {
     setStatus(message);
     resetConnectButtons();
   });
+}
+
+// ---------------- Firestore persistence: resume / save ----------------
+
+async function resumeGame() {
+  const code = document.getElementById('resumeCodeInput').value.trim().toUpperCase();
+  if (!code) { setStatus('Indique le code de la partie à reprendre.'); return; }
+  if (!db) { setStatus('Firebase indisponible (SDK non chargé) : impossible de reprendre une partie sauvegardée.'); return; }
+  document.getElementById('resumeBtn').disabled = true;
+  document.getElementById('hostBtn').disabled = true;
+  setStatus('Chargement de la partie sauvegardée…');
+  try {
+    const docSnap = await db.collection('games').doc(code).get();
+    if (!docSnap.exists) {
+      setStatus(`Aucune partie sauvegardée trouvée pour le code "${code}".`);
+      document.getElementById('resumeBtn').disabled = false;
+      document.getElementById('hostBtn').disabled = false;
+      return;
+    }
+    const loadedState = JSON.parse(docSnap.data().stateJson);
+    startHosting(code, loadedState);
+  } catch (e) {
+    setStatus('Erreur de chargement Firebase : ' + e.message);
+    console.error(e);
+    document.getElementById('resumeBtn').disabled = false;
+    document.getElementById('hostBtn').disabled = false;
+  }
+}
+
+function scheduleFirestoreSave() {
+  if (!isHost || !db || !gameCode) return;
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(() => saveGameNow(true), 2000);
+}
+
+async function saveGameNow(silent) {
+  if (!db || !gameCode) { if (!silent) setStatus('Firebase indisponible : sauvegarde impossible.'); return; }
+  if (!isHost) { if (!silent) setStatus('Seul l\'hôte peut sauvegarder la partie.'); return; }
+  try {
+    await db.collection('games').doc(gameCode).set({
+      stateJson: JSON.stringify(state),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      hostName: (state.players[myId] && state.players[myId].name) || ''
+    });
+    if (!silent) setStatus(`Partie sauvegardée (code ${gameCode}).`);
+  } catch (e) {
+    if (!silent) setStatus('Erreur de sauvegarde Firebase : ' + e.message);
+    console.error(e);
+  }
 }
 
 function copyRoomCode() {
@@ -969,6 +1099,7 @@ function broadcastState() {
   if (!isHost) return;
   const payload = { type: 'state', state };
   Object.values(connections).forEach(c => { if (c.open) c.send(payload); });
+  scheduleFirestoreSave();
 }
 
 // Client-side actions are always routed through send({type:'action', action})
@@ -1011,6 +1142,12 @@ function applyAction(byPeerId, action) {
     case 'toggleTapped': {
       const c = state.cards[action.id];
       if (c) c.tapped = !c.tapped;
+      break;
+    }
+    case 'untapAll': {
+      Object.values(state.cards)
+        .filter(c => c.ownerId === action.ownerId && c.zone === 'table')
+        .forEach(c => { c.tapped = false; });
       break;
     }
     case 'flipFace': {
@@ -1559,6 +1696,15 @@ function renderLifeWindow() {
       block.appendChild(addRow);
     }
 
+    if (pid === myId) {
+      const untapBtn = document.createElement('button');
+      untapBtn.className = 'secondary';
+      untapBtn.style.cssText = 'width:100%;margin-top:6px;';
+      untapBtn.textContent = '🔄 Dégager toutes mes cartes';
+      untapBtn.onclick = () => dispatch({ type: 'untapAll', ownerId: myId });
+      block.appendChild(untapBtn);
+    }
+
     body.appendChild(block);
   });
 }
@@ -1799,6 +1945,9 @@ function renderZones() {
         pile.addEventListener('click', (ev) => { if (pile.dataset.justDragged || ev.target.tagName === 'BUTTON') return; drawCard(); });
         const btn = pile.querySelector('button.secondary');
         if (btn) btn.onclick = (ev) => { ev.stopPropagation(); shuffleLibrary(); };
+        // Right-click to search/browse the library — only the owner can see
+        // its contents (this is hidden information to everyone else).
+        pile.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openLibraryViewer(pid); });
       } else if (zdef.zone !== 'library') {
         pile.addEventListener('click', (ev) => {
           if (pile.dataset.justDragged || ev.target.closest('.counterRow') || ev.target.closest('.cmdCardThumb')) return;
@@ -2346,6 +2495,55 @@ function openZoneViewer(pid, zone, label) {
           closeModals();
         };
       }
+      grid.appendChild(tile);
+    });
+    body.appendChild(grid);
+  }
+
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+// ---------------- library viewer (search your own library) ----------------
+
+function openLibraryViewer(pid) {
+  if (pid !== myId) return; // library contents are hidden information — owner only
+  const cards = Object.values(state.cards)
+    .filter(c => c.ownerId === pid && c.zone === 'library')
+    .sort((a, b) => (a.libOrder ?? 0) - (b.libOrder ?? 0));
+
+  document.getElementById('appearanceTitle').textContent = `Bibliothèque (${cards.length} cartes)`;
+  const body = document.getElementById('appearanceBody');
+  body.innerHTML = '';
+
+  if (!cards.length) {
+    body.innerHTML = '<div style="color:#aaa;font-size:13px;">Bibliothèque vide.</div>';
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'appearanceGrid';
+    cards.forEach(c => {
+      const face = c.faces[c.faceIndex] || c.faces[0];
+      const tile = document.createElement('div');
+      tile.className = 'appearanceTile';
+      tile.innerHTML = `
+        <img src="${face.imgUrl || ''}" alt="">
+        <div class="tName">${escapeHtml(face.name)}</div>
+        <div class="row" style="margin:0 0 3px;">
+          <button class="secondary" style="margin:0;font-size:10px;padding:5px 3px;">▲ Dessus</button>
+          <button class="secondary" style="margin:0;font-size:10px;padding:5px 3px;">▼ Dessous</button>
+        </div>
+        <button class="secondary" style="width:100%;margin:0 0 3px;font-size:11px;">Main</button>
+        <div class="row" style="margin:0;">
+          <button class="secondary" style="margin:0;font-size:10px;padding:5px 3px;">Cimetière</button>
+          <button class="secondary" style="margin:0;font-size:10px;padding:5px 3px;">Exil</button>
+        </div>
+      `;
+      const [topBtn, bottomBtn, handBtn, gyBtn, exBtn] = tile.querySelectorAll('button');
+      const moveTo = (zone) => { dispatch({ type: 'setZone', id: c.id, zone }); openLibraryViewer(pid); };
+      topBtn.onclick = () => moveTo('library-top');
+      bottomBtn.onclick = () => moveTo('library-bottom');
+      handBtn.onclick = () => moveTo('hand');
+      gyBtn.onclick = () => moveTo('graveyard');
+      exBtn.onclick = () => moveTo('exile');
       grid.appendChild(tile);
     });
     body.appendChild(grid);
