@@ -141,6 +141,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
   }
   #board {
     flex: 1;
@@ -153,7 +154,26 @@
     position: relative;
     width: 2400px;
     height: 1600px;
+    transform-origin: center center;
   }
+
+  /* zoom/rotate controls — fixed relative to the table, never zoomed/rotated themselves */
+  #boardControls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20,20,20,.85);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+  .bcGroup { display: flex; align-items: center; gap: 4px; }
+  #boardControls button { margin: 0; padding: 4px 9px; }
+  #boardControls span { font-size: 12px; min-width: 34px; text-align: center; color: #ccc; }
   .card {
     position: absolute;
     width: var(--card-w);
@@ -505,6 +525,20 @@
       <div id="playArea"></div>
     </div>
 
+    <div id="boardControls">
+      <div class="bcGroup">
+        <button class="secondary" onclick="adjustZoom(-0.1)" title="Zoom arrière">–</button>
+        <span id="zoomLabel">100%</span>
+        <button class="secondary" onclick="adjustZoom(0.1)" title="Zoom avant">+</button>
+      </div>
+      <div class="bcGroup">
+        <button class="secondary" onclick="rotateBoard(-90)" title="Tourner à gauche">⟲</button>
+        <span id="rotationLabel">0°</span>
+        <button class="secondary" onclick="rotateBoard(90)" title="Tourner à droite">⟳</button>
+      </div>
+      <button class="secondary" onclick="setBoardView(0, 1)" title="Réinitialiser vue">Réinitialiser</button>
+    </div>
+
     <div id="handTray"></div>
   </div>
 </div>
@@ -610,6 +644,11 @@ let state = { players: {}, cards: {}, nextZ: 1 };
 
 let selectedCardId = null;
 let dragInfo = null;
+
+// Local view only (not shared with other players): lets each player zoom
+// and rotate their own view of the shared table, e.g. to sit "face to face".
+let boardZoom = 1;
+let boardRotation = 0; // 0, 90, 180, 270
 const playerColors = ['#3a6df0', '#e0523a', '#3ac97a', '#c93ae0', '#e0c53a', '#3ae0d6'];
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
@@ -1226,6 +1265,41 @@ function handleDropOnZone(cardId, pid, zone) {
   }
 }
 
+// ---------------- board zoom & rotation (local view, not shared) ----------------
+
+function adjustZoom(delta) {
+  boardZoom = Math.min(2, Math.max(0.4, Math.round((boardZoom + delta) * 10) / 10));
+  applyBoardView();
+}
+
+function rotateBoard(deg) {
+  boardRotation = (boardRotation + deg + 360) % 360;
+  applyBoardView();
+}
+
+function setBoardView(rotation, zoom) {
+  boardRotation = rotation;
+  boardZoom = zoom;
+  applyBoardView();
+}
+
+function applyBoardView() {
+  const area = document.getElementById('playArea');
+  area.style.transform = `rotate(${boardRotation}deg)`;
+  area.style.zoom = boardZoom;
+  document.getElementById('zoomLabel').textContent = Math.round(boardZoom * 100) + '%';
+  document.getElementById('rotationLabel').textContent = boardRotation + '°';
+  // Cards/piles must be counter-rotated so their content stays upright and
+  // readable for this player regardless of how the table itself is rotated.
+  render();
+}
+
+document.getElementById('board').addEventListener('wheel', (ev) => {
+  if (!ev.ctrlKey) return;
+  ev.preventDefault();
+  adjustZoom(ev.deltaY < 0 ? 0.1 : -0.1);
+}, { passive: false });
+
 // ---------------- rendering ----------------
 
 function render() {
@@ -1322,6 +1396,9 @@ function buildCardEl(card) {
   el.style.left = card.x + 'px';
   el.style.top = card.y + 'px';
   el.style.zIndex = card.z;
+  // Counter-rotate against the table's own rotation so the card content
+  // stays upright/readable for this player no matter how the table is turned.
+  el.style.transform = `rotate(${(card.tapped ? 90 : 0) - boardRotation}deg)`;
   el.style.cssText += cardBgStyle(card);
   el.dataset.id = card.id;
 
@@ -1430,6 +1507,7 @@ function renderZones() {
       pile.className = 'zonePile canvasZone';
       pile.style.left = (anchor.x + i * 130) + 'px';
       pile.style.top = anchor.y + 'px';
+      pile.style.transform = `rotate(${-boardRotation}deg)`;
 
       const isMine = pid === myId;
       pile.dataset.pid = pid;
@@ -1499,27 +1577,40 @@ function startDrag(ev, card) {
   dispatch({ type: 'bringToFront', id: card.id });
 
   let lastSend = 0;
+  let totalMoved = 0;
+  function currentEl() { return document.querySelector(`.card[data-id="${card.id}"]`); }
   function move(e) {
     const p = e.touches ? e.touches[0] : e;
     const dx = p.clientX - startX, dy = p.clientY - startY;
+    totalMoved = Math.hypot(dx, dy);
+    if (totalMoved > 3) cancelLongPress(card.id); // real drag intent: never let zoom pop up mid-drag
     const nx = origX + dx, ny = origY + dy;
-    if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
+    // "el" gets replaced by a fresh element whenever a dispatched moveCard
+    // triggers a full re-render, so always update the CURRENT node in the DOM.
+    const liveEl = currentEl();
+    if (liveEl) { liveEl.style.left = nx + 'px'; liveEl.style.top = ny + 'px'; }
     const now = Date.now();
     if (now - lastSend > 60) { lastSend = now; dispatch({ type: 'moveCard', id: card.id, x: nx, y: ny }); }
   }
   function up(e) {
     const p = e.changedTouches ? e.changedTouches[0] : e;
 
-    // Dropped onto a library/graveyard/exile pile on the canvas?
-    if (el) el.style.display = 'none'; // don't let the dragged card itself be hit-tested
-    const under = document.elementFromPoint(p.clientX, p.clientY);
-    if (el) el.style.display = '';
-    const zonePile = under && under.closest('.canvasZone');
-
     document.removeEventListener('mousemove', move);
     document.removeEventListener('mouseup', up);
     document.removeEventListener('touchmove', move);
     document.removeEventListener('touchend', up);
+
+    // A near-zero-distance press+release is a click/context-menu, not a
+    // drag — leave the card where it was instead of re-dispatching a move.
+    if (totalMoved < 4) return;
+
+    // Dropped onto a library/graveyard/exile pile on the canvas? Hide the
+    // dragged card itself (re-queried fresh) so it isn't what gets hit-tested.
+    const liveEl = currentEl();
+    if (liveEl) liveEl.style.display = 'none';
+    const under = document.elementFromPoint(p.clientX, p.clientY);
+    if (liveEl) liveEl.style.display = '';
+    const zonePile = under && under.closest('.canvasZone');
 
     if (zonePile) {
       handleDropOnZone(card.id, zonePile.dataset.pid, zonePile.dataset.zone);
@@ -1628,25 +1719,40 @@ document.addEventListener('click', (ev) => {
 });
 
 // ---------------- long-press to zoom on a card ----------------
+// Must fire ONLY on a genuine hold with (near-)zero movement — any drag
+// intent cancels it immediately, whether detected here or from startDrag.
+
+const longPressCancels = {};
+
+function cancelLongPress(cardId) {
+  const fn = longPressCancels[cardId];
+  if (fn) fn();
+}
 
 function attachLongPress(el, getCard) {
   let timer = null, sx = 0, sy = 0;
+  const cardId = el.dataset.id;
   function clearAll() {
     clearTimeout(timer);
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onEnd);
     document.removeEventListener('touchmove', onMove);
     document.removeEventListener('touchend', onEnd);
+    if (longPressCancels[cardId] === clearAll) delete longPressCancels[cardId];
   }
   function onMove(ev) {
     const p = ev.touches ? ev.touches[0] : ev;
-    if (Math.hypot(p.clientX - sx, p.clientY - sy) > 6) clearAll();
+    // Very small tolerance only, to absorb sensor jitter — any real
+    // pointer movement must cancel the zoom, never let it fire mid-drag.
+    if (Math.hypot(p.clientX - sx, p.clientY - sy) > 3) clearAll();
   }
   function onEnd() { clearAll(); }
   function onStart(ev) {
+    if (ev.button !== undefined && ev.button !== 0) return; // ignore right-click
     const p = ev.touches ? ev.touches[0] : ev;
     sx = p.clientX; sy = p.clientY;
     timer = setTimeout(() => { openCardZoom(getCard()); clearAll(); }, 550);
+    longPressCancels[cardId] = clearAll;
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onEnd);
     document.addEventListener('touchmove', onMove, { passive: true });
