@@ -293,26 +293,26 @@
   .canvasZone .counterRow .miniBtn { width: 18px; height: 18px; line-height: 16px; font-size: 12px; }
   .canvasZone .counterRow .val { min-width: unset; white-space: nowrap; }
 
-  /* command zone: taxe on top, commanders face-up side by side */
+  /* command zone: sized in whole card-widths; each commander card carries
+     its own tax counter overlaid on top of it (like a regular card badge) */
   .commandZone {
-    height: auto;
-    min-height: calc(var(--card-h) + 40px);
-    justify-content: flex-start;
-    padding: 6px;
+    height: var(--card-h);
+    flex-direction: row;
+    padding: 0;
     border-color: #c9a23a;
+    gap: 0;
   }
-  .commandZone .cmdTaxRow { margin: 2px 0 4px; }
   .commandZone .cmdCards {
     display: flex;
-    gap: 6px;
+    width: 100%;
+    height: 100%;
     align-items: center;
     justify-content: center;
-    flex: 1;
   }
   .cmdCardThumb {
     position: relative;
-    width: 76px;
-    height: 106px;
+    width: var(--card-w);
+    height: var(--card-h);
     border-radius: 6px;
     background-size: cover;
     background-position: center;
@@ -331,13 +331,37 @@
   }
   .cmdThumbName {
     width: 100%;
-    font-size: 8px;
+    font-size: 9px;
     background: rgba(0,0,0,.6);
     padding: 1px 2px;
     border-radius: 0 0 5px 5px;
     text-align: center;
     line-height: 1.1;
     color: #fff;
+  }
+  .cmdTaxBadge {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,10,10,.85);
+    border: 1px solid #c9a23a;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #ffd23a;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .cmdTaxBadge button {
+    margin: 0;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 1.3;
+    background: #333;
   }
 
   /* zone piles placed on the canvas (library / graveyard / exile per player) */
@@ -397,6 +421,8 @@
   .counterRemoveBtn {
     background: none; border: none; color: #a55; font-size: 12px; cursor: pointer; padding: 0 0 0 4px; margin: 0;
   }
+  .cmdDmgSection { border-top: 1px solid #3a3a3a; margin-top: 8px; padding-top: 6px; }
+  .cmdDmgTitle { font-size: 11px; color: #e0a53a; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
 
   /* card inspector panel — appears as a context menu at the right-click position */
   #inspector {
@@ -726,7 +752,7 @@ const SCRYFALL_SEARCH = (q) => `https://api.scryfall.com/cards/search?q=${encode
 // Scryfall's official Magic card back artwork. If this ever fails to load
 // (offline, blocked, URL changed), .card.faceDown's striped pattern
 // underneath is used as a fallback instead — see cardBackImg's onerror.
-const MTG_CARD_BACK_URL = 'https://c1.scryfall.com/file/scryfall-cardbacks/normal/59/597b79b3-7d77-4261-871a-60dd17403388.jpg';
+const MTG_CARD_BACK_URL = 'https://gamepedia.cursecdn.com/mtgsalvation_gamepedia/f/f8/Magic_card_back.jpg';
 
 // ---------------- Firebase (persistent backup of the game state) ----------------
 // PeerJS handles live real-time play between currently-connected players;
@@ -795,7 +821,7 @@ function snapToGrid(x, y) {
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
 function newPlayer(name, color) {
-  return { name, color, counters: { life: { label: 'Vie', value: 20 } }, commanderTax: 0 };
+  return { name, color, counters: { life: { label: 'Vie', value: 20 } }, commanderDamage: {} };
 }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
@@ -1246,10 +1272,27 @@ function applyAction(byPeerId, action) {
       p.zonePositions[action.zone] = { x: action.x, y: action.y };
       break;
     }
-    case 'adjCommanderTax': {
+    case 'addCommanderDamageRow': {
       const p = state.players[action.playerId];
       if (!p) break;
-      p.commanderTax = Math.max(0, (p.commanderTax || 0) + action.delta);
+      p.commanderDamage = p.commanderDamage || {};
+      if (!p.commanderDamage[action.key]) p.commanderDamage[action.key] = { label: action.label, value: 0 };
+      break;
+    }
+    case 'adjCommanderDamageRow': {
+      const p = state.players[action.playerId];
+      if (!p || !p.commanderDamage || !p.commanderDamage[action.key]) break;
+      p.commanderDamage[action.key].value += action.delta;
+      // Commander damage IS damage — it also comes off the general life total.
+      p.counters = p.counters || {};
+      if (!p.counters.life) p.counters.life = { label: 'Vie', value: 20 };
+      p.counters.life.value -= action.delta;
+      break;
+    }
+    case 'removeCommanderDamageRow': {
+      const p = state.players[action.playerId];
+      if (!p || !p.commanderDamage) break;
+      delete p.commanderDamage[action.key];
       break;
     }
   }
@@ -1696,6 +1739,56 @@ function renderLifeWindow() {
       block.appendChild(addRow);
     }
 
+    // Commander damage: one row per damage source (usually an opponent's
+    // commander). Adjusting a row also adjusts this player's general life
+    // by the same amount, since commander damage is still real damage.
+    const dmgSection = document.createElement('div');
+    dmgSection.className = 'cmdDmgSection';
+    const dmgTitle = document.createElement('div');
+    dmgTitle.className = 'cmdDmgTitle';
+    dmgTitle.textContent = '⚔️ Dégâts de commandant';
+    dmgSection.appendChild(dmgTitle);
+
+    Object.entries(p.commanderDamage || {}).forEach(([key, row]) => {
+      const r = document.createElement('div');
+      r.className = 'counterRow';
+      r.innerHTML = `
+        <span style="flex:1;">${escapeHtml(row.label)}</span>
+        <button class="miniBtn secondary">–</button>
+        <span class="val">${row.value}</span>
+        <button class="miniBtn">+</button>
+        <button class="counterRemoveBtn" title="Retirer cette ligne">✕</button>
+      `;
+      const [minusBtn, plusBtn] = r.querySelectorAll('button');
+      minusBtn.onclick = () => dispatch({ type: 'adjCommanderDamageRow', playerId: pid, key, delta: -1 });
+      plusBtn.onclick = () => dispatch({ type: 'adjCommanderDamageRow', playerId: pid, key, delta: 1 });
+      r.querySelector('.counterRemoveBtn').onclick = () => dispatch({ type: 'removeCommanderDamageRow', playerId: pid, key });
+      dmgSection.appendChild(r);
+    });
+
+    const dmgAddRow = document.createElement('div');
+    dmgAddRow.className = 'addCounterMenu';
+    const existingLabels = new Set(Object.values(p.commanderDamage || {}).map(r => r.label));
+    Object.entries(state.players).forEach(([opid, op]) => {
+      if (opid === pid || existingLabels.has(op.name)) return;
+      const b = document.createElement('button');
+      b.className = 'secondary';
+      b.textContent = `+ ${op.name}`;
+      b.onclick = () => dispatch({ type: 'addCommanderDamageRow', playerId: pid, key: 'cmd_' + uid(), label: op.name, initial: 0 });
+      dmgAddRow.appendChild(b);
+    });
+    const dmgCustomBtn = document.createElement('button');
+    dmgCustomBtn.className = 'secondary';
+    dmgCustomBtn.textContent = '+ Ligne…';
+    dmgCustomBtn.onclick = () => {
+      const label = prompt('Source des dégâts (ex: nom du commandant adverse)');
+      if (!label) return;
+      dispatch({ type: 'addCommanderDamageRow', playerId: pid, key: 'cmd_' + uid(), label, initial: 0 });
+    };
+    dmgAddRow.appendChild(dmgCustomBtn);
+    dmgSection.appendChild(dmgAddRow);
+    block.appendChild(dmgSection);
+
     if (pid === myId) {
       const untapBtn = document.createElement('button');
       untapBtn.className = 'secondary';
@@ -1812,6 +1905,10 @@ function buildHandCardEl(card) {
   el.draggable = true;
   el.addEventListener('dragstart', (ev) => {
     ev.dataTransfer.setData('text/card-id', card.id);
+    // Anchor the native drag preview on the CARD'S CENTER rather than
+    // wherever it was grabbed, so it matches drop placement (which also
+    // centers the card on the pointer) — no jump when it lands.
+    ev.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
     // Starting a native drag must cancel the pending long-press zoom, else
     // holding to drag would pop the card open in full-screen mid-drag.
     cancelLongPress(card.id);
@@ -1879,21 +1976,14 @@ function renderZones() {
       pile.dataset.zone = zdef.zone;
 
       if (zdef.zone === 'command') {
-        // Command zone: commanders shown face-up side by side, Taxe on top.
-        pile.style.width = (14 + Math.max(1, cards.length) * 84) + 'px';
+        // Command zone: sized in whole card-widths; commanders shown
+        // face-up side by side, each carrying its own tax counter overlaid
+        // on top of it (one commander = one independent tax count).
+        pile.style.width = (Math.max(1, cards.length) * CELL_W) + 'px';
         pile.innerHTML = `
-          <div class="canvasZoneLabel" style="color:${p.color};">${escapeHtml(p.name)}</div>
-          <div class="cmdTaxRow counterRow">
-            <button class="miniBtn secondary" title="Taxe -1">–</button>
-            <span class="val">Taxe ${p.commanderTax || 0}</span>
-            <button class="miniBtn" title="Taxe +1">+</button>
-          </div>
+          <div class="canvasZoneLabel" style="color:${p.color};">${escapeHtml(p.name)} — Commandement</div>
           <div class="cmdCards"></div>
-          <small>Commandement</small>
         `;
-        const taxBtns = pile.querySelectorAll('.cmdTaxRow button');
-        taxBtns[0].onclick = (ev) => { ev.stopPropagation(); dispatch({ type: 'adjCommanderTax', playerId: pid, delta: -1 }); };
-        taxBtns[1].onclick = (ev) => { ev.stopPropagation(); dispatch({ type: 'adjCommanderTax', playerId: pid, delta: 1 }); };
 
         const cmdCards = pile.querySelector('.cmdCards');
         if (!cards.length) {
@@ -1901,12 +1991,24 @@ function renderZones() {
         }
         cards.forEach(c => {
           const face = c.faces[c.faceIndex] || c.faces[0];
+          const tax = (c.counters && c.counters.tax && c.counters.tax.value) || 0;
           const thumb = document.createElement('div');
           thumb.className = 'cmdCardThumb';
           thumb.dataset.id = c.id;
           thumb.style.cssText = face.imgUrl ? `background-image:url('${face.imgUrl}');` : 'background:#333;';
-          thumb.innerHTML = `<span class="cmdStar">★</span><div class="cmdThumbName">${escapeHtml(face.name)}</div>`;
+          thumb.innerHTML = `
+            <span class="cmdStar">★</span>
+            <div class="cmdTaxBadge">
+              <button title="Taxe -1">–</button>
+              <span>Taxe ${tax}</span>
+              <button title="Taxe +1">+</button>
+            </div>
+            <div class="cmdThumbName">${escapeHtml(face.name)}</div>
+          `;
           thumb.title = face.name;
+          const [taxMinus, taxPlus] = thumb.querySelectorAll('.cmdTaxBadge button');
+          taxMinus.onclick = (ev) => { ev.stopPropagation(); dispatch({ type: 'adjCounter', id: c.id, key: 'tax', label: 'Taxe', delta: -1 }); };
+          taxPlus.onclick = (ev) => { ev.stopPropagation(); dispatch({ type: 'adjCounter', id: c.id, key: 'tax', label: 'Taxe', delta: 1 }); };
           if (isMine) {
             thumb.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); openCardMenu(c.id, ev.clientX, ev.clientY); });
             // Draggable straight onto the table (or another zone) without
@@ -1922,7 +2024,7 @@ function renderZones() {
             });
           }
           attachLongPress(thumb, () => c);
-          thumb.addEventListener('click', (ev) => { ev.stopPropagation(); if (!pile.dataset.justDragged) selectCard(c.id); });
+          thumb.addEventListener('click', (ev) => { ev.stopPropagation(); if (!pile.dataset.justDragged && !ev.target.closest('.cmdTaxBadge')) selectCard(c.id); });
           cmdCards.appendChild(thumb);
         });
       } else {
