@@ -379,7 +379,16 @@
       <button class="secondary" onclick="loadSavedDeckIntoTextarea()">Charger la liste</button>
       <button class="danger" onclick="deleteSavedDeck()">Supprimer</button>
     </div>
-    <div style="font-size:11px;color:#888;margin-top:4px;">Les cartes déjà consultées restent en cache local : recharger un deck ne re-télécharge que les cartes inconnues.</div>
+    <div style="font-size:11px;color:#888;margin-top:4px;">Les cartes déjà consultées sont mises en cache : recharger un deck ne re-télécharge que les cartes inconnues.</div>
+
+    <label style="margin-top:12px;">Cache en fichier (decks + apparences + illustrations)</label>
+    <div style="font-size:11px;color:#888;margin-bottom:4px;">Le cache navigateur peut être vidé ou indisponible en local. Exporte un fichier pour le garder durablement et le réimporter n'importe quand (même sur une autre machine).</div>
+    <div class="row">
+      <button class="secondary" onclick="exportCacheFile()">⬇️ Exporter le cache</button>
+      <button class="secondary" onclick="document.getElementById('importCacheInput').click()">⬆️ Importer un cache</button>
+    </div>
+    <input type="file" id="importCacheInput" accept="application/json" style="display:none;" onchange="importCacheFile(this.files[0])">
+    <div id="cacheFileStatus" style="font-size:12px;color:#9fd;margin-top:6px;white-space:pre-wrap;"></div>
 
     <h2>Jeton</h2>
     <label>Nom du jeton</label>
@@ -1227,6 +1236,81 @@ function deleteSavedDeck() {
   refreshDeckSelect();
 }
 
+// ---------------- file-based cache (export/import) ----------------
+// localStorage can be cleared by the browser, disabled in some contexts, or
+// simply not survive across machines/browsers — a downloadable JSON file is
+// a durable, portable alternative that the user fully controls.
+
+function exportCacheFile() {
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    cardCache,
+    appearanceOverrides,
+    savedDecks
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mtgplay-cache.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  document.getElementById('cacheFileStatus').textContent =
+    `Fichier exporté : ${Object.keys(cardCache).length} cartes, ${Object.keys(appearanceOverrides).length} apparences, ${Object.keys(savedDecks).length} decks.`;
+}
+
+function importCacheFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch (e) {
+      document.getElementById('cacheFileStatus').textContent = 'Fichier invalide (JSON illisible).';
+      return;
+    }
+    mergeImportedCache(data);
+  };
+  reader.onerror = () => { document.getElementById('cacheFileStatus').textContent = 'Impossible de lire le fichier.'; };
+  reader.readAsText(file);
+}
+
+function mergeImportedCache(data) {
+  let cardsAdded = 0, appearancesAdded = 0, decksAdded = 0;
+  if (data.cardCache) {
+    Object.entries(data.cardCache).forEach(([k, v]) => { if (!cardCache[k]) cardsAdded++; cardCache[k] = v; });
+  }
+  if (data.appearanceOverrides) {
+    Object.entries(data.appearanceOverrides).forEach(([k, v]) => { if (!appearanceOverrides[k]) appearancesAdded++; appearanceOverrides[k] = v; });
+  }
+  if (data.savedDecks) {
+    Object.entries(data.savedDecks).forEach(([k, v]) => { if (!savedDecks[k]) decksAdded++; savedDecks[k] = v; });
+  }
+  saveJSON(LS_CARD_CACHE, cardCache);
+  saveJSON(LS_APPEARANCE, appearanceOverrides);
+  saveJSON(LS_DECKS, savedDecks);
+  refreshDeckSelect();
+  document.getElementById('cacheFileStatus').textContent =
+    `Import réussi : ${cardsAdded} cartes, ${appearancesAdded} apparences et ${decksAdded} decks ajoutés (${Object.keys(cardCache).length} cartes au total en cache).`;
+}
+
+// Best-effort: if the page is served over http(s) from the same folder as a
+// previously exported mtgplay-cache.json, load it automatically. Silently
+// does nothing if the file isn't there or the page runs from file:// (where
+// fetch of local files is blocked by the browser).
+async function tryAutoLoadCacheFile() {
+  try {
+    const res = await fetch('mtgplay-cache.json', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      mergeImportedCache(data);
+    }
+  } catch (e) { /* not available — that's fine, use the import button */ }
+}
+
 // ---------------- appearance modal ----------------
 
 function closeModals() {
@@ -1356,6 +1440,7 @@ function applyAppearance(name, printCard) {
   document.getElementById('decklist').addEventListener('input', () => {
     saveJSON(LS_LAST_DECKLIST, document.getElementById('decklist').value);
   });
+  tryAutoLoadCacheFile();
 })();
 
 render();
