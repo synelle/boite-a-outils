@@ -239,6 +239,89 @@
   #inspector h3 { margin: 0 0 8px; font-size: 13px; }
   #inspector .row { margin-bottom: 6px; }
 
+  .modalOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.65);
+    z-index: 3000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modalOverlay.open { display: flex; }
+  .modalBox {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 8px;
+    width: min(900px, 92vw);
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid #333;
+  }
+  .modalBody {
+    padding: 14px 18px;
+    overflow-y: auto;
+  }
+  .appearanceGroup h3 {
+    font-size: 13px;
+    color: #ffd23a;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin: 18px 0 8px;
+    border-top: 1px solid #333;
+    padding-top: 12px;
+  }
+  .appearanceGroup:first-child h3 { border-top: none; padding-top: 0; }
+  .appearanceGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .appearanceTile {
+    width: 120px;
+    text-align: center;
+    background: #262626;
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .appearanceTile img {
+    width: 100%;
+    border-radius: 5px;
+    background: #333;
+    height: 140px;
+    object-fit: cover;
+  }
+  .appearanceTile .tName {
+    font-size: 11px;
+    margin: 6px 0;
+    line-height: 1.2;
+    min-height: 26px;
+  }
+  .printGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .printTile {
+    width: 140px;
+    cursor: pointer;
+    text-align: center;
+    background: #262626;
+    border-radius: 6px;
+    padding: 8px;
+    border: 2px solid transparent;
+  }
+  .printTile:hover { border-color: #3a6df0; }
+  .printTile img { width: 100%; border-radius: 5px; }
+  .printTile .pSet { font-size: 10px; color: #aaa; margin-top: 4px; }
+
   @media (max-width: 850px) {
     #menuToggleBtn { display: flex; align-items:center; justify-content:center; }
     #sidebar {
@@ -280,8 +363,23 @@
     <textarea id="decklist" placeholder="4 Foudre&#10;1 Griffe acharnée&#10;Île"></textarea>
     <div class="row">
       <button id="loadDeckBtn" onclick="loadDeck()">Charger dans la bibliothèque</button>
+      <button class="secondary" onclick="openAppearanceModal()">🎨 Apparence des cartes</button>
     </div>
     <div id="deckStatus" style="font-size:12px;color:#9fd;margin-top:6px;white-space:pre-wrap;"></div>
+
+    <label style="margin-top:12px;">Decks sauvegardés (dans ce navigateur)</label>
+    <input type="text" id="deckSaveName" placeholder="Nom du deck à enregistrer">
+    <div class="row" style="margin-top:6px;">
+      <button class="secondary" onclick="saveCurrentDeck()">💾 Enregistrer</button>
+    </div>
+    <div class="row" style="margin-top:6px;">
+      <select id="savedDeckSelect" style="flex:1;background:#111;color:#eee;border:1px solid #444;border-radius:4px;padding:6px;"></select>
+    </div>
+    <div class="row" style="margin-top:6px;">
+      <button class="secondary" onclick="loadSavedDeckIntoTextarea()">Charger la liste</button>
+      <button class="danger" onclick="deleteSavedDeck()">Supprimer</button>
+    </div>
+    <div style="font-size:11px;color:#888;margin-top:4px;">Les cartes déjà consultées restent en cache local : recharger un deck ne re-télécharge que les cartes inconnues.</div>
 
     <h2>Jeton</h2>
     <label>Nom du jeton</label>
@@ -333,6 +431,28 @@
   <div class="row" style="margin-top:6px;">
     <button class="danger" onclick="deleteSelected()">Supprimer</button>
     <button class="secondary" onclick="closeInspector()">Fermer</button>
+  </div>
+</div>
+
+<div id="modalOverlay" class="modalOverlay" onclick="if(event.target===this) closeModals()">
+  <div class="modalBox">
+    <div class="modalHeader">
+      <h2 id="appearanceTitle" style="margin:0;">Apparence des cartes</h2>
+      <button class="secondary" onclick="closeModals()">Fermer ✕</button>
+    </div>
+    <div id="appearanceBody" class="modalBody"></div>
+  </div>
+</div>
+
+<div id="printPickerOverlay" class="modalOverlay" onclick="if(event.target===this) closePrintPicker()">
+  <div class="modalBox">
+    <div class="modalHeader">
+      <h2 id="printPickerTitle" style="margin:0;">Choisir une illustration</h2>
+      <button class="secondary" onclick="closePrintPicker()">Fermer ✕</button>
+    </div>
+    <div id="printPickerBody" class="modalBody">
+      <div style="color:#aaa;font-size:13px;">Chargement des illustrations…</div>
+    </div>
   </div>
 </div>
 
@@ -530,6 +650,13 @@ function applyAction(byPeerId, action) {
       delete state.cards[action.id];
       break;
     }
+    case 'setFaces': {
+      const c = state.cards[action.id];
+      if (!c) break;
+      c.faces = action.faces;
+      c.faceIndex = Math.min(c.faceIndex, c.faces.length - 1);
+      break;
+    }
     case 'drawCard': {
       const owned = Object.values(state.cards).filter(c => c.ownerId === action.ownerId && c.zone === 'library');
       owned.sort((a, b) => (a.libOrder ?? 0) - (b.libOrder ?? 0));
@@ -557,6 +684,43 @@ function minLibOrder(ownerId) {
 function maxLibOrder(ownerId) {
   const vals = Object.values(state.cards).filter(c => c.ownerId === ownerId && c.zone === 'library').map(c => c.libOrder ?? 0);
   return vals.length ? Math.max(...vals) : 0;
+}
+
+// ---------------- local cache (localStorage) ----------------
+
+const LS_CARD_CACHE = 'mtgplay_cardcache';
+const LS_APPEARANCE = 'mtgplay_appearance';
+const LS_DECKS = 'mtgplay_decks';
+const LS_LAST_DECKLIST = 'mtgplay_lastdecklist';
+
+function loadJSON(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v || fallback; }
+  catch (e) { return fallback; }
+}
+function saveJSON(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* storage full/unavailable */ }
+}
+
+// name(lowercase) -> { faces:[{name,imgUrl}], type_line }
+let cardCache = loadJSON(LS_CARD_CACHE, {});
+// name(lowercase) -> faces override chosen by the user (persisted appearance)
+let appearanceOverrides = loadJSON(LS_APPEARANCE, {});
+// deckName -> decklist text
+let savedDecks = loadJSON(LS_DECKS, {});
+
+function cacheKey(name) { return name.trim().toLowerCase(); }
+
+function categorizeType(typeLine) {
+  const t = (typeLine || '').toLowerCase();
+  if (t.includes('planeswalker')) return 'Planeswalker';
+  if (t.includes('creature')) return 'Créature';
+  if (t.includes('land')) return 'Terrain';
+  if (t.includes('artifact')) return 'Artefact';
+  if (t.includes('enchantment')) return 'Enchantement';
+  if (t.includes('instant')) return 'Éphémère';
+  if (t.includes('sorcery')) return 'Rituel';
+  if (t.includes('battle')) return 'Bataille';
+  return 'Autre';
 }
 
 // ---------------- deck loading (Scryfall, mirrors mtg-proxy-tool.html) ----------------
@@ -617,7 +781,7 @@ function extractFaces(frCard, card) {
   });
 }
 
-async function fetchCardFaces(name) {
+async function fetchCardData(name) {
   let card = null;
   try {
     const res = await fetchWithRetry(SCRYFALL_NAMED + encodeURIComponent(name));
@@ -653,7 +817,22 @@ async function fetchCardFaces(name) {
     } catch (e) {}
   }
   if (!card) throw new Error(`Carte introuvable : "${name}"`);
-  return extractFaces(frCard, card);
+  return { faces: extractFaces(frCard, card), type_line: card.type_line || '' };
+}
+
+// Cache-aware wrapper: only hits Scryfall for names not already in cardCache.
+async function getCardData(name) {
+  const key = cacheKey(name);
+  if (cardCache[key]) return cardCache[key];
+  const data = await fetchCardData(name);
+  cardCache[key] = data;
+  saveJSON(LS_CARD_CACHE, cardCache);
+  return data;
+}
+
+function facesWithAppearance(name, faces) {
+  const override = appearanceOverrides[cacheKey(name)];
+  return override || faces;
 }
 
 async function loadDeck() {
@@ -668,16 +847,20 @@ async function loadDeck() {
   const total = entries.reduce((s, e) => s + e.qty, 0);
 
   let order = minLibOrder(myId) - 1;
+  let cacheHits = 0;
   for (const entry of entries) {
-    let faces;
+    let data;
+    const wasCached = !!cardCache[cacheKey(entry.name)];
     try {
-      faces = await fetchCardFaces(entry.name);
+      data = await getCardData(entry.name);
+      if (wasCached) cacheHits++;
     } catch (e) {
       errors.push(e.message);
       done += entry.qty;
       statusEl.textContent = `Chargement… ${done}/${total}`;
       continue;
     }
+    const faces = facesWithAppearance(entry.name, data.faces);
     for (let i = 0; i < entry.qty; i++) {
       const card = {
         id: uid(),
@@ -689,16 +872,19 @@ async function loadDeck() {
         zone: 'library',
         libOrder: order--,
         x: 0, y: 0, z: 0,
-        isToken: false
+        isToken: false,
+        typeLine: data.type_line,
+        category: categorizeType(data.type_line)
       };
       dispatch({ type: 'addCard', card });
       done++;
     }
     statusEl.textContent = `Chargement… ${done}/${total}`;
-    await sleep(80);
+    if (!wasCached) await sleep(80);
   }
-  statusEl.textContent = `Terminé : ${total - errors.length}/${total} cartes chargées.` + (errors.length ? '\n' + errors.join('\n') : '');
+  statusEl.textContent = `Terminé : ${total - errors.length}/${total} cartes chargées (${cacheHits} depuis le cache local).` + (errors.length ? '\n' + errors.join('\n') : '');
   btn.disabled = false;
+  saveJSON(LS_LAST_DECKLIST, document.getElementById('decklist').value);
 }
 
 async function addToken() {
@@ -989,6 +1175,188 @@ function deleteSelected() {
 document.getElementById('board').addEventListener('mousedown', (ev) => {
   if (ev.target.id === 'board' || ev.target.id === 'playArea') closeInspector();
 });
+
+// ---------------- saved decks (localStorage) ----------------
+
+function refreshDeckSelect() {
+  const sel = document.getElementById('savedDeckSelect');
+  const current = sel.value;
+  sel.innerHTML = '';
+  const names = Object.keys(savedDecks);
+  if (!names.length) {
+    const opt = document.createElement('option');
+    opt.textContent = 'Aucun deck enregistré';
+    opt.disabled = true;
+    sel.appendChild(opt);
+    return;
+  }
+  names.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  if (names.includes(current)) sel.value = current;
+}
+
+function saveCurrentDeck() {
+  const nameEl = document.getElementById('deckSaveName');
+  const name = nameEl.value.trim();
+  if (!name) { setStatus('Donne un nom au deck avant de l\'enregistrer.'); return; }
+  savedDecks[name] = document.getElementById('decklist').value;
+  saveJSON(LS_DECKS, savedDecks);
+  refreshDeckSelect();
+  document.getElementById('savedDeckSelect').value = name;
+  setStatus(`Deck "${name}" enregistré (liste + apparences en cache local).`);
+}
+
+function loadSavedDeckIntoTextarea() {
+  const sel = document.getElementById('savedDeckSelect');
+  const name = sel.value;
+  if (!name || !savedDecks[name]) return;
+  document.getElementById('decklist').value = savedDecks[name];
+  saveJSON(LS_LAST_DECKLIST, savedDecks[name]);
+  setStatus(`Liste "${name}" chargée dans le champ deck. Clique "Charger dans la bibliothèque" pour la mettre en jeu.`);
+}
+
+function deleteSavedDeck() {
+  const sel = document.getElementById('savedDeckSelect');
+  const name = sel.value;
+  if (!name || !savedDecks[name]) return;
+  delete savedDecks[name];
+  saveJSON(LS_DECKS, savedDecks);
+  refreshDeckSelect();
+}
+
+// ---------------- appearance modal ----------------
+
+function closeModals() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function openAppearanceModal() {
+  if (!myId) { setStatus('Crée ou rejoins une partie et charge un deck avant de personnaliser l\'apparence.'); return; }
+  const body = document.getElementById('appearanceBody');
+  body.innerHTML = '';
+
+  // Unique cards owned by me, grouped by category
+  const seen = {};
+  Object.values(state.cards).filter(c => c.ownerId === myId).forEach(c => {
+    const key = cacheKey(c.name);
+    if (!seen[key]) seen[key] = c;
+  });
+  const groups = {};
+  Object.values(seen).forEach(c => {
+    const cat = c.category || 'Autre';
+    (groups[cat] = groups[cat] || []).push(c);
+  });
+
+  const order = ['Créature', 'Éphémère', 'Rituel', 'Enchantement', 'Artefact', 'Planeswalker', 'Terrain', 'Bataille', 'Autre'];
+  const catNames = Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
+  if (!catNames.length) {
+    body.innerHTML = '<div style="color:#aaa;font-size:13px;">Charge d\'abord un deck dans la bibliothèque.</div>';
+  }
+
+  catNames.forEach(cat => {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'appearanceGroup';
+    const h3 = document.createElement('h3');
+    h3.textContent = cat;
+    groupEl.appendChild(h3);
+    const grid = document.createElement('div');
+    grid.className = 'appearanceGrid';
+    groups[cat].sort((a, b) => a.name.localeCompare(b.name)).forEach(c => {
+      const tile = document.createElement('div');
+      tile.className = 'appearanceTile';
+      const face = c.faces[0];
+      tile.innerHTML = `
+        <img src="${face.imgUrl || ''}" alt="">
+        <div class="tName">${escapeHtml(c.name)}</div>
+        <button class="secondary" style="width:100%;margin:0;">Changer</button>
+      `;
+      tile.querySelector('button').onclick = () => openPrintPicker(c.name);
+      grid.appendChild(tile);
+    });
+    groupEl.appendChild(grid);
+    body.appendChild(groupEl);
+  });
+
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+async function openPrintPicker(name) {
+  document.getElementById('printPickerTitle').textContent = 'Choisir une illustration — ' + name;
+  const body = document.getElementById('printPickerBody');
+  body.innerHTML = '<div style="color:#aaa;font-size:13px;">Chargement des illustrations…</div>';
+  document.getElementById('printPickerOverlay').classList.add('open');
+
+  let prints = [];
+  try {
+    const res = await fetchWithRetry(SCRYFALL_SEARCH(`!"${name}" unique:prints`));
+    if (res.ok) {
+      const data = await res.json();
+      prints = data.data || [];
+    }
+  } catch (e) {}
+
+  if (!prints.length) {
+    body.innerHTML = '<div style="color:#f88;font-size:13px;">Aucune autre illustration trouvée.</div>';
+    return;
+  }
+
+  body.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'printGrid';
+  prints.forEach(p => {
+    const img = extractImage(p);
+    if (!img) return;
+    const tile = document.createElement('div');
+    tile.className = 'printTile';
+    tile.innerHTML = `<img src="${img}" alt=""><div class="pSet">${escapeHtml((p.set_name || '') + ' · ' + (p.collector_number || ''))}</div>`;
+    tile.onclick = () => applyAppearance(name, p);
+    grid.appendChild(tile);
+  });
+  body.appendChild(grid);
+}
+
+function closePrintPicker() {
+  document.getElementById('printPickerOverlay').classList.remove('open');
+}
+
+function applyAppearance(name, printCard) {
+  const faces = extractFaces(null, printCard);
+  const key = cacheKey(name);
+  appearanceOverrides[key] = faces;
+  saveJSON(LS_APPEARANCE, appearanceOverrides);
+
+  // Update the cache too, so future deck loads reuse this look.
+  if (cardCache[key]) {
+    cardCache[key] = { ...cardCache[key], faces };
+    saveJSON(LS_CARD_CACHE, cardCache);
+  }
+
+  // Retroactively apply to my cards already in play/library/etc.
+  Object.values(state.cards)
+    .filter(c => c.ownerId === myId && cacheKey(c.name) === key)
+    .forEach(c => dispatch({ type: 'setFaces', id: c.id, faces }));
+
+  closePrintPicker();
+  openAppearanceModal();
+}
+
+// ---------------- init: restore cached decklist + saved decks list ----------------
+
+(function initFromCache() {
+  const last = localStorage.getItem(LS_LAST_DECKLIST);
+  if (last) {
+    try { document.getElementById('decklist').value = JSON.parse(last); }
+    catch (e) { /* legacy plain string, ignore */ }
+  }
+  refreshDeckSelect();
+  document.getElementById('decklist').addEventListener('input', () => {
+    saveJSON(LS_LAST_DECKLIST, document.getElementById('decklist').value);
+  });
+})();
 
 render();
 </script>
