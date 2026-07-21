@@ -605,10 +605,42 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
 // ---------------- networking ----------------
 
-function initPeer(onOpen) {
+// The default PeerJS cloud broker (0.peerjs.com) is what actually
+// establishes the connection. If it never answers we must not leave the
+// user stuck on "Connexion..." forever — time out and give a clear reason.
+function initPeer(onOpen, onFail) {
+  if (typeof Peer === 'undefined') {
+    onFail('La librairie PeerJS n\'a pas pu être chargée (script bloqué par un bloqueur de pub/pare-feu, ou pas de connexion internet). Vérifie ta connexion et réessaie.');
+    return;
+  }
+
+  let settled = false;
+  const timeout = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    if (peer) peer.destroy();
+    onFail('Le serveur relais (PeerJS) ne répond pas après 15s. Vérifie ta connexion internet, désactive un éventuel bloqueur de pub/VPN, ou réessaie — le service gratuit est parfois temporairement indisponible.');
+  }, 15000);
+
   peer = new Peer();
-  peer.on('open', (id) => { myId = id; onOpen(id); });
-  peer.on('error', (err) => setStatus('Erreur réseau : ' + err.type));
+  peer.on('open', (id) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeout);
+    myId = id;
+    onOpen(id);
+  });
+  peer.on('error', (err) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeout);
+    onFail('Erreur réseau (' + err.type + '). Vérifie ta connexion internet ou réessaie dans quelques instants.');
+  });
+}
+
+function resetConnectButtons() {
+  document.getElementById('hostBtn').disabled = false;
+  document.getElementById('joinBtn').disabled = false;
 }
 
 function hostGame() {
@@ -635,6 +667,13 @@ function hostGame() {
         broadcastState();
       });
     });
+    peer.on('disconnected', () => {
+      setStatus('Connexion au serveur relais perdue, tentative de reconnexion…');
+      peer.reconnect();
+    });
+  }, (message) => {
+    setStatus(message);
+    resetConnectButtons();
   });
 }
 
@@ -646,14 +685,28 @@ function joinGame() {
   initPeer((id) => {
     isHost = false;
     hostConn = peer.connect(code, { reliable: true });
+
+    const connectTimeout = setTimeout(() => {
+      setStatus('Impossible de joindre cet hôte (code invalide, partie fermée, ou hôte hors ligne). Vérifie le code et réessaie.');
+      resetConnectButtons();
+    }, 15000);
+
     hostConn.on('open', () => {
+      clearTimeout(connectTimeout);
       const name = document.getElementById('nameInput').value.trim() || 'Joueur';
       setStatus('Connecté. En attente de la partie…');
       send({ type: 'join', name });
     });
     hostConn.on('data', (msg) => handleClientMessage(msg));
     hostConn.on('close', () => setStatus('Connexion à l\'hôte perdue.'));
-    hostConn.on('error', (e) => setStatus('Erreur de connexion : ' + e));
+    hostConn.on('error', (e) => {
+      clearTimeout(connectTimeout);
+      setStatus('Erreur de connexion : ' + e);
+      resetConnectButtons();
+    });
+  }, (message) => {
+    setStatus(message);
+    resetConnectButtons();
   });
 }
 
