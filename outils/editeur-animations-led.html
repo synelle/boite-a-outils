@@ -125,6 +125,24 @@
 
   #previewWrap { padding: 12px 0; }
   #previewCanvas { image-rendering: pixelated; background: var(--off); border-radius: 4px; }
+
+  .helpBox {
+    background: #14161b;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .helpBox p { margin: 8px 0; }
+  .helpBox ul { margin: 4px 0; padding-left: 20px; }
+  .helpBox code {
+    background: #262933;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: "Consolas", monospace;
+  }
 </style>
 </head>
 <body>
@@ -146,6 +164,10 @@
 </div>
 
 <div class="panel">
+  <div class="row" style="margin-top: 0;">
+    <button class="secondary" id="scrollLeftBtn">&larr;</button>
+    <button class="secondary" id="scrollRightBtn">&rarr;</button>
+  </div>
   <div id="gridWrap">
     <div id="grid"></div>
   </div>
@@ -207,6 +229,49 @@
     <button class="secondary" id="importFileBtn">Importer un fichier</button>
     <input type="file" id="importFileInput" accept=".anim,.txt" style="display:none;">
     <span id="exportStatus"></span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="row" style="margin-top: 0; justify-content: space-between;">
+    <strong style="font-size: 14px;">Upload GitHub</strong>
+    <button class="secondary" id="githubHelpBtn" title="Aide" style="width: 28px; height: 28px; padding: 0; border-radius: 50%;">?</button>
+  </div>
+  <div id="githubHelp" class="helpBox" style="display: none;">
+    <p><strong>1. Creer un token GitHub (Personal Access Token) :</strong></p>
+    <ul>
+      <li>Aller sur <code>github.com</code> &rarr; photo de profil &rarr; <strong>Settings</strong></li>
+      <li>Tout en bas du menu de gauche : <strong>Developer settings</strong></li>
+      <li><strong>Personal access tokens &rarr; Tokens (classic)</strong> &rarr; <strong>Generate new token (classic)</strong></li>
+      <li>Cocher la case <strong>repo</strong> (acces complet aux depots), donner une date d'expiration, puis <strong>Generate token</strong></li>
+      <li>Copier le token affiche (il commence par <code>ghp_</code>) : il ne sera plus visible ensuite, collez-le dans le champ <strong>Cle</strong> ci-dessus</li>
+    </ul>
+    <p><strong>2. Renseigner l'adresse :</strong></p>
+    <ul>
+      <li>Format : <code>owner/repo/chemin/fichier.anim</code></li>
+      <li>Exemple : si votre depot est <code>github.com/curtis/matrice-led</code> et que vous voulez sauver le fichier dans le dossier <code>animations</code>, ecrivez <code>curtis/matrice-led/animations/monAnimation.anim</code></li>
+      <li>Le dossier et le fichier sont crees automatiquement s'ils n'existent pas encore</li>
+    </ul>
+    <p><strong>3. Branche</strong> (optionnel) : laissez vide pour utiliser la branche par defaut du depot (souvent <code>main</code>).</p>
+    <p>Le token n'est jamais enregistre : il faudra le recoller a chaque visite de la page.</p>
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label for="githubAddress">Adresse (owner/repo/chemin/fichier.anim)</label>
+      <input type="text" id="githubAddress" placeholder="monPseudo/monRepo/animations/monAnimation.anim">
+    </div>
+    <div class="field">
+      <label for="githubToken">Cle (Personal Access Token)</label>
+      <input type="password" id="githubToken" placeholder="ghp_...">
+    </div>
+    <div class="field">
+      <label for="githubBranch">Branche (optionnel)</label>
+      <input type="text" id="githubBranch" placeholder="main">
+    </div>
+    <button id="githubUploadBtn">Uploader sur GitHub</button>
+  </div>
+  <div class="row">
+    <span id="githubStatus"></span>
   </div>
 </div>
 
@@ -309,6 +374,14 @@ function refreshAll() {
   buildFrameList();
   if (!playing) drawPreviewFrame(currentFrame);
 }
+
+// --- Defilement horizontal de la grille (utile sur mobile) ---
+document.getElementById('scrollLeftBtn').addEventListener('click', () => {
+  document.getElementById('gridWrap').scrollBy({ left: -100, behavior: 'smooth' });
+});
+document.getElementById('scrollRightBtn').addEventListener('click', () => {
+  document.getElementById('gridWrap').scrollBy({ left: 100, behavior: 'smooth' });
+});
 
 // --- Dessin (souris + tactile) ---
 let painting = false;
@@ -685,6 +758,79 @@ document.getElementById('importFileInput').addEventListener('change', (e) => {
   };
   reader.readAsText(file);
   e.target.value = '';
+});
+
+document.getElementById('githubHelpBtn').addEventListener('click', () => {
+  const help = document.getElementById('githubHelp');
+  help.style.display = help.style.display === 'none' ? 'block' : 'none';
+});
+
+// --- Upload GitHub (API Contents) ---
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+document.getElementById('githubUploadBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('githubStatus');
+  const address = document.getElementById('githubAddress').value.trim().replace(/^\/+|\/+$/g, '');
+  const token = document.getElementById('githubToken').value.trim();
+  const branch = document.getElementById('githubBranch').value.trim();
+
+  const parts = address.split('/');
+  if (parts.length < 3 || !token) {
+    statusEl.textContent = 'Adresse (owner/repo/chemin/fichier) et cle requises.';
+    return;
+  }
+  const owner = parts[0];
+  const repo = parts[1];
+  const path = parts.slice(2).join('/');
+
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}${branch ? `?ref=${encodeURIComponent(branch)}` : ''}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github+json'
+  };
+
+  statusEl.textContent = 'Upload en cours...';
+  document.getElementById('githubUploadBtn').disabled = true;
+
+  try {
+    let sha = undefined;
+    const getResp = await fetch(apiUrl, { headers });
+    if (getResp.status === 200) {
+      const data = await getResp.json();
+      sha = data.sha;
+    } else if (getResp.status !== 404) {
+      const err = await getResp.json().catch(() => ({}));
+      throw new Error(`Lecture du fichier existant : ${getResp.status} ${err.message || ''}`);
+    }
+
+    const content = buildAnimFileContent();
+    const putBody = {
+      message: sha ? `Mise a jour de ${path}` : `Ajout de ${path}`,
+      content: utf8ToBase64(content),
+      sha
+    };
+    if (branch) putBody.branch = branch;
+
+    const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+    const putResp = await fetch(putUrl, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(putBody)
+    });
+
+    if (!putResp.ok) {
+      const err = await putResp.json().catch(() => ({}));
+      throw new Error(`${putResp.status} ${err.message || 'Echec de l\'upload'}`);
+    }
+
+    statusEl.textContent = `Envoye sur GitHub : ${owner}/${repo}/${path}`;
+  } catch (e) {
+    statusEl.textContent = `Erreur : ${e.message}`;
+  } finally {
+    document.getElementById('githubUploadBtn').disabled = false;
+  }
 });
 
 // Init
