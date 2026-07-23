@@ -28,5 +28,11 @@
     "description": "Table de jeu Magic the Gathering en ligne (peer-to-peer), decklist chargée via Scryfall, main, bibliothèque, cimetière, exil, jetons et compteurs.",
     "icone": "🎴",
     "categorie": "Jeux"
+  },
+  "editeur-animations-led.html": {
+    "titre": "Éditeur d'animations LED",
+    "description": "Dessine des animations pixel par pixel pour une matrice LED Arduino/ESP32, génère le code C ou exporte un fichier .anim.",
+    "icone": "💡",
+    "categorie": "Outils"
   }
 }
