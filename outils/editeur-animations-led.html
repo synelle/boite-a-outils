@@ -155,7 +155,7 @@
   <div class="controls">
     <div class="field">
       <label for="numBlocks">Nombre de blocs (8 colonnes chacun)</label>
-      <input type="number" id="numBlocks" min="1" max="8" value="3">
+      <input type="number" id="numBlocks" min="1" max="8" value="4">
     </div>
     <button class="secondary" id="applySize">Appliquer la taille</button>
     <button class="secondary" id="clearBtn">Effacer</button>
@@ -278,7 +278,7 @@
 </div>
 <script>
 const ROWS = 8;
-let cols = 24; // 3 blocs x 8 par defaut, comme le sketch actuel
+let cols = 32; // 4 blocs x 8 par defaut, comme le sketch actuel
 let frames = []; // frames[i] = pixels[row][col] = 0/1
 let currentFrame = 0;
 
@@ -417,7 +417,7 @@ document.addEventListener('pointerup', () => {
 
 // --- Controles taille / effacer / inverser ---
 document.getElementById('applySize').addEventListener('click', () => {
-  const n = Math.max(1, Math.min(8, +document.getElementById('numBlocks').value || 3));
+  const n = Math.max(1, Math.min(8, +document.getElementById('numBlocks').value || 4));
   const newCols = n * 8;
   const copyCols = Math.min(cols, newCols);
   frames = frames.map(px => {
