@@ -246,19 +246,28 @@
       <li>Cocher la case <strong>repo</strong> (acces complet aux depots), donner une date d'expiration, puis <strong>Generate token</strong></li>
       <li>Copier le token affiche (il commence par <code>ghp_</code>) : il ne sera plus visible ensuite, collez-le dans le champ <strong>Cle</strong> ci-dessus</li>
     </ul>
+    <p><strong>Erreur "403 Resource not accessible" ?</strong> C'est un probleme de permissions du token :</p>
+    <ul>
+      <li>Si vous avez cree un token <strong>fine-grained</strong> : verifiez qu'il donne bien acces au depot concerne et que la permission <strong>Contents : Read and write</strong> est activee</li>
+      <li>Si vous avez cree un token <strong>classic</strong> : verifiez que la case <strong>repo</strong> etait bien cochee</li>
+      <li>Si le depot appartient a une organisation avec SSO : dans la liste des tokens, cliquez sur <strong>Configure SSO</strong> a cote du token et autorisez-le pour l'organisation</li>
+      <li>Le plus simple en cas de doute : regenerer un nouveau token <strong>classic</strong> avec la case <strong>repo</strong> cochee</li>
+    </ul>
     <p><strong>2. Renseigner l'adresse :</strong></p>
     <ul>
-      <li>Format : <code>owner/repo/chemin/fichier.anim</code></li>
-      <li>Exemple : si votre depot est <code>github.com/curtis/matrice-led</code> et que vous voulez sauver le fichier dans le dossier <code>animations</code>, ecrivez <code>curtis/matrice-led/animations/monAnimation.anim</code></li>
-      <li>Le dossier et le fichier sont crees automatiquement s'ils n'existent pas encore</li>
+      <li>Format : <code>owner/repo/dossier</code> (sans le nom de fichier)</li>
+      <li>Exemple : si votre depot est <code>github.com/curtis/matrice-led</code> et que vous voulez sauver dans le dossier <code>animations</code>, ecrivez <code>curtis/matrice-led/animations</code></li>
+      <li>Le nom du fichier est genere automatiquement a partir du <strong>nom du tableau C</strong> (champ plus haut), suivi de <code>.anim</code></li>
+      <li>Si un fichier du meme nom existe deja dans le dossier, un numero est ajoute automatiquement (<code>monAnimation_2.anim</code>, etc.) pour ne rien ecraser</li>
+      <li>Le dossier est cree automatiquement s'il n'existe pas encore</li>
     </ul>
     <p><strong>3. Branche</strong> (optionnel) : laissez vide pour utiliser la branche par defaut du depot (souvent <code>main</code>).</p>
     <p>Le token n'est jamais enregistre : il faudra le recoller a chaque visite de la page.</p>
   </div>
   <div class="controls">
     <div class="field">
-      <label for="githubAddress">Adresse (owner/repo/chemin/fichier.anim)</label>
-      <input type="text" id="githubAddress" placeholder="monPseudo/monRepo/animations/monAnimation.anim">
+      <label for="githubAddress">Adresse (owner/repo/dossier)</label>
+      <input type="text" id="githubAddress" placeholder="monPseudo/monRepo/animations">
     </div>
     <div class="field">
       <label for="githubToken">Cle (Personal Access Token)</label>
@@ -770,6 +779,19 @@ function utf8ToBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
 
+function sanitizeFileBaseName(name) {
+  return (name.trim() || 'monAnimation').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+async function githubFileExists(owner, repo, path, branch, headers) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}${branch ? `?ref=${encodeURIComponent(branch)}` : ''}`;
+  const resp = await fetch(url, { headers });
+  if (resp.status === 200) return true;
+  if (resp.status === 404) return false;
+  const err = await resp.json().catch(() => ({}));
+  throw new Error(`Verification du fichier : ${resp.status} ${err.message || ''}`);
+}
+
 document.getElementById('githubUploadBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('githubStatus');
   const address = document.getElementById('githubAddress').value.trim().replace(/^\/+|\/+$/g, '');
@@ -777,39 +799,37 @@ document.getElementById('githubUploadBtn').addEventListener('click', async () =>
   const branch = document.getElementById('githubBranch').value.trim();
 
   const parts = address.split('/');
-  if (parts.length < 3 || !token) {
-    statusEl.textContent = 'Adresse (owner/repo/chemin/fichier) et cle requises.';
+  if (parts.length < 2 || !token) {
+    statusEl.textContent = 'Adresse (owner/repo/dossier) et cle requises.';
     return;
   }
   const owner = parts[0];
   const repo = parts[1];
-  const path = parts.slice(2).join('/');
+  const folder = parts.slice(2).join('/');
+  const baseName = sanitizeFileBaseName(document.getElementById('varName').value);
 
-  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}${branch ? `?ref=${encodeURIComponent(branch)}` : ''}`;
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json'
   };
 
-  statusEl.textContent = 'Upload en cours...';
+  statusEl.textContent = 'Verification du nom de fichier...';
   document.getElementById('githubUploadBtn').disabled = true;
 
   try {
-    let sha = undefined;
-    const getResp = await fetch(apiUrl, { headers });
-    if (getResp.status === 200) {
-      const data = await getResp.json();
-      sha = data.sha;
-    } else if (getResp.status !== 404) {
-      const err = await getResp.json().catch(() => ({}));
-      throw new Error(`Lecture du fichier existant : ${getResp.status} ${err.message || ''}`);
+    let fileName = `${baseName}.anim`;
+    let suffix = 1;
+    while (await githubFileExists(owner, repo, folder ? `${folder}/${fileName}` : fileName, branch, headers)) {
+      suffix++;
+      fileName = `${baseName}_${suffix}.anim`;
     }
+    const path = folder ? `${folder}/${fileName}` : fileName;
 
+    statusEl.textContent = `Upload de ${fileName} en cours...`;
     const content = buildAnimFileContent();
     const putBody = {
-      message: sha ? `Mise a jour de ${path}` : `Ajout de ${path}`,
-      content: utf8ToBase64(content),
-      sha
+      message: `Ajout de ${path}`,
+      content: utf8ToBase64(content)
     };
     if (branch) putBody.branch = branch;
 
