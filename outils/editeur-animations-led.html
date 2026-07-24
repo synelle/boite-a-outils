@@ -73,6 +73,20 @@
     overflow-x: auto;
     padding: 12px 0;
   }
+  #gridStage {
+    display: inline-block;
+    position: relative;
+  }
+  #refImageEl {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    pointer-events: none;
+    display: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
   #grid {
     display: inline-grid;
     gap: 2px;
@@ -81,13 +95,17 @@
     border-radius: 4px;
     touch-action: none;
     user-select: none;
+    position: relative;
+    z-index: 1;
   }
+  #grid.hasRefImage { background: transparent; }
   .cell {
     width: 22px;
     height: 22px;
     background: var(--off);
     cursor: pointer;
   }
+  #grid.hasRefImage .cell:not(.on) { background: rgba(51, 54, 63, 0.4); }
   .cell.on { background: var(--on); }
   .cell.selected { box-shadow: inset 0 0 0 2px var(--accent); }
   .blockSep { border-right: 2px solid var(--accent); }
@@ -172,8 +190,32 @@
     <button class="secondary" id="deselectBtn" style="display:none;">Deselectionner</button>
   </div>
   <div id="gridWrap">
-    <div id="grid"></div>
+    <div id="gridStage">
+      <img id="refImageEl" alt="Image de reference">
+      <div id="grid"></div>
+    </div>
   </div>
+</div>
+
+<div class="panel">
+  <div class="controls">
+    <div class="field">
+      <label for="refImageInput">Image de reference (fond de plan)</label>
+      <input type="file" id="refImageInput" accept="image/*">
+    </div>
+    <button class="secondary" id="removeRefImageBtn">Retirer l'image</button>
+  </div>
+  <div class="controls" style="margin-top: 12px;">
+    <div class="field">
+      <label for="refImageOpacity">Opacite</label>
+      <input type="range" id="refImageOpacity" min="0" max="100" value="50">
+    </div>
+    <div class="field">
+      <label for="refImageScale">Echelle</label>
+      <input type="range" id="refImageScale" min="10" max="400" value="100">
+    </div>
+  </div>
+  <p class="sub" style="margin: 10px 0 0;">Passez en <strong>Mode : Image</strong> ci-dessus puis glissez l'image (souris ou doigt) pour la deplacer. Utilisez le curseur Echelle pour zoomer.</p>
 </div>
 
 <div class="panel">
@@ -435,13 +477,74 @@ function resetSelectionState() {
   setSelectionUI();
 }
 
+const MODE_LABELS = { draw: 'Mode : Dessin', select: 'Mode : Selection', image: 'Mode : Image' };
+const MODE_ORDER = ['draw', 'select', 'image'];
+
 document.getElementById('modeToggleBtn').addEventListener('click', () => {
-  mode = mode === 'draw' ? 'select' : 'draw';
-  document.getElementById('modeToggleBtn').textContent = mode === 'draw' ? 'Mode : Dessin' : 'Mode : Selection';
+  mode = MODE_ORDER[(MODE_ORDER.indexOf(mode) + 1) % MODE_ORDER.length];
+  document.getElementById('modeToggleBtn').textContent = MODE_LABELS[mode];
   clearSelection();
 });
 
 document.getElementById('deselectBtn').addEventListener('click', clearSelection);
+
+// --- Image de reference (fond de plan deplacable et scalable) ---
+const refImageEl = document.getElementById('refImageEl');
+let refImage = { loaded: false, x: 0, y: 0, scale: 1, naturalWidth: 0, naturalHeight: 0 };
+let imageDragging = false;
+let imageDragStart = null;
+
+function applyRefImageTransform() {
+  refImageEl.style.left = refImage.x + 'px';
+  refImageEl.style.top = refImage.y + 'px';
+  refImageEl.style.width = (refImage.naturalWidth * refImage.scale) + 'px';
+  refImageEl.style.height = (refImage.naturalHeight * refImage.scale) + 'px';
+}
+
+function setRefImageActive(active) {
+  document.getElementById('grid').classList.toggle('hasRefImage', active);
+}
+
+document.getElementById('refImageInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    refImageEl.onload = () => {
+      refImage.loaded = true;
+      refImage.naturalWidth = refImageEl.naturalWidth;
+      refImage.naturalHeight = refImageEl.naturalHeight;
+      refImage.x = 0;
+      refImage.y = 0;
+      refImage.scale = Math.min(1, (cols * 22) / refImage.naturalWidth);
+      document.getElementById('refImageScale').value = Math.round(refImage.scale * 100);
+      refImageEl.style.display = 'block';
+      setRefImageActive(true);
+      applyRefImageTransform();
+    };
+    refImageEl.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+document.getElementById('removeRefImageBtn').addEventListener('click', () => {
+  refImage = { loaded: false, x: 0, y: 0, scale: 1, naturalWidth: 0, naturalHeight: 0 };
+  refImageEl.src = '';
+  refImageEl.style.display = 'none';
+  setRefImageActive(false);
+});
+
+document.getElementById('refImageOpacity').addEventListener('input', (e) => {
+  refImageEl.style.opacity = e.target.value / 100;
+});
+refImageEl.style.opacity = document.getElementById('refImageOpacity').value / 100;
+
+document.getElementById('refImageScale').addEventListener('input', (e) => {
+  if (!refImage.loaded) return;
+  refImage.scale = Math.max(0.1, +e.target.value / 100);
+  applyRefImageTransform();
+});
 
 // --- Dessin (souris + tactile) ---
 let painting = false;
@@ -477,6 +580,13 @@ document.getElementById('grid').addEventListener('pointerdown', (e) => {
   const r = +cell.dataset.row, c = +cell.dataset.col;
   e.preventDefault();
 
+  if (mode === 'image') {
+    if (!refImage.loaded) return;
+    imageDragging = true;
+    imageDragStart = { x: e.clientX, y: e.clientY, imgX: refImage.x, imgY: refImage.y };
+    return;
+  }
+
   if (mode === 'select') {
     if (isInsideSelection(r, c, selection)) {
       // Demarre le deplacement de la selection existante
@@ -502,6 +612,13 @@ document.getElementById('grid').addEventListener('pointerdown', (e) => {
 });
 
 document.addEventListener('pointermove', (e) => {
+  if (imageDragging) {
+    refImage.x = imageDragStart.imgX + (e.clientX - imageDragStart.x);
+    refImage.y = imageDragStart.imgY + (e.clientY - imageDragStart.y);
+    applyRefImageTransform();
+    return;
+  }
+
   if (painting) {
     const cell = cellFromPoint(e.clientX, e.clientY);
     if (!cell) return;
@@ -545,6 +662,12 @@ document.addEventListener('pointermove', (e) => {
 });
 
 document.addEventListener('pointerup', () => {
+  if (imageDragging) {
+    imageDragging = false;
+    imageDragStart = null;
+    return;
+  }
+
   if (painting) {
     painting = false;
     buildFrameList();
