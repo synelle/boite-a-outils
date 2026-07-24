@@ -34,5 +34,11 @@
     "description": "Dessine des animations pixel par pixel pour une matrice LED Arduino/ESP32, génère le code C ou exporte un fichier .anim.",
     "icone": "💡",
     "categorie": "Outils"
+  },
+  "sprite-editor.html": {
+    "titre": "Éditeur de Sprites",
+    "description": "Éditeur de pixel art avec calques, groupes, outils de dessin, sélection/lasso, palettes personnalisables, import/export PNG et sauvegarde de projet.",
+    "icone": "🎮",
+    "categorie": "Outils"
   }
 }
