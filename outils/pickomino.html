@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pickomino — Lanceur de dés</title>
+<style>
+  :root{
+    --bg:#1b1410;
+    --panel:#2a1f18;
+    --wood:#4a3527;
+    --parchment:#e8dcc4;
+    --gold:#c9a227;
+    --gold-light:#e6c34f;
+    --worm:#7a9b4e;
+    --worm-light:#9fc46a;
+    --locked:#6b3d2e;
+    --danger:#8a3324;
+    --shadow: 0 4px 12px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at top, #2e2118 0%, var(--bg) 60%);
+    color:var(--parchment);
+    font-family:'Georgia','Palatino Linotype',serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 12px 60px;
+  }
+  h1{
+    font-family:'Trajan Pro','Times New Roman',serif;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    color:var(--gold-light);
+    text-shadow:0 2px 4px rgba(0,0,0,.6);
+    font-size:1.6rem;
+    margin:6px 0 2px;
+  }
+  .subtitle{
+    color:#b8a888;
+    font-size:.85rem;
+    margin-bottom:20px;
+    font-style:italic;
+  }
+  .board{
+    background:var(--wood);
+    border:6px solid #2f2116;
+    border-radius:14px;
+    box-shadow:var(--shadow), inset 0 0 30px rgba(0,0,0,.4);
+    padding:22px;
+    max-width:560px;
+    width:100%;
+  }
+  .dice-row{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:14px;
+    margin-bottom:18px;
+  }
+  .die{
+    aspect-ratio:1;
+    background:linear-gradient(160deg,var(--parchment),#d4c49f);
+    border-radius:10px;
+    border:2px solid #8a7550;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1.9rem;
+    font-weight:bold;
+    color:#3a2a1a;
+    cursor:pointer;
+    user-select:none;
+    position:relative;
+    transition:transform .15s ease, box-shadow .15s ease;
+    box-shadow:0 3px 0 #7a6540, 0 4px 6px rgba(0,0,0,.4);
+  }
+  .die:hover:not(.locked):not(.disabled){
+    transform:translateY(-2px);
+    box-shadow:0 5px 0 #7a6540, 0 6px 10px rgba(0,0,0,.5);
+  }
+  .die.worm{ color:var(--worm); }
+  .die.locked{
+    background:linear-gradient(160deg,var(--locked),#4a2419);
+    color:var(--gold-light);
+    border-color:var(--gold);
+    cursor:default;
+    box-shadow:inset 0 0 8px rgba(0,0,0,.5);
+  }
+  .die.locked.worm{ color:var(--worm-light); }
+  .die.disabled{
+    opacity:.35;
+    cursor:not-allowed;
+  }
+  .die.lost{
+    background:linear-gradient(160deg,#5a2b22,#3a1a14);
+    color:#d98a6f;
+    border-color:var(--danger);
+    cursor:default;
+    opacity:.7;
+  }
+  .die.lost.worm{ color:#e0a58f; }
+  .die.rolling{
+    animation:shake .4s ease;
+  }
+  @keyframes shake{
+    0%,100%{transform:rotate(0)}
+    25%{transform:rotate(-8deg)}
+    75%{transform:rotate(8deg)}
+  }
+  .die .tag{
+    position:absolute;
+    bottom:-8px;
+    font-size:.55rem;
+    letter-spacing:1px;
+    color:#b8a888;
+  }
+
+  .status{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:rgba(0,0,0,.25);
+    border-radius:8px;
+    padding:10px 14px;
+    margin-bottom:16px;
+    font-size:.95rem;
+  }
+  .status .score{
+    font-size:1.4rem;
+    color:var(--gold-light);
+    font-weight:bold;
+  }
+  .status .score.lost-score{
+    color:#d98a6f;
+  }
+  .used-values{
+    font-size:.8rem;
+    color:#b8a888;
+  }
+  .used-values span{
+    display:inline-block;
+    background:var(--locked);
+    border:1px solid var(--gold);
+    border-radius:4px;
+    padding:1px 6px;
+    margin-left:4px;
+    color:var(--gold-light);
+  }
+
+  .controls{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  button{
+    font-family:inherit;
+    font-size:.9rem;
+    padding:10px 18px;
+    border-radius:8px;
+    border:2px solid #2f2116;
+    cursor:pointer;
+    font-weight:bold;
+    letter-spacing:.5px;
+    box-shadow:0 3px 0 rgba(0,0,0,.4);
+    transition:transform .1s ease;
+  }
+  button:active{ transform:translateY(2px); box-shadow:none; }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-roll{ background:var(--gold); color:#2a1f18; }
+  .btn-stop{ background:var(--danger); color:var(--parchment); }
+
+  .hint{
+    font-size:.8rem;
+    color:#b8a888;
+    text-align:center;
+    margin-top:10px;
+    min-height:1.2em;
+  }
+
+  .history{
+    margin-top:26px;
+    max-width:560px;
+    width:100%;
+    background:var(--panel);
+    border-radius:10px;
+    padding:16px 18px;
+    box-shadow:var(--shadow);
+  }
+  .history h2{
+    margin:0 0 10px;
+    font-size:1.05rem;
+    color:var(--gold-light);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .history h2 button{
+    font-size:.7rem;
+    padding:4px 10px;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:.85rem; }
+  th,td{ padding:6px 4px; text-align:left; border-bottom:1px solid #4a3527; }
+  th{ color:#b8a888; font-weight:normal; }
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+    gap:8px;
+    margin-top:12px;
+    font-size:.8rem;
+  }
+  .stats div{
+    background:rgba(0,0,0,.25);
+    border-radius:6px;
+    padding:8px;
+    text-align:center;
+  }
+  .stats .big{ display:block; font-size:1.2rem; color:var(--gold-light); font-weight:bold; }
+  .empty{ color:#7a6a55; font-style:italic; font-size:.85rem; }
+</style>
+</head>
+<body>
+
+<h1>Pickomino</h1>
+<div class="subtitle">8 dés · le 6 est un ver</div>
+
+<div class="board">
+  <div class="dice-row" id="diceRow"></div>
+
+  <div class="status">
+    <div>Verrouillés : <span class="score" id="lockedSum">0</span></div>
+    <div class="used-values">Valeurs prises :<span id="usedValues"></span></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-roll" id="btnRoll">🎲 Lancer</button>
+    <button class="btn-stop" id="btnStop" disabled>🏁 Arrêter le tour</button>
+  </div>
+  <div class="hint" id="hint">Cliquez « Lancer » pour commencer.</div>
+</div>
+
+<div class="history">
+  <h2>Historique
+    <span>
+      <button id="btnExportCsv">⬇ Export CSV</button>
+      <button id="btnClearHistory">Vider</button>
+    </span>
+  </h2>
+  <div id="historyContent"><p class="empty">Aucun tour enregistré pour l'instant.</p></div>
+  <div class="stats" id="statsBox"></div>
+</div>
+
+<script>
+(function(){
+  const N_DICE = 8;
+  const STORAGE_KEY = 'pickomino_history_v1';
+
+  let dice = []; // {value, locked}
+  let usedValues = new Set(); // valeurs déjà verrouillées ce tour
+  let turnActive = false;
+  let awaitingLock = false; // true juste après un lancer, tant qu'aucune valeur n'a été choisie
+  let pendingValue = null; // valeur sélectionnée mais pas encore verrouillée (verrouillage effectif au prochain lancer/arrêt)
+  let roundLost = false; // true après un "cochonné" : les dés restent affichés mais le score est à 0
+  let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+
+  const diceRow = document.getElementById('diceRow');
+  const lockedSumEl = document.getElementById('lockedSum');
+  const usedValuesEl = document.getElementById('usedValues');
+  const hintEl = document.getElementById('hint');
+  const btnRoll = document.getElementById('btnRoll');
+  const btnStop = document.getElementById('btnStop');
+  const btnClearHistory = document.getElementById('btnClearHistory');
+  const btnExportCsv = document.getElementById('btnExportCsv');
+  const historyContent = document.getElementById('historyContent');
+  const statsBox = document.getElementById('statsBox');
+
+  function faceValue(v){ return v === 6 ? 5 : v; } // le ver (6) vaut 5 points
+  function faceLabel(v){ return v === 6 ? '🐛' : v; }
+
+  function initTurn(){
+    dice = Array.from({length:N_DICE}, () => ({value:null, locked:false}));
+    usedValues = new Set();
+    turnActive = true;
+    awaitingLock = false;
+    pendingValue = null;
+    roundLost = false;
+    render();
+  }
+
+  function rollDice(){
+    if (!turnActive) initTurn();
+    if (awaitingLock && pendingValue === null){
+      hintEl.textContent = "Sélectionnez une valeur avant de relancer.";
+      return;
+    }
+    // Verrouillage effectif de la valeur choisie au tour précédent
+    if (pendingValue !== null){
+      const value = pendingValue;
+      dice.forEach(d => { if (!d.locked && d.value === value) d.locked = true; });
+      usedValues.add(value);
+      pendingValue = null;
+    }
+    const unlocked = dice.filter(d => !d.locked);
+    if (unlocked.length === 0){
+      hintEl.textContent = "Tous les dés sont verrouillés — arrêtez votre tour.";
+      return;
+    }
+    unlocked.forEach(d => {
+      d.value = Math.floor(Math.random()*6)+1;
+    });
+    awaitingLock = true;
+    render(true);
+
+    // Vérifie le "cochonné" : aucune valeur visible non encore verrouillée n'est disponible
+    const availableValues = new Set(unlocked.map(d => d.value).filter(v => !usedValues.has(v)));
+    if (availableValues.size === 0){
+      hintEl.textContent = "💥 Cochonné ! Aucune valeur disponible — le tour se termine à 0.";
+      recordTurn(0, true);
+      turnActive = false;
+      awaitingLock = false;
+      roundLost = true;
+      render();
+      return;
+    }
+    hintEl.textContent = "Choisissez une valeur — vous pouvez changer d'avis avant de relancer.";
+  }
+
+  function toggleSelect(idx){
+    const d = dice[idx];
+    if (d.locked || d.value === null) return;
+    if (usedValues.has(d.value)){
+      hintEl.textContent = "Cette valeur a déjà été verrouillée ce tour.";
+      return;
+    }
+    pendingValue = (pendingValue === d.value) ? null : d.value;
+    hintEl.textContent = pendingValue === null
+      ? "Choisissez une valeur — vous pouvez changer d'avis avant de relancer."
+      : "Sélection provisoire — relancez pour valider, ou cliquez une autre valeur pour changer.";
+    render();
+  }
+
+  function currentLockedSum(){
+    return dice.filter(d => d.locked).reduce((s,d) => s + faceValue(d.value), 0);
+  }
+
+  function previewSum(){
+    const pendingBonus = pendingValue !== null
+      ? dice.filter(d => !d.locked && d.value === pendingValue).reduce((s,d) => s + faceValue(d.value), 0)
+      : 0;
+    return currentLockedSum() + pendingBonus;
+  }
+
+  function recordTurn(scoreOverride, isBust){
+    const score = scoreOverride !== undefined ? scoreOverride : currentLockedSum();
+    const nbLocked = dice.filter(d => d.locked).length;
+    const nbWorms = dice.filter(d => d.locked && d.value === 6).length;
+    const entry = {
+      date: new Date().toISOString(),
+      score,
+      nbLocked,
+      nbWorms,
+      valid: score >= 21,
+      bust: !!isBust
+    };
+    history.unshift(entry);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    renderHistory();
+  }
+
+  function stopTurn(){
+    if (pendingValue !== null){
+      const value = pendingValue;
+      dice.forEach(d => { if (!d.locked && d.value === value) d.locked = true; });
+      usedValues.add(value);
+      pendingValue = null;
+    }
+    const score = currentLockedSum();
+    recordTurn(score, false);
+    turnActive = false;
+    awaitingLock = false;
+    dice = [];
+    render();
+    hintEl.textContent = `Tour terminé — score : ${score}. Cliquez « Lancer » pour un nouveau tour.`;
+  }
+
+  function exportCsv(){
+    if (history.length === 0) return;
+    const header = ['date','score','nb_des_verrouilles','nb_vers','valide_21','cochonne'];
+    const rows = history.map(h => [
+      new Date(h.date).toISOString(),
+      h.score,
+      h.nbLocked,
+      h.nbWorms,
+      h.valid ? '1' : '0',
+      h.bust ? '1' : '0'
+    ]);
+    const csv = [header, ...rows].map(r => r.join(';')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pickomino_historique_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function render(rolling){
+    diceRow.innerHTML = '';
+    dice.forEach((d, i) => {
+      const el = document.createElement('div');
+      el.className = 'die';
+      if (d.value === 6) el.classList.add('worm');
+      if (d.locked) el.classList.add('locked');
+      if (roundLost && !d.locked) el.classList.add('lost');
+      if (!roundLost && d.value !== null && usedValues.has(d.value) && !d.locked) el.classList.add('disabled');
+      if (!roundLost && d.value !== null && d.value === pendingValue && !d.locked) el.style.outline = '3px solid var(--gold-light)';
+      if (rolling && !d.locked) el.classList.add('rolling');
+      el.textContent = d.value === null ? '·' : faceLabel(d.value);
+      if (turnActive && !d.locked && d.value !== null){
+        el.addEventListener('click', () => toggleSelect(i));
+      }
+      diceRow.appendChild(el);
+    });
+
+    lockedSumEl.textContent = roundLost ? '0' : previewSum();
+    lockedSumEl.classList.toggle('lost-score', roundLost);
+    usedValuesEl.innerHTML = [...usedValues].sort().map(v => `<span>${v===6?'🐛':v}</span>`).join('') || ' aucune';
+
+    const anyLocked = turnActive && (dice.some(d => d.locked) || pendingValue !== null);
+    btnStop.disabled = !anyLocked;
+    const allLocked = dice.length > 0 && dice.every(d => d.locked);
+    btnRoll.disabled = turnActive && (allLocked || (awaitingLock && pendingValue === null));
+  }
+
+  function renderHistory(){
+    if (history.length === 0){
+      historyContent.innerHTML = '<p class="empty">Aucun tour enregistré pour l\'instant.</p>';
+      statsBox.innerHTML = '';
+      return;
+    }
+    const rows = history.slice(0, 30).map(h => `
+      <tr>
+        <td>${new Date(h.date).toLocaleString('fr-FR')}</td>
+        <td>${h.score}</td>
+        <td>${h.nbLocked}/8</td>
+        <td>${h.nbWorms} 🐛</td>
+        <td>${h.bust ? '💥' : (h.valid ? '✅' : '❌')}</td>
+      </tr>`).join('');
+    historyContent.innerHTML = `
+      <table>
+        <thead><tr><th>Date</th><th>Score</th><th>Dés</th><th>Vers</th><th>≥21</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    const scores = history.map(h => h.score);
+    const avg = (scores.reduce((a,b)=>a+b,0) / scores.length).toFixed(1);
+    const max = Math.max(...scores);
+    const validRate = ((history.filter(h=>h.valid).length / history.length) * 100).toFixed(0);
+    const bustRate = ((history.filter(h=>h.bust).length / history.length) * 100).toFixed(0);
+    statsBox.innerHTML = `
+      <div><span class="big">${history.length}</span>tours joués</div>
+      <div><span class="big">${avg}</span>score moyen</div>
+      <div><span class="big">${max}</span>meilleur score</div>
+      <div><span class="big">${validRate}%</span>tours ≥ 21</div>
+      <div><span class="big">${bustRate}%</span>cochonnés</div>
+    `;
+  }
+
+  btnRoll.addEventListener('click', rollDice);
+  btnStop.addEventListener('click', stopTurn);
+  btnExportCsv.addEventListener('click', exportCsv);
+  btnClearHistory.addEventListener('click', () => {
+    if (!confirm("Effacer tout l'historique ?")) return;
+    history = [];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    renderHistory();
+  });
+
+  render();
+  renderHistory();
+})();
+</script>
+
+</body>
+</html>

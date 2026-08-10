@@ -40,5 +40,11 @@
     "description": "Éditeur de pixel art avec calques, groupes, outils de dessin, sélection/lasso, palettes personnalisables, import/export PNG et sauvegarde de projet.",
     "icone": "🎮",
     "categorie": "Outils"
+  },
+  "pickomino.html": {
+    "titre": "Pickomino",
+    "description": "Version en ligne du jeu de dés Pickomino : lance les dés, choisis ta tuile et vole celle des adversaires.",
+    "icone": "🐛",
+    "categorie": "Jeux"
   }
 }
