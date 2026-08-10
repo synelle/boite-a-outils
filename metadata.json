@@ -46,5 +46,11 @@
     "description": "Version en ligne du jeu de dés Pickomino : lance les dés, choisis ta tuile et vole celle des adversaires.",
     "icone": "🐛",
     "categorie": "Jeux"
+  },
+  "zombicide.html": {
+    "titre": "Zombicide: Black Plague (BÊTA)",
+    "description": "Version jouable de Zombicide: Black Plague — survivants, zombies, équipement, compétences et campagne de quêtes. En cours de développement.",
+    "icone": "🧟",
+    "categorie": "Jeux"
   }
 }
