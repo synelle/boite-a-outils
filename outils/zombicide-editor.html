@@ -790,7 +790,7 @@ document.addEventListener("keydown", e=>{
 const textToB64 = t => btoa(String.fromCharCode(...new TextEncoder().encode(t)));
 const b64ToText = s => new TextDecoder().decode(Uint8Array.from(atob(s), c=>c.charCodeAt(0)));
 
-document.getElementById("btnBack").onclick = ()=>{ location.href="zombicide.html"; };
+document.getElementById("btnBack").onclick = ()=>{ location.href="zombicide.html"; }; // nom déjà correct côté jeu
 document.getElementById("btnPlay").onclick = ()=>{
   const probs=problems();
   if(probs.length) return say("Impossible : "+probs[0],"err");

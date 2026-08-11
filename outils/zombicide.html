@@ -2571,7 +2571,7 @@ document.getElementById("fileLoad").onchange = async e=>{
 };
 document.getElementById("btnEditor").onclick = ()=>{
   // on emmène la carte courante dans l'éditeur
-  location.href = "editor.html#q=" + encodeURIComponent(textToB64(JSON.stringify(QUEST)));
+  location.href = "zombicide-editor.html#q=" + encodeURIComponent(textToB64(JSON.stringify(QUEST)));
 };
 if(CUSTOM_QUEST){
   const b=document.getElementById("btnDefault");
