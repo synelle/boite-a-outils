@@ -52,5 +52,11 @@
     "description": "Version jouable de Zombicide: Black Plague — survivants, zombies, équipement, compétences et campagne de quêtes. En cours de développement.",
     "icone": "🧟",
     "categorie": "Jeux"
+  },
+  "zombicide-editor.html": {
+    "titre": "Zombicide — Éditeur de carte (BÊTA)",
+    "description": "Éditeur de plans de quêtes pour Zombicide: Black Plague — zones, murs, portes, apparitions et objectifs.",
+    "icone": "🗺️",
+    "categorie": "Jeux"
   }
 }

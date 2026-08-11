@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zombicide — Éditeur de carte</title>
+<style>
+:root{
+  --zs:76px;
+  --bg:#141210; --panel:#221f1c; --line:#3a332c; --ink:#e8e0d2; --dim:#a2968a;
+  --gold:#c9a227; --street:#2a2724; --room:#33291f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif;
+  display:flex;overflow:hidden}
+button{font:inherit;color:var(--ink);background:#2e2925;border:1px solid var(--line);
+  border-radius:5px;padding:5px 9px;cursor:pointer}
+button:hover:not(:disabled){background:#3c352e;border-color:var(--gold)}
+button.on{background:#4a3a1c;border-color:var(--gold)}
+button.prim{background:#4a3a1c;border-color:var(--gold)}
+button.danger{background:#4a1f1f;border-color:#8e2b2b}
+input,select,textarea{font:inherit;background:#1a1714;color:var(--ink);
+  border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+h1,h2,h3{margin:0;font-weight:600}
+
+#pane{flex:1;min-width:0;position:relative;display:flex}
+#wrap{flex:1;overflow:auto;padding:26px;display:flex}
+/* `margin:auto` centre sur les deux axes sans rogner les bords en cas de débordement */
+#wrap .stage{margin:auto}
+#zoomBar{position:absolute;left:10px;top:10px;z-index:20;display:flex;gap:4px;
+  align-items:center;background:#1a1714dd;border:1px solid var(--line);
+  border-radius:6px;padding:3px 6px}
+#zoomBar button{padding:2px 8px;font-size:13px;line-height:1.1}
+#zLbl{font-size:11px;color:var(--dim);min-width:42px;text-align:center;
+  font-variant-numeric:tabular-nums}
+#grid{display:grid;position:relative;background:#0d0b0a;border:3px solid #4a4038;border-radius:4px}
+.c{position:relative;width:var(--zs);height:var(--zs);background:var(--street);cursor:pointer}
+.c.room{background:var(--room)}
+.c:hover{filter:brightness(1.35)}
+.c .lbl{position:absolute;left:3px;top:2px;color:#6d6157;pointer-events:none;
+  font-size:clamp(6px,calc(var(--zs)*.12),10px)}
+/* classe portée par <body> : survit à tous les redessins de la grille */
+body.zsmall .c .lbl{display:none}
+.c .rl{position:absolute;inset:0;display:grid;place-items:center;font-weight:700;
+  color:#00000055;pointer-events:none;font-size:clamp(12px,calc(var(--zs)*.34),30px)}
+.c .tk{position:absolute;right:2px;top:2px;display:flex;flex-direction:column;gap:2px;
+  pointer-events:none;z-index:3}
+.tok{width:calc(var(--zs)*.26);height:calc(var(--zs)*.26);border-radius:50%;
+  display:grid;place-items:center;border:1px solid #0008;font-weight:700;
+  font-size:clamp(7px,calc(var(--zs)*.13),12px)}
+.tok.exit{background:#2f6b4a;color:#fff}
+.tok.start{background:#c9c9c9;color:#222}
+.tok.obj{background:var(--oc);color:#fff}
+.tok.obj.hidden{border:2px dashed #fff8}
+.spw{position:absolute;background:var(--sc);border:1px solid #0009;z-index:3;
+  pointer-events:none}
+.spw.n{left:18%;top:2px;width:64%;height:calc(var(--zs)*.17)}
+.spw.s{left:18%;bottom:2px;width:64%;height:calc(var(--zs)*.17)}
+.spw.w{top:18%;left:2px;height:64%;width:calc(var(--zs)*.17)}
+.spw.e{top:18%;right:2px;height:64%;width:calc(var(--zs)*.17)}
+
+/* Arêtes cliquables, actives en mode Portes. Une arête du plateau ne porte
+   qu'UNE zone cliquable, sinon les cases voisines se recouvrent et la moitié
+   des clics tombe à côté. */
+.eh{position:absolute;z-index:8;display:none;border-radius:3px;cursor:pointer}
+body.doormode .eh{display:block;background:#c9a2271f;outline:1px dashed #c9a22755}
+body.doormode .eh:hover{background:#c9a22777;outline:1px solid var(--gold)}
+body.doormode .eh.has{background:#b5462d66;outline:1px solid #b5462d}
+body.doormode .eh.has:hover{background:#e0604066}
+/* le filtre de survol des cases créerait un contexte d'empilement qui masquerait
+   les arêtes débordant sur la case voisine */
+body.doormode .c:hover{filter:none}
+.eh.n{left:10%;top:-9px;width:80%;height:18px}
+.eh.w{top:10%;left:-9px;height:80%;width:18px}
+/* Sur le pourtour du plateau, la zone cliquable est rentrée à l'intérieur de la
+   case : débordante, elle sortirait de l'écran ou passerait sous le panneau. */
+
+.walls{position:absolute;left:0;top:0;pointer-events:none;z-index:6}
+.walls .wall{stroke:#8a7458;stroke-width:6;stroke-linecap:square}
+.walls .door{stroke-width:12;stroke-linecap:butt}
+.hatch{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:calc(var(--zs)*.45);height:calc(var(--zs)*.45);border-radius:6px;border:2px dashed var(--cc);
+  background:#00000055;color:var(--cc);display:grid;place-items:center;
+  font-size:15px;font-weight:700;pointer-events:none;z-index:2}
+
+#crypts{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+.cz{min-width:180px;border:2px dashed var(--cc);border-radius:8px;background:#241d28;padding:7px 9px}
+.cz .h{font-size:11px;font-weight:700;color:var(--cc);letter-spacing:.5px}
+.cz .i{font-size:10px;color:var(--dim)}
+
+#side{width:410px;min-width:410px;background:var(--panel);border-left:1px solid var(--line);
+  display:flex;flex-direction:column;height:100vh}
+#side header{padding:10px 12px;border-bottom:1px solid var(--line);background:#1a1714}
+#side header h1{font-size:15px;color:var(--gold);letter-spacing:.5px}
+#scroll{flex:1;overflow-y:auto;padding:10px 12px}
+.card{background:#2a2521;border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px}
+.card h3{font-size:13px;color:var(--gold);margin-bottom:6px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.row.g{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.row.g button{width:100%}
+label{font-size:12px;color:var(--dim)}
+.hint{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.4}
+textarea{width:100%;height:150px;font-family:Consolas,monospace;font-size:11px;resize:vertical}
+#msg{padding:6px 12px;font-size:12px;min-height:30px;border-top:1px solid var(--line);background:#191614}
+#msg.err{color:#e08080}#msg.ok{color:#8fd08f}
+#foot{padding:8px 12px;border-top:1px solid var(--line);background:#1a1714;display:flex;gap:6px;flex-wrap:wrap}
+.sw{width:14px;height:14px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:-2px}
+button.col{border-color:var(--bc);color:var(--bc);font-weight:600}
+button.col.on{background:var(--bc);color:#1a1714;border-color:var(--bc)}
+.cond{display:grid;grid-template-columns:auto 1fr;gap:4px 6px;align-items:center;margin-top:5px}
+.cond select{width:100%;font-size:12px;padding:2px 4px}
+</style>
+</head>
+<body>
+
+<div id="pane">
+  <div id="zoomBar">
+    <button id="zOut" title="Dézoomer (Ctrl + molette, ou -)">−</button>
+    <span id="zLbl">100 %</span>
+    <button id="zIn" title="Zoomer (Ctrl + molette, ou +)">+</button>
+    <button id="zFit" title="Ajuster la carte à la fenêtre (touche 0)">Ajuster</button>
+  </div>
+  <div id="wrap"><div class="stage"><div id="grid"></div><div id="crypts"></div></div></div>
+</div>
+
+<div id="side">
+  <header><h1>ÉDITEUR DE CARTE</h1>
+    <div class="hint" style="margin:0">Zombicide : Black Plague — génère un objet <code>QUEST</code></div>
+  </header>
+  <div id="scroll"></div>
+  <div id="msg"></div>
+  <div id="foot">
+    <button id="btnPlay" class="prim">Jouer cette carte</button>
+    <button id="btnBack">Retour au jeu</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const DXY={n:[0,-1],s:[0,1],e:[1,0],w:[-1,0]}, OPP={n:"s",s:"n",e:"w",w:"e"};
+const SIDES=["n","e","s","w"];
+const LETTERS="ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+/* La boîte de base contient 2 Zones de Crypte (violette, jaune) et 2 portes de
+   chaque couleur. Les portes d'une même couleur mènent toutes à la même Zone de
+   Crypte, posée à côté du plateau : c'est ainsi qu'on relie deux endroits par
+   un souterrain. */
+const CRYPT_COLORS = {violet:"#a06bd8", jaune:"#c9a227"};
+const COLORS = {
+  red:    {f:"rouge",    m:"rouge",  css:"#b5462d"},
+  blue:   {f:"bleue",    m:"bleu",   css:"#3d6fb5"},
+  green:  {f:"verte",    m:"vert",   css:"#4f9d5a"},
+  purple: {f:"violette", m:"violet", css:"#a06bd8"},
+  grey:   {f:"grise",    m:"gris",   css:"#8a8a8a"}
+};
+const colF=c=>(COLORS[c]||{}).f||c, colM=c=>(COLORS[c]||{}).m||c;
+const colCss=c=>(COLORS[c]||{}).css||"#8a8a8a";
+const DOOR_COLORS  = ["grey","blue","green"];       // portes : grise, bleue, verte
+const SPAWN_COLORS = ["red","blue","green","purple"];
+const OBJ_COLORS   = ["red","green","blue"];
+
+let M = null;                 // modèle de carte
+let tool = "room";            // room|street|door|start|exit|spawn|obj|crypt
+let cryptKind = "violet";
+let doorColor = "grey", doorOpen = false;   // outil Portes
+let spawnColor = "red", spawnSide = "n";    // outil Invasion
+let objColor = "red", objHidden = false;    // outil Objectif
+let letter = "A";
+
+function blank(W,H){
+  return {
+    name:"Ma quête",
+    goal:"Récupérez tous les Objectifs, puis tous les Survivants doivent sortir.",
+    W, H, cells:new Array(W*H).fill("."), doors:[], cryptDoors:[],
+    spawns:[], objectives:[], start:null, exit:null,
+    hiddenBacks:[], locks:{spawns:{}, doors:{}},
+    win:{need:"objectives:all", exit:"all"}
+  };
+}
+const I  = (x,y)=>y*M.W+x;
+const IN = (x,y)=>x>=0&&y>=0&&x<M.W&&y<M.H;
+const ch = (x,y)=>M.cells[I(x,y)];
+const eqp= (a,b)=>a&&b&&a.x===b.x&&a.y===b.y;
+
+/* Mur = arête entre deux lettres différentes, ou entre une lettre et la rue. */
+function isWall(x,y,s){
+  const nx=x+DXY[s][0], ny=y+DXY[s][1];
+  if(!IN(nx,ny)) return false;                 // bord de plateau
+  return ch(x,y)!==ch(nx,ny);
+}
+/* Une porte normale est symétrique (deux cases) ; une porte de crypte
+   appartient à une seule case et peut border le plateau. */
+function findDoor(x,y,s){
+  const nx=x+DXY[s][0], ny=y+DXY[s][1];
+  return M.doors.find(d=> (d.x===x&&d.y===y&&d.s===s) ||
+                          (d.x===nx&&d.y===ny&&d.s===OPP[s]) );
+}
+const findCrypt = (x,y) => M.cryptDoors.find(d=>d.x===x&&d.y===y);
+const cryptColorsUsed = () => [...new Set(M.cryptDoors.map(d=>d.color))];
+
+const CONDS = [["", "aucune condition"],
+               ["objective:red",   "Objectif rouge récupéré"],
+               ["objective:green", "Objectif vert récupéré"],
+               ["objective:blue",  "Objectif bleu récupéré"],
+               ["objectives:all",  "tous les Objectifs récupérés"],
+               ["never",           "jamais"]];
+const condTexte = c => (CONDS.find(x=>x[0]===(c||""))||[,c])[1];
+const EXIT_TXT  = {all:"tous les Survivants vivants doivent sortir",
+                   any:"au moins un Survivant doit sortir",
+                   none:"aucune sortie requise"};
+function missionTexte(){
+  if(M.win.exit==="none") return M.win.need ? condTexte(M.win.need) : "aucune condition";
+  const b=[];
+  if(M.win.need) b.push(condTexte(M.win.need));
+  b.push(EXIT_TXT[M.win.exit]||EXIT_TXT.all);
+  return b.join(", puis ");
+}
+
+/* Une porte se pose sur un MUR. Chaque arête interne du plateau est le Nord ou
+   l'Ouest d'exactement une case : une seule zone cliquable par arête, donc
+   aucun recouvrement entre cases voisines. */
+const edgeSides = (x,y) => ["n","w"].filter(s=>isWall(x,y,s));
+
+/* ---------- rendu ---------- */
+function render(){
+  const g=document.getElementById("grid");
+  g.style.gridTemplateColumns=`repeat(${M.W}, var(--zs))`;
+  g.innerHTML="";
+  document.body.classList.toggle("doormode", tool==="door");
+  for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++){
+    const c=ch(x,y), d=document.createElement("div");
+    d.className="c"+(c!=="."?" room":"");
+    const lb=document.createElement("div"); lb.className="lbl"; lb.textContent=`${x},${y}`;
+    d.appendChild(lb);
+    if(c!=="."){ const r=document.createElement("div"); r.className="rl"; r.textContent=c; d.appendChild(r); }
+    const tk=document.createElement("div"); tk.className="tk";
+    const T=(cl,t)=>{const e=document.createElement("div");e.className="tok "+cl;e.textContent=t;tk.appendChild(e);return e;};
+    if(eqp(M.exit,{x,y})) T("exit","S");
+    if(eqp(M.start,{x,y})) T("start","D");
+    const o=M.objectives.find(p=>p.x===x&&p.y===y);
+    if(o){ const e=T("obj"+(o.hidden?" hidden":""), o.hidden?"?":"O");
+           e.style.setProperty("--oc", colCss(o.hidden?"red":o.color)); }
+    d.appendChild(tk);
+    // Zones d'Invasion : un rectangle par pion, sur le bord choisi
+    M.spawns.filter(p=>p.x===x&&p.y===y).forEach(p=>{
+      const e=document.createElement("div");
+      e.className="spw "+(p.side||"n");
+      e.style.setProperty("--sc", colCss(p.color||"red"));
+      e.title=`Zone d'Invasion ${colF(p.color||"red")} (bord ${p.side||"n"})`;
+      d.appendChild(e);
+    });
+    const cd=findCrypt(x,y);
+    if(cd){
+      const t=document.createElement("div"); t.className="hatch";
+      t.style.setProperty("--cc", CRYPT_COLORS[cd.color]||"#888");
+      t.textContent="⛒"; t.title="Trappe de crypte "+cd.color;
+      d.appendChild(t);
+    }
+    // arêtes cliquables : murs internes pour une porte normale,
+    // les 4 côtés de toute case pour une porte de crypte.
+    if(tool==="door"){
+      edgeSides(x,y).forEach(s=>{
+        const e=document.createElement("div");
+        e.className="eh "+s+(findDoor(x,y,s)?" has":"");
+        e.title = findDoor(x,y,s) ? "Retirer cette porte" : "Poser une porte";
+        e.onclick=ev=>{ ev.stopPropagation(); toggleDoor(x,y,s); };
+        d.appendChild(e);
+      });
+    }
+    d.onclick=()=>paint(x,y);
+    d.oncontextmenu=ev=>{ ev.preventDefault(); erase(x,y); };
+    g.appendChild(d);
+  }
+  g.appendChild(renderWalls());
+  renderCrypts();
+  renderPanel();
+}
+function renderWalls(){
+  const NS="http://www.w3.org/2000/svg";
+  const zs=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--zs"))||76;
+  const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("class","walls");
+  svg.setAttribute("width",M.W*zs); svg.setAttribute("height",M.H*zs);
+  svg.setAttribute("viewBox",`0 0 ${M.W*zs} ${M.H*zs}`);
+  const line=(x1,y1,x2,y2,cl,col)=>{const l=document.createElementNS(NS,"line");
+    l.setAttribute("x1",x1);l.setAttribute("y1",y1);l.setAttribute("x2",x2);l.setAttribute("y2",y2);
+    l.setAttribute("class",cl); if(col) l.setAttribute("stroke",col);
+    svg.appendChild(l);};
+  const p=(k,lo,hi)=>lo+(hi-lo)*k;
+  for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++){
+    const X=x*zs, Y=y*zs;
+    const seg={ n:[X,Y,X+zs,Y], w:[X,Y,X,Y+zs], e:[X+zs,Y,X+zs,Y+zs], s:[X,Y+zs,X+zs,Y+zs] };
+    for(const s of ["n","w"]){
+      if(!isWall(x,y,s)) continue;
+      const [a,b,c,d]=seg[s];
+      line(a,b,c,d,"wall");
+      const dr=findDoor(x,y,s);
+      if(!dr) continue;
+      const col=colCss(dr.color||"grey");
+      if(dr.open){   // ouverte : deux battants écartés
+        line(p(.20,a,c),p(.20,b,d),p(.33,a,c),p(.33,b,d),"door",col);
+        line(p(.67,a,c),p(.67,b,d),p(.80,a,c),p(.80,b,d),"door",col);
+      } else line(p(.22,a,c),p(.22,b,d),p(.78,a,c),p(.78,b,d),"door",col);
+    }
+  }
+  return svg;
+}
+function renderCrypts(){
+  const box=document.getElementById("crypts"); box.innerHTML="";
+  const cols=cryptColorsUsed();
+  box.style.display = cols.length ? "flex" : "none";
+  cols.forEach(col=>{
+    const n=M.cryptDoors.filter(d=>d.color===col).length;
+    const d=document.createElement("div"); d.className="cz";
+    d.style.setProperty("--cc", CRYPT_COLORS[col]||"#888");
+    const h=document.createElement("div"); h.className="h"; h.textContent="CRYPTE "+col.toUpperCase();
+    const i=document.createElement("div"); i.className="i";
+    i.textContent = n+" trappe(s)"+(n<2?" — une seule : cul-de-sac":" — souterrain reliant ces "+n+" accès");
+    d.appendChild(h); d.appendChild(i); box.appendChild(d);
+  });
+}
+
+/* ---------- outils ---------- */
+function paint(x,y){
+  if(tool==="door") return;
+  if(tool==="crypt"){
+    const ex=findCrypt(x,y);
+    if(ex){ M.cryptDoors.splice(M.cryptDoors.indexOf(ex),1); say(""); return render(); }
+    if(M.cryptDoors.filter(d=>d.color===cryptKind).length>=2)
+      return say(`La boîte ne contient que 2 accès de crypte ${cryptKind} — retire-en un d'abord.`,"err");
+    M.cryptDoors.push({x,y,color:cryptKind}); say("");
+    return render();
+  }
+  if(tool==="room")        setCell(x,y,letter);
+  else if(tool==="street") setCell(x,y,".");
+  else if(tool==="start")  M.start={x,y};
+  else if(tool==="exit")   M.exit={x,y};
+  else if(tool==="spawn"){
+    // un pion par clic ; même couleur ET même bord déjà présents ⇒ on le retire
+    const k=M.spawns.findIndex(p=>p.x===x&&p.y===y&&p.color===spawnColor&&p.side===spawnSide);
+    if(k>=0) M.spawns.splice(k,1);
+    else M.spawns.push({x,y,color:spawnColor,side:spawnSide});
+  }
+  else if(tool==="obj"){
+    const k=M.objectives.findIndex(p=>p.x===x&&p.y===y);
+    if(k>=0) M.objectives.splice(k,1);
+    else M.objectives.push(objHidden ? {x,y,hidden:true} : {x,y,color:objColor});
+  }
+  render();
+}
+function erase(x,y){
+  M.cryptDoors = M.cryptDoors.filter(p=>!(p.x===x&&p.y===y));
+  M.spawns = M.spawns.filter(p=>!(p.x===x&&p.y===y));
+  M.objectives = M.objectives.filter(p=>!(p.x===x&&p.y===y));
+  if(eqp(M.start,{x,y})) M.start=null;
+  if(eqp(M.exit,{x,y}))  M.exit=null;
+  render();
+}
+function setCell(x,y,v){
+  if(ch(x,y)===v) return;
+  M.cells[I(x,y)]=v;
+  // les portes normales devenues invalides (l'arête n'est plus un mur) partent
+  M.doors = M.doors.filter(d=>IN(d.x,d.y) && isWall(d.x,d.y,d.s));
+}
+/* Clic sur une arête : pose une porte du type courant (couleur + état). Si une
+   porte identique s'y trouve déjà elle est retirée, sinon elle est remplacée. */
+function toggleDoor(x,y,s){
+  const ex=findDoor(x,y,s);
+  if(ex){
+    const identique = (ex.color||"grey")===doorColor && !!ex.open===doorOpen;
+    M.doors.splice(M.doors.indexOf(ex),1);
+    if(identique){ say(""); return render(); }
+  } else if(!isWall(x,y,s)) return say("Une porte ne se pose que sur un mur.","err");
+  const d={x,y,s,color:doorColor};
+  if(doorOpen) d.open=true;
+  M.doors.push(d);
+  say(""); render();
+}
+
+/* ---------- validation ---------- */
+function problems(){
+  const p=[];
+  if(!M.start) p.push("Zone de départ manquante.");
+  if(!M.exit && M.win.exit!=="none") p.push("Zone de sortie manquante.");
+  if(!M.spawns.length) p.push("Aucune Zone d'Invasion.");
+  if(!M.objectives.length) p.push("Aucun Objectif.");
+  if(M.start && ch(M.start.x,M.start.y)!==".")
+    p.push("Le départ est dans un bâtiment : les Survivants y seraient enfermés.");
+  // chaque bâtiment doit avoir une porte
+  [...new Set(M.cells.filter(c=>c!=="."))].forEach(r=>{
+    let has=false;
+    for(let y=0;y<M.H&&!has;y++) for(let x=0;x<M.W&&!has;x++){
+      if(ch(x,y)!==r) continue;
+      for(const s of SIDES) if(findDoor(x,y,s)) has=true;
+    }
+    if(!has) p.push(`Le bâtiment « ${r} » n'a aucune porte : il est inaccessible.`);
+  });
+  // conditions portant sur une couleur d'Objectif absente de la carte
+  const couleursObj = new Set(M.objectives.map(o=>o.hidden?null:o.color).filter(Boolean)
+                        .concat(M.hiddenBacks));
+  const verifCond=(cible,libelle)=>Object.entries(M.locks[cible]||{}).forEach(([col,cond])=>{
+    const m=/^objective:(\w+)$/.exec(cond||"");
+    if(m && !couleursObj.has(m[1]))
+      p.push(`${libelle} ${colF(col)} attend un Objectif ${colM(m[1])}, mais la carte n'en contient aucun.`);
+  });
+  verifCond("spawns","Les Zones d'Invasion");
+  verifCond("doors","Les portes");
+  // la condition de victoire doit être atteignable
+  const mw=/^objective:(\w+)$/.exec(M.win.need||"");
+  if(mw && !couleursObj.has(mw[1]))
+    p.push(`La mission exige un Objectif ${colM(mw[1])}, mais la carte n'en contient aucun.`);
+  if(M.win.need==="never") p.push("La mission est réglée sur « jamais » : elle ne peut pas être gagnée.");
+  if(M.win.exit==="none" && !M.win.need)
+    p.push("Mission sans condition ni sortie : elle serait gagnée dès le premier instant.");
+  // une porte grise ne peut pas être verrouillée
+  if((M.locks.doors||{}).grey) p.push("Les portes grises ne peuvent pas être verrouillées.");
+  // toutes les Zones d'Invasion inactives pour toujours ?
+  if(M.spawns.length && M.spawns.every(sp=>(M.locks.spawns||{})[sp.color]==="never"))
+    p.push("Toutes les Zones d'Invasion sont verrouillées sur « jamais » : aucun zombie n'apparaîtra.");
+  cryptColorsUsed().forEach(col=>{
+    if(M.cryptDoors.filter(d=>d.color===col).length<2)
+      p.push(`La crypte ${col} n'a qu'un accès : elle ne relie rien (cul-de-sac).`);
+  });
+  // connexité depuis le départ, portes considérées comme ouvrables,
+  // cryptes traitées comme des nœuds reliant toutes leurs portes
+  if(M.start){
+    const key=(x,y)=>y*M.W+x;
+    const seen=new Set([key(M.start.x,M.start.y)]);
+    const seenCrypt=new Set();
+    const q=[{x:M.start.x,y:M.start.y}];
+    while(q.length){
+      const c=q.shift();
+      // la trappe de la case donne accès à toutes les autres de la même couleur
+      const cd=findCrypt(c.x,c.y);
+      if(cd && !seenCrypt.has(cd.color)){
+        seenCrypt.add(cd.color);
+        M.cryptDoors.filter(o=>o.color===cd.color).forEach(o=>{
+          if(!seen.has(key(o.x,o.y))){ seen.add(key(o.x,o.y)); q.push({x:o.x,y:o.y}); }
+        });
+      }
+      for(const s of SIDES){
+        const nx=c.x+DXY[s][0], ny=c.y+DXY[s][1];
+        if(!IN(nx,ny)) continue;
+        if(isWall(c.x,c.y,s) && !findDoor(c.x,c.y,s)) continue;
+        if(seen.has(key(nx,ny))) continue;
+        seen.add(key(nx,ny)); q.push({x:nx,y:ny});
+      }
+    }
+    const chk=(pt,nm)=>{ if(pt && !seen.has(key(pt.x,pt.y))) p.push(nm+" est inatteignable depuis le départ."); };
+    chk(M.exit,"La Zone de sortie");
+    M.objectives.forEach((o,k)=>chk(o,`L'Objectif ${k+1} (${o.x},${o.y})`));
+    M.spawns.forEach((o,k)=>chk(o,`La Zone d'Invasion ${k+1} (${o.x},${o.y})`));
+  }
+  return p;
+}
+
+/* ---------- import / export ---------- */
+function toQuest(){
+  const map=[];
+  for(let y=0;y<M.H;y++){ let r=""; for(let x=0;x<M.W;x++) r+=ch(x,y); map.push(r); }
+  const q = { name:M.name, goal:M.goal, W:M.W, H:M.H, map,
+    doors:M.doors.map(d=>{const o={x:d.x,y:d.y,s:d.s,color:d.color||"grey"};
+                          if(d.open) o.open=true; return o;}),
+    cryptDoors:M.cryptDoors.map(d=>({x:d.x,y:d.y,color:d.color})),
+    spawns:M.spawns.map(p=>({x:p.x,y:p.y,color:p.color||"red",side:p.side||"n"})),
+    start:M.start, exit:M.exit,
+    objectives:M.objectives.map(o=>o.hidden?{x:o.x,y:o.y,hidden:true}
+                                           :{x:o.x,y:o.y,color:o.color||"red"}) };
+  if(M.hiddenBacks.length) q.hiddenBacks=[...M.hiddenBacks];
+  const L={};
+  if(Object.keys(M.locks.spawns||{}).length) L.spawns={...M.locks.spawns};
+  if(Object.keys(M.locks.doors ||{}).length) L.doors ={...M.locks.doors};
+  if(Object.keys(L).length) q.locks=L;
+  q.win={exit:M.win.exit};
+  if(M.win.need) q.win.need=M.win.need;
+  return q;
+}
+function fromQuest(q){
+  const m=blank(q.W,q.H);
+  m.name=q.name||"Quête"; m.goal=q.goal||"";
+  for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++) m.cells[y*q.W+x]=q.map[y][x];
+  m.doors=(q.doors||[]).filter(d=>!d.crypt)
+            .map(d=>({x:d.x,y:d.y,s:d.s,color:d.color||"grey",open:!!d.open}));
+  // ancien format accepté : une porte marquée `crypt` devient une trappe
+  m.cryptDoors=(q.cryptDoors||[]).map(d=>({x:d.x,y:d.y,color:d.color}))
+    .concat((q.doors||[]).filter(d=>d.crypt).map(d=>({x:d.x,y:d.y,color:d.crypt})));
+  m.spawns=(q.spawns||[]).map(p=>({x:p.x,y:p.y,color:p.color||"red",side:p.side||"n"}));
+  m.objectives=(q.objectives||[]).map(p=>p.hidden?{x:p.x,y:p.y,hidden:true}
+                                                 :{x:p.x,y:p.y,color:p.color||"red"});
+  m.hiddenBacks=[...(q.hiddenBacks||[])];
+  m.locks={spawns:{...((q.locks||{}).spawns||{})}, doors:{...((q.locks||{}).doors||{})}};
+  m.win={need:(q.win||{}).need ?? "objectives:all", exit:(q.win||{}).exit || "all"};
+  m.start=q.start?{x:q.start.x,y:q.start.y}:null;
+  m.exit=q.exit?{x:q.exit.x,y:q.exit.y}:null;
+  return m;
+}
+function questSource(){
+  const q=toQuest(), pt=p=>`{x:${p.x},y:${p.y}}`;
+  const L=[];
+  L.push(`  name:${JSON.stringify(q.name)},`);
+  L.push(`  goal:${JSON.stringify(q.goal)},`);
+  L.push(`  W:${q.W}, H:${q.H},`);
+  L.push(`  map:[`);
+  L.push(q.map.map(r=>'    "'+r+'"').join(",\n"));
+  L.push(`  ],`);
+  L.push(`  doors:[ ${q.doors.map(d=>`{x:${d.x},y:${d.y},s:"${d.s}",color:"${d.color}"${d.open?",open:true":""}}`).join(", ")} ],`);
+  L.push(`  cryptDoors:[ ${q.cryptDoors.map(d=>`{x:${d.x},y:${d.y},color:"${d.color}"}`).join(", ")} ],`);
+  L.push(`  spawns:[ ${q.spawns.map(p=>`{x:${p.x},y:${p.y},color:"${p.color}",side:"${p.side}"}`).join(", ")} ],`);
+  L.push(`  start:${pt(q.start||{x:0,y:0})},`);
+  L.push(`  exit:${pt(q.exit||{x:0,y:0})},`);
+  const fin=[];
+  fin.push(`  objectives:[ ${q.objectives.map(o=>o.hidden?`{x:${o.x},y:${o.y},hidden:true}`:`{x:${o.x},y:${o.y},color:"${o.color}"}`).join(", ")} ]`);
+  if(q.hiddenBacks) fin.push(`  hiddenBacks:${JSON.stringify(q.hiddenBacks)}`);
+  if(q.locks)       fin.push(`  locks:${JSON.stringify(q.locks)}`);
+  fin.push(`  win:${JSON.stringify(q.win)}`);
+  return "const DEFAULT_QUEST = {\n" + L.join("\n") + "\n" + fin.join(",\n") + "\n};";
+}
+function say(t,cls){ const m=document.getElementById("msg"); m.className=cls||""; m.textContent=t; }
+
+/* ---------- panneau ---------- */
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function btn(l,f,c){const b=el("button",c,l);b.onclick=f;return b;}
+function renderPanel(){
+  const p=document.getElementById("scroll"); p.innerHTML="";
+
+  const c1=el("div","card"); c1.appendChild(el("h3",null,"Outil"));
+  const g=el("div","row g");
+  const T=(k,l)=>g.appendChild(btn(l, ()=>{tool=k; say(""); render();}, tool===k?"on":""));
+  T("room","Bâtiment"); T("street","Rue");
+  T("door","Portes");   T("start","Départ");
+  T("exit","Sortie");   T("spawn","Invasion");
+  T("obj","Objectif"); T("crypt","Crypte");
+  c1.appendChild(g);
+
+  if(tool==="room"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Lettre :"));
+    const sel=document.createElement("select");
+    LETTERS.forEach(L=>{ const o=document.createElement("option"); o.value=L;
+      o.textContent=L+(M.cells.includes(L)?" (utilisée)":""); if(L===letter)o.selected=true; sel.appendChild(o); });
+    sel.onchange=e=>{letter=e.target.value; render();};
+    r.appendChild(sel); c1.appendChild(r);
+    c1.appendChild(el("div","hint","Une lettre = un BÂTIMENT ; chacune de ses cases est une Zone distincte. Ouvrir sa porte déclenche une Invasion dans CHAQUE Zone du bâtiment — un grand bâtiment est donc très dangereux."));
+  }
+  const colBtn=(c,cur,fn,lab)=>{
+    const b=btn(lab||colF(c), fn, "col"+(cur===c?" on":""));
+    b.style.setProperty("--bc", colCss(c)); return b;
+  };
+  if(tool==="door"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Couleur :"));
+    DOOR_COLORS.forEach(c=>r.appendChild(colBtn(c, doorColor, ()=>{doorColor=c; render();})));
+    c1.appendChild(r);
+    const r2=el("div","row"); r2.style.marginTop="4px";
+    r2.appendChild(btn(doorOpen?"État : ouverte":"État : fermée",
+      ()=>{doorOpen=!doorOpen; render();}, doorOpen?"on":""));
+    c1.appendChild(r2);
+    c1.appendChild(el("div","hint","Clique une arête surlignée pour poser une porte du type choisi ; reclique dessus (même type) pour la retirer, ou pose un autre type pour la remplacer. Une porte de couleur peut être verrouillée par une condition (voir plus bas). Une porte ouverte l'est dès le début de partie."));
+  }
+  if(tool==="spawn"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Couleur :"));
+    SPAWN_COLORS.forEach(c=>r.appendChild(colBtn(c, spawnColor, ()=>{spawnColor=c; render();})));
+    c1.appendChild(r);
+    const r2=el("div","row"); r2.style.marginTop="4px";
+    r2.appendChild(el("label",null,"Bord :"));
+    [["n","Haut"],["s","Bas"],["w","Gauche"],["e","Droite"]].forEach(([k,lab])=>
+      r2.appendChild(btn(lab, ()=>{spawnSide=k; render();}, spawnSide===k?"on":"")));
+    c1.appendChild(r2);
+    c1.appendChild(el("div","hint","Clique une case pour y plaquer un rectangle d'Invasion sur le bord choisi. Recliquer avec la même couleur et le même bord le retire. Une Zone peut porter plusieurs pions : elle tire alors autant de cartes."));
+  }
+  if(tool==="obj"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Couleur :"));
+    OBJ_COLORS.forEach(c=>r.appendChild(colBtn(c, objHidden?null:objColor,
+      ()=>{objColor=c; objHidden=false; render();})));
+    r.appendChild(btn("Face cachée", ()=>{objHidden=!objHidden; render();}, objHidden?"on":""));
+    c1.appendChild(r);
+    if(objHidden){
+      const r2=el("div","row"); r2.style.marginTop="4px";
+      r2.appendChild(el("label",null,"Versos à tirer :"));
+      OBJ_COLORS.forEach(c=>r2.appendChild(colBtn(c, null,
+        ()=>{M.hiddenBacks.push(c); render();}, "+ "+colM(c))));
+      if(M.hiddenBacks.length)
+        r2.appendChild(btn("Vider ("+M.hiddenBacks.length+")", ()=>{M.hiddenBacks=[]; render();},"danger"));
+      c1.appendChild(r2);
+      if(M.hiddenBacks.length)
+        c1.appendChild(el("div","hint","Réserve de versos : "+M.hiddenBacks.map(colM).join(", ")+
+          " — mélangée et distribuée aux Objectifs cachés en début de partie ; les cachés sans verso restent rouges."));
+    }
+    c1.appendChild(el("div","hint","Un Objectif caché montre toujours un recto ROUGE ; sa vraie couleur n'est révélée qu'à sa récupération."));
+  }
+  if(tool==="crypt"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    [["violet","Crypte violette"],["jaune","Crypte jaune"]].forEach(([k,lab])=>r.appendChild(
+      btn(lab, ()=>{cryptKind=k; say(""); render();}, cryptKind===k?"on":"")));
+    c1.appendChild(r);
+    const n=M.cryptDoors.filter(d=>d.color===cryptKind).length;
+    c1.appendChild(el("div","hint",
+      `Clique AU CENTRE d'une case pour y poser une trappe (reclique pour la retirer). Les trappes d'une même couleur mènent à LA MÊME Zone de Crypte hors plateau : pose-en deux pour créer un souterrain entre deux endroits. Posées : ${n}/2.`));
+  }
+  if(tool==="spawn") c1.appendChild(el("div","hint","Clic gauche ajoute un pion (une Zone peut en porter plusieurs = autant de cartes tirées). Clic droit efface les pions de la case."));
+  if(tool!=="door")  c1.appendChild(el("div","hint","Clic droit sur une case : efface ses pions."));
+  p.appendChild(c1);
+
+  const c2=el("div","card"); c2.appendChild(el("h3",null,"Plateau"));
+  const r2=el("div","row");
+  const mkNum=(lab,val,fn)=>{ r2.appendChild(el("label",null,lab));
+    const i=document.createElement("input"); i.type="number"; i.min=3; i.max=20; i.value=val;
+    i.style.width="60px"; i.onchange=e=>fn(+e.target.value); r2.appendChild(i); };
+  mkNum("Largeur",M.W,v=>resize(v,M.H));
+  mkNum("Hauteur",M.H,v=>resize(M.W,v));
+  c2.appendChild(r2);
+  const r2b=el("div","row"); r2b.style.marginTop="6px";
+  r2b.appendChild(btn("Tout effacer", ()=>{ if(confirm("Effacer toute la carte ?")){ M=blank(M.W,M.H); render(); } },"danger"));
+  r2b.appendChild(btn("Charger l'exemple", ()=>{ M=fromQuest(SAMPLE); render(); say("Carte d'exemple chargée.","ok"); }));
+  c2.appendChild(r2b);
+  p.appendChild(c2);
+
+  // --- objectif de la mission ---
+  const cW=el("div","card"); cW.appendChild(el("h3",null,"Objectif de la mission"));
+  const gw=el("div","cond");
+  gw.appendChild(el("label",null,"Condition"));
+  const selN=document.createElement("select");
+  CONDS.forEach(([v,t])=>{ const o=document.createElement("option");
+    o.value=v; o.textContent=t; if((M.win.need||"")===v) o.selected=true; selN.appendChild(o); });
+  selN.onchange=e=>{ M.win.need=e.target.value||null; render(); };
+  gw.appendChild(selN);
+  gw.appendChild(el("label",null,"Sortie"));
+  const selE=document.createElement("select");
+  Object.entries(EXIT_TXT).forEach(([v,t])=>{ const o=document.createElement("option");
+    o.value=v; o.textContent=t; if(M.win.exit===v) o.selected=true; selE.appendChild(o); });
+  selE.onchange=e=>{ M.win.exit=e.target.value; render(); };
+  gw.appendChild(selE);
+  cW.appendChild(gw);
+  cW.appendChild(el("div","hint","Résumé : "+missionTexte()+"."));
+  cW.appendChild(el("div","hint","Tant que la condition n'est pas remplie, la Zone de Sortie refuse les Survivants. Les autres Objectifs restent ramassables — ils rapportent de l'expérience et peuvent déverrouiller portes et Invasions, sans être obligatoires."));
+  const bMaj=btn("Recopier dans le texte d'objectif", ()=>{
+    M.goal = missionTexte().charAt(0).toUpperCase()+missionTexte().slice(1)+".";
+    render(); say("Texte d'objectif mis à jour.","ok");
+  });
+  cW.appendChild(bMaj);
+  p.appendChild(cW);
+
+  const c3=el("div","card"); c3.appendChild(el("h3",null,"Quête"));
+  const n=document.createElement("input"); n.value=M.name; n.style.width="100%";
+  n.oninput=e=>M.name=e.target.value;
+  const gl=document.createElement("textarea"); gl.value=M.goal; gl.style.height="54px";
+  gl.oninput=e=>M.goal=e.target.value;
+  c3.appendChild(el("label",null,"Nom")); c3.appendChild(n);
+  c3.appendChild(el("label",null,"Objectif de mission")); c3.appendChild(gl);
+  p.appendChild(c3);
+
+  const c4=el("div","card"); c4.appendChild(el("h3",null,"Légende"));
+  [["#c9c9c9","D — Départ des Survivants"],["#2f6b4a","S — Sortie"],
+   ["#b5462d","Rectangle sur un bord = Zone d'Invasion (couleur au choix)"],
+   ["#c9a227","O — Objectif ; « ? » sur fond rouge = face cachée"],
+   ["#8a8a8a","Porte grise (jamais verrouillée)"],
+   ["#3d6fb5","Porte bleue"],["#4f9d5a","Porte verte"],
+   ["#a06bd8","Trappe de crypte violette"],["#c9a227","Trappe de crypte jaune"]]
+  .forEach(([col,txt])=>{ const d=el("div"); d.style.fontSize="12px";
+    const s=el("span","sw"); s.style.background=col; d.appendChild(s);
+    d.appendChild(document.createTextNode(txt)); c4.appendChild(d); });
+  c4.appendChild(el("div","hint","Les Artefacts de crypte (Inferno, Arbalète orque) sont placés automatiquement dans les cryptes au début de la partie."));
+  p.appendChild(c4);
+
+  // --- conditions de quête ---
+  const cQ=el("div","card"); cQ.appendChild(el("h3",null,"Conditions de quête"));
+  const grille=(titre, cible, couleurs)=>{
+    cQ.appendChild(el("div","hint",titre));
+    const g=el("div","cond");
+    couleurs.forEach(c=>{
+      const lab=el("label",null,cible==="doors"?"Portes "+colF(c):"Invasion "+colF(c));
+      lab.style.color=colCss(c);
+      g.appendChild(lab);
+      const sel=document.createElement("select");
+      CONDS.forEach(([v,t])=>{ const o=document.createElement("option");
+        o.value=v; o.textContent=t;
+        if((M.locks[cible]||{})[c]===v || (!((M.locks[cible]||{})[c]) && v==="")) o.selected=true;
+        sel.appendChild(o); });
+      sel.onchange=e=>{ M.locks[cible]=M.locks[cible]||{};
+        if(e.target.value) M.locks[cible][c]=e.target.value;
+        else delete M.locks[cible][c];
+        render(); };
+      g.appendChild(sel);
+    });
+    cQ.appendChild(g);
+  };
+  grille("Une Zone d'Invasion reste INACTIVE tant que sa condition n'est pas remplie.",
+         "spawns", SPAWN_COLORS);
+  grille("Une porte de couleur ne peut pas être ouverte tant que sa condition n'est pas remplie.",
+         "doors", DOOR_COLORS.filter(c=>c!=="grey"));
+  p.appendChild(cQ);
+
+  const probs=problems();
+  const c5=el("div","card"); c5.appendChild(el("h3",null,"Vérification"));
+  if(!probs.length) c5.appendChild(el("div",null,"✓ Carte jouable."));
+  else probs.forEach(x=>{ const d=el("div",null,"• "+x); d.style.color="#e08080"; d.style.fontSize="12px"; c5.appendChild(d); });
+  p.appendChild(c5);
+
+  const c6=el("div","card"); c6.appendChild(el("h3",null,"Code source / JSON"));
+  const ta=document.createElement("textarea"); ta.id="io"; ta.value=questSource();
+  c6.appendChild(ta);
+  const r6=el("div","row"); r6.style.marginTop="6px";
+  r6.appendChild(btn("Code JS", ()=>{ document.getElementById("io").value=questSource(); }));
+  r6.appendChild(btn("JSON", ()=>{ document.getElementById("io").value=JSON.stringify(toQuest(),null,1); }));
+  r6.appendChild(btn("Copier", async ()=>{
+    try{ await navigator.clipboard.writeText(document.getElementById("io").value); say("Copié.","ok"); }
+    catch(e){ document.getElementById("io").select(); say("Copie automatique refusée — utilise Ctrl+C.","err"); } }));
+  r6.appendChild(btn("Importer", ()=>{
+    try{ M=fromQuest(JSON.parse(document.getElementById("io").value)); render(); say("Carte importée.","ok"); }
+    catch(e){ say("JSON illisible : "+e.message,"err"); } }));
+  c6.appendChild(r6);
+  c6.appendChild(el("div","hint","« Code JS » produit le bloc à coller dans zombicide.html à la place de DEFAULT_QUEST. « JSON » sert à sauvegarder / réimporter ici."));
+  p.appendChild(c6);
+}
+function resize(W,H){
+  W=Math.max(3,Math.min(20,W)); H=Math.max(3,Math.min(20,H));
+  const n=blank(W,H); n.name=M.name; n.goal=M.goal;
+  n.hiddenBacks=[...M.hiddenBacks]; n.locks=M.locks; n.win={...M.win};
+  for(let y=0;y<Math.min(H,M.H);y++) for(let x=0;x<Math.min(W,M.W);x++) n.cells[y*W+x]=ch(x,y);
+  const keep=p=>p&&p.x<W&&p.y<H?p:null;
+  n.doors=M.doors.filter(d=>d.x<W&&d.y<H);
+  n.cryptDoors=M.cryptDoors.filter(d=>d.x<W&&d.y<H);
+  n.spawns=M.spawns.filter(p=>p.x<W&&p.y<H);
+  n.objectives=M.objectives.filter(p=>p.x<W&&p.y<H);
+  n.start=keep(M.start); n.exit=keep(M.exit);
+  M=n; render();
+}
+
+/* ---------- carte d'exemple (celle du jeu) ---------- */
+const SAMPLE = {
+  name:"La Cloche de l'Aube",
+  goal:"Récupérez les 5 Objectifs, puis TOUS les Survivants vivants doivent quitter le plateau par la Zone de Sortie (impossible si elle contient des Zombies).",
+  W:9,H:7,
+  map:["AAA.BB.CC","AAA.BB.CC",".........","DD.EEE.FF","DD.EEE.FF",".........","........."],
+  doors:[{x:2,y:1,s:"e",color:"grey",open:true},{x:4,y:1,s:"s",color:"grey"},
+         {x:7,y:1,s:"s",color:"blue"},{x:1,y:3,s:"n",color:"grey"},
+         {x:4,y:3,s:"n",color:"green"},{x:7,y:4,s:"s",color:"grey"}],
+  cryptDoors:[{x:0,y:0,color:"violet"},{x:8,y:3,color:"violet"}],
+  spawns:[{x:0,y:2,color:"red",side:"w"},{x:3,y:0,color:"purple",side:"n"},
+          {x:8,y:6,color:"green",side:"s"},{x:0,y:6,color:"blue",side:"w"}],
+  start:{x:8,y:2}, exit:{x:0,y:6},
+  objectives:[{x:0,y:0,color:"blue"},{x:5,y:0,color:"red"},{x:8,y:0,hidden:true},
+              {x:0,y:4,hidden:true},{x:5,y:3,color:"green"}],
+  hiddenBacks:["green","red"],
+  locks:{spawns:{green:"objective:green", blue:"objectives:all"},
+         doors:{blue:"objective:blue", green:"objective:green"}},
+  win:{need:"objectives:all", exit:"all"}
+};
+
+/* ---------- zoom & cadrage ---------- */
+const ZOOM_MIN=34, ZOOM_MAX=150, ZOOM_DEF=76;
+let ZOOM = ZOOM_DEF;
+function applyZoom(v, memoriser){
+  ZOOM = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(v)));
+  document.documentElement.style.setProperty("--zs", ZOOM+"px");
+  document.getElementById("zLbl").textContent = Math.round(ZOOM/ZOOM_DEF*100)+" %";
+  document.body.classList.toggle("zsmall", ZOOM < 52);
+  if(memoriser!==false){ try{ localStorage.setItem("zbp_zoom_ed", ZOOM); }catch(e){} }
+  if(M) render();
+}
+const zoomBy = f => applyZoom(ZOOM*f);
+function zoomFit(){
+  if(!M) return;
+  const w = document.getElementById("wrap");
+  const reserve = cryptColorsUsed().length ? 90 : 0;
+  const calcul = () => Math.min((w.clientWidth  - 60) / M.W,
+                                (w.clientHeight - 60 - reserve) / M.H);
+  // deux passes : la barre de défilement disparue libère de la place
+  applyZoom(calcul(), false);
+  applyZoom(calcul());
+}
+document.getElementById("zIn").onclick  = ()=>zoomBy(1.15);
+document.getElementById("zOut").onclick = ()=>zoomBy(1/1.15);
+document.getElementById("zFit").onclick = zoomFit;
+document.getElementById("wrap").addEventListener("wheel", e=>{
+  if(!e.ctrlKey) return;
+  e.preventDefault();
+  zoomBy(e.deltaY < 0 ? 1.1 : 1/1.1);
+}, {passive:false});
+document.addEventListener("keydown", e=>{
+  if(e.target.matches("input,textarea,select")) return;
+  if(e.key==="+" || e.key==="=") { zoomBy(1.15); e.preventDefault(); }
+  else if(e.key==="-")           { zoomBy(1/1.15); e.preventDefault(); }
+  else if(e.key==="0")           { zoomFit(); e.preventDefault(); }
+});
+
+/* ---------- démarrage ---------- */
+const textToB64 = t => btoa(String.fromCharCode(...new TextEncoder().encode(t)));
+const b64ToText = s => new TextDecoder().decode(Uint8Array.from(atob(s), c=>c.charCodeAt(0)));
+
+document.getElementById("btnBack").onclick = ()=>{ location.href="zombicide.html"; };
+document.getElementById("btnPlay").onclick = ()=>{
+  const probs=problems();
+  if(probs.length) return say("Impossible : "+probs[0],"err");
+  const json = JSON.stringify(toQuest());
+  try{ localStorage.setItem("zbp_quest", json); localStorage.setItem("zbp_editor", json); }catch(e){}
+  location.href = "zombicide.html#q=" + encodeURIComponent(textToB64(json));
+};
+(function loadDraft(){
+  const m = location.hash.match(/[#&]q=([^&]+)/);
+  if(m){ try{ M = fromQuest(JSON.parse(b64ToText(decodeURIComponent(m[1])))); return; }catch(e){} }
+  try{ const d = localStorage.getItem("zbp_editor");
+       if(d){ M = fromQuest(JSON.parse(d)); return; } }catch(e){}
+  M = fromQuest(SAMPLE);
+})();
+(function initZoom(){
+  let memo=null;
+  try{ memo=parseFloat(localStorage.getItem("zbp_zoom_ed")); }catch(e){}
+  applyZoom(memo>0 ? memo : ZOOM_DEF, false);
+  if(!(memo>0)) zoomFit();
+})();
+render();
+say("Peins les bâtiments, place les portes, puis « Jouer cette carte ».");
+</script>
+</body>
+</html>
