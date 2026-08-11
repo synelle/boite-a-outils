@@ -135,8 +135,11 @@ body.zsmall .zone .lbl{display:none}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .spread{justify-content:space-between}
 .card{background:#2a2521;border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px}
-.tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
-.tabs button{flex:1;min-width:66px;padding:4px 2px 6px;font-size:12px;position:relative}
+/* Grille de 3 colonnes égales : en flex, le dernier bouton d'une ligne
+   incomplète s'étirait sur toute la largeur. */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px}
+.tabs button{padding:4px 2px 6px;font-size:12px;position:relative;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tabs button.on{background:#4a3a1c;border-color:var(--gold)}
 .tabs .hp{position:absolute;right:3px;top:1px;font-size:9px;color:#e07070}
 /* Code couleur du nom selon les Actions restantes. Une barre sous le nom
@@ -176,7 +179,7 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 
 #log{height:190px;overflow-y:auto;border-top:1px solid var(--line);background:#191614;
   padding:6px 10px;font-size:12px;line-height:1.4}
-#log div{margin-bottom:2px}
+#log div{margin-bottom:2px;white-space:pre-line}
 .l-dice{color:#e8d48a}.l-kill{color:#8fd08f}.l-bad{color:#e08080}
 .l-sys{color:#8fa8c8}.l-round{color:var(--gold);font-weight:700;margin-top:6px}
 .l-obj{color:#d9a3e0}
@@ -187,6 +190,25 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 .pill.free{background:#2d4030;border-color:#4f9d5a}
 .skl{font-size:11px;color:#cbbf9e;margin:1px 0}
 .skl.off{color:#6d6157}
+/* Écran de sélection des Survivants */
+#setup{position:fixed;inset:0;background:#0e0c0bf2;display:none;place-items:center;z-index:65}
+#setup .bx{background:var(--panel);border:2px solid var(--gold);border-radius:10px;
+  padding:20px 24px;width:min(720px,92vw);max-height:88vh;overflow:auto}
+#setup h2{color:var(--gold);font-size:18px;letter-spacing:.5px}
+#setup .sub{font-size:12px;color:var(--dim);margin:6px 0 14px}
+#setupList{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.pick{display:flex;gap:9px;align-items:flex-start;text-align:left;padding:8px 10px;
+  border:1px solid var(--line);border-radius:7px;background:#241f1b;cursor:pointer}
+.pick:hover{border-color:var(--gold)}
+.pick.on{background:#33291a;border-color:var(--gold)}
+.pick .dot{width:26px;height:26px;border-radius:50%;flex:0 0 auto;border:2px solid #0009;
+  background:var(--pc);display:grid;place-items:center;font-weight:700;font-size:12px;color:#1a1714}
+.pick .nm{font-weight:600;font-size:13px}
+.pick .sk{font-size:11px;color:var(--dim);line-height:1.3}
+.pick .ck{margin-left:auto;font-size:15px;color:var(--gold);opacity:0}
+.pick.on .ck{opacity:1}
+#setupMsg{min-height:18px;color:#e08080}
+
 #banner{position:fixed;inset:0;background:#000c;display:none;place-items:center;z-index:60}
 #banner .bx{background:var(--panel);border:2px solid var(--gold);border-radius:10px;
   padding:26px 34px;text-align:center;max-width:460px}
@@ -228,6 +250,24 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
     <input type="file" id="fileLoad" accept="application/json,.json" style="display:none">
   </div>
 </div>
+
+<div id="setup"><div class="bx">
+  <h2>Qui part en chasse ?</h2>
+  <p class="sub">Choisis les Survivants de la partie. La boîte de base en met 6 en scène ;
+     en jouer moins rend la partie plus rude, l'Invasion ne diminuant pas.</p>
+  <div id="setupList"></div>
+  <div class="row" style="margin-top:12px;justify-content:space-between">
+    <div class="row">
+      <button id="setupAll">Tout cocher</button>
+      <button id="setupNone">Tout décocher</button>
+    </div>
+    <div class="row">
+      <button id="setupCancel" style="display:none">Annuler</button>
+      <button id="setupStart" class="prim">Commencer</button>
+    </div>
+  </div>
+  <div id="setupMsg" class="hint"></div>
+</div></div>
 
 <div id="banner"><div class="bx"><h2 id="bTitle"></h2><p id="bText"></p>
   <button class="prim" onclick="location.reload()">Rejouer</button></div></div>
@@ -447,60 +487,31 @@ const SPAWN_TABLE = [
 const LTR = {W:"walker", R:"runner", B:"brute", A:"abomination"};
 
 /* --------------------------------------------------------------------------
-   7. QUÊTE  —  « La Cloche de l'Aube »
+   7. QUÊTE  —  « Q00 - Danse macabre »
    Grammaire officielle : bâtiments = pièces closes, portes sur les arêtes,
    rues autour. Modifie ce bloc pour transcrire une quête du livret.
    -------------------------------------------------------------------------- */
 const DEFAULT_QUEST = {
-  name:"La Cloche de l'Aube",
-  goal:"Récupérez les 5 Objectifs, puis TOUS les Survivants vivants doivent quitter le plateau par la Zone de Sortie (impossible si elle contient des Zombies).",
-  W:9, H:7,
-  /* '.'=rue, lettre=pièce (cellules d'une même lettre = une seule pièce) */
+  name:"Q00-Danse macabre",
+  goal:"Utilisez le cercle magique pour vous téléporter en lieu sûr.\nRejoignez la zone de sortie avec tous les survivants. Tout survivant peut s'échapper par cette zone à la fin de son tour, à condition qu'aucun zombie ne s'y trouve.",
+  W:6, H:3,
   map:[
-    "AAA.BB.CC",
-    "AAA.BB.CC",
-    ".........",
-    "DD.EEE.FF",
-    "DD.EEE.FF",
-    ".........",
-    "........."
+    "AABB.F",
+    "..B...",
+    "C.DD.E"
   ],
-  doors:[ {x:2,y:1,s:"e", color:"grey", open:true},   // déjà ouverte au départ
-          {x:4,y:1,s:"s", color:"grey"},
-          {x:7,y:1,s:"s", color:"blue"},                // exige l'Objectif bleu
-          {x:1,y:3,s:"n", color:"grey"},
-          {x:4,y:3,s:"n", color:"green"},               // exige l'Objectif vert
-          {x:7,y:4,s:"s", color:"grey"} ],
-  // deux trappes violettes : un souterrain reliant le bâtiment A au bâtiment F
-  cryptDoors:[ {x:0,y:0,color:"violet"}, {x:8,y:3,color:"violet"} ],
-  openAtStart:[ "A" ],          // bâtiment déjà ouvert : jamais envahi (p.19)
-  // Zones d'Invasion : couleur + bord de la case où le rectangle est plaqué
-  spawns:[ {x:0,y:2, color:"red",    side:"w"},
-           {x:3,y:0, color:"purple", side:"n"},
-           {x:8,y:6, color:"green",  side:"s"},
-           {x:0,y:6, color:"blue",   side:"w"} ],
-  start:{x:8,y:2},
-  exit:{x:0,y:6},
-  /* Objectifs : couleur visible, ou `hidden` — le recto est alors toujours rouge
-     et le verso est tiré au sort dans `hiddenBacks`. */
-  objectives:[ {x:0,y:0, color:"blue"},
-               {x:5,y:0, color:"red"},
-               {x:8,y:0, hidden:true},
-               {x:0,y:4, hidden:true},
-               {x:5,y:3, color:"green"} ],
-  hiddenBacks:[ "green", "red" ],
-  // Condition de victoire : ici, tous les Objectifs puis tout le monde sort.
-  win:{ need:"objectives:all", exit:"all" },
-  /* Conditions de quête : ce qui est verrouillé et jusqu'à quand. */
-  locks:{
-    spawns:{ green:"objective:green",     // l'Invasion verte s'active avec l'Objectif vert
-             blue: "objectives:all" },    // la bleue ne s'ouvre qu'à la toute fin
-    doors: { blue: "objective:blue",      // la porte bleue exige l'Objectif bleu
-             green:"objective:green" }
-  }
+  doors:[ {x:2,y:2,s:"n",color:"grey"}, {x:2,y:0,s:"w",color:"grey"}, {x:5,y:2,s:"w",color:"grey"}, {x:1,y:1,s:"n",color:"blue"}, {x:1,y:2,s:"w",color:"grey",open:true}, {x:5,y:0,s:"w",color:"green"} ],
+  cryptDoors:[ {x:3,y:2,color:"jaune"}, {x:5,y:2,color:"jaune"} ],
+  spawns:[ {x:0,y:1,color:"red",side:"w"}, {x:4,y:0,color:"green",side:"n"} ],
+  start:{x:1,y:2},
+  exit:{x:5,y:0},
+  objectives:[ {x:0,y:2,color:"blue"}, {x:5,y:1,hidden:true}, {x:3,y:1,hidden:true} ],
+  hiddenBacks:["green"],
+  locks:{"spawns":{"green":"objective:green"},"doors":{"blue":"objective:blue","green":"objective:green"}},
+  win:{"exit":"all"}
 };
 
-/* Carte personnalisée produite par editor.html (stockée dans localStorage). */
+/* Carte personnalisée produite par zombicide-editor.html (stockée dans localStorage). */
 function validateQuest(q){
   if(!q || typeof q!=="object") return "objet invalide";
   if(!(q.W>0 && q.H>0)) return "dimensions manquantes";
@@ -591,7 +602,12 @@ const locks = () => (G.q.locks||{});
                 "any"  → un seul suffit
                 "none" → aucune sortie requise, la condition suffit.
    Par défaut : tous les Objectifs, puis tout le monde sort. */
-const winCond = () => Object.assign({need:"objectives:all", exit:"all"}, G.q.win||{});
+/* Si la quête fournit un objet `win`, il fait foi tel quel : un `win` sans
+   `need` signifie « aucune condition préalable », pas « tous les Objectifs ».
+   Le défaut historique ne s'applique qu'aux quêtes sans `win` du tout. */
+const winCond = () => G.q.win
+  ? {need: G.q.win.need ?? null, exit: G.q.win.exit || "all"}
+  : {need: "objectives:all", exit: "all"};
 const EXIT_TXT = {all:"tous les Survivants vivants doivent sortir",
                   any:"au moins un Survivant doit sortir",
                   none:"aucune sortie requise"};
@@ -808,7 +824,10 @@ function hasSkill(s, name){ return s.skills.includes(name); }
 /* --------------------------------------------------------------------------
    MISE EN PLACE
    -------------------------------------------------------------------------- */
-function newGame(){
+/* `ids` : identifiants des Survivants retenus. Sans argument, tous jouent. */
+function newGame(ids){
+  const choisis = (ids && ids.length) ? ids : SURVIVORS.map(v=>v.id);
+  document.getElementById("setup").style.display="none";
   document.getElementById("banner").style.display="none";
   document.getElementById("modal").style.display="none";
   document.getElementById("log").innerHTML="";
@@ -839,8 +858,10 @@ function newGame(){
   shuffle(G.equipDeck); shuffle(starters); shuffle(G.vaultDeck);
   G.spawnDeck = shuffle(SPAWN_TABLE.map((r,i)=>({id:i+1, row:r})));
 
-  // survivants
+  // survivants retenus — on conserve l'index d'origine dans SURVIVORS, dont
+  // dépend la relecture des sauvegardes
   SURVIVORS.forEach((sv,k)=>{
+    if(!choisis.includes(sv.id)) return;
     G.survivors.push({
       ...sv, idx:k, z: q.start.y*q.W + q.start.x, xp:0, wounds:0,
       dead:false, escaped:false,
@@ -851,7 +872,7 @@ function newGame(){
       reorgFree:true, invisible:false, ench:{}, hitRun:false
     });
     // 1 carte d'Équipement de départ, tirée au hasard
-    const c = starters.pop(); if(c) G.survivors[k].hands[0]=c;
+    const c = starters.pop(); if(c) G.survivors[G.survivors.length-1].hands[0]=c;
   });
   // Les Artefacts de crypte sont mis de côté et répartis dans les cryptes (p.33).
   const crypts = G.zones.filter(z=>z.crypt);
@@ -859,7 +880,9 @@ function newGame(){
   else G.vaultDeck = [];
   refreshSkills(true);
   startPlayersPhase();
+  try{ localStorage.setItem("zbp_team", JSON.stringify(choisis)); }catch(e){}
   logLine("── Round 1 ──","l-round");
+  logLine("Équipe : "+G.survivors.map(x=>x.n).join(", ")+".","l-sys");
   logLine("Quête : "+q.name+". "+q.goal,"l-sys");
   render();
 }
@@ -2395,6 +2418,39 @@ function render(){ if(!G) return; renderBoard(); renderPanel();
   document.getElementById("btnEnd").disabled = G.over || G.phase!=="players";
   autoSave(); }
 
+/* ---------- écran de sélection des Survivants ---------- */
+let TEAM = SURVIVORS.map(v=>v.id);
+function showSetup(){
+  try{ const m=JSON.parse(localStorage.getItem("zbp_team"));
+       if(Array.isArray(m) && m.length) TEAM=m.filter(id=>SURVIVORS.some(v=>v.id===id)); }catch(e){}
+  if(!TEAM.length) TEAM=SURVIVORS.map(v=>v.id);
+  renderSetup();
+  document.getElementById("setupMsg").textContent="";
+  // on ne peut annuler que s'il y a une partie en cours à retrouver
+  document.getElementById("setupCancel").style.display = (G && !G.over) ? "" : "none";
+  document.getElementById("setup").style.display="grid";
+}
+function renderSetup(){
+  const box=document.getElementById("setupList"); box.innerHTML="";
+  SURVIVORS.forEach(v=>{
+    const on=TEAM.includes(v.id);
+    const d=document.createElement("div");
+    d.className="pick"+(on?" on":"");
+    d.style.setProperty("--pc", v.c);
+    d.innerHTML=`<div class="dot">${v.n[0]}</div>`+
+      `<div><div class="nm">${v.n}</div>`+
+      `<div class="sk">${v.blue[0]}</div>`+
+      `<div class="sk">Corps : ${EQ[v.bodyItem]?EQ[v.bodyItem].n:"—"}</div></div>`+
+      `<div class="ck">✓</div>`;
+    d.onclick=()=>{
+      if(on) TEAM=TEAM.filter(x=>x!==v.id); else TEAM=[...TEAM, v.id];
+      document.getElementById("setupMsg").textContent="";
+      renderSetup();
+    };
+    box.appendChild(d);
+  });
+}
+
 /* ---------- zoom & cadrage ----------
    Le zoom fait varier la taille d'une Zone (--zs) puis redessine : le calque SVG
    des murs est recalculé, donc le trait reste net à tous les niveaux (ce qu'un
@@ -2502,8 +2558,8 @@ même pion, faute de « Zone suivante » dans cette sous-séquence.</li>
 <li>À la mort d'un Nécromancien, le pion Invasion retiré est choisi automatiquement.</li>
 <li>Les portes de couleur à condition de quête et les règles spéciales de quête ne sont pas
 modélisées.</li>
-<li>La quête « La Cloche de l'Aube » est un plan original respectant la grammaire officielle — utilise
-l'éditeur pour transcrire une quête du livret.</li>
+<li>La quête livrée « Q00 - Danse macabre » sert de carte de départ — utilise l'éditeur pour la
+modifier ou transcrire une autre quête.</li>
 </ul>
 <p><b>Couleurs de quête</b> — les Zones d'Invasion de couleur ne déploient aucun Zombie tant qu'un
 événement ne les active pas (p.26), et les portes de couleur ne peuvent pas être ouvertes avant que
@@ -2556,7 +2612,17 @@ document.addEventListener("keydown", e=>{
   else if(e.key==="0")           { zoomFit(); e.preventDefault(); }
 });
 document.getElementById("btnEnd").onclick = ()=>{ if(!G.over){ UI.mode=null; zombiePhase(); } };
-document.getElementById("btnNew").onclick = ()=>{ clearSave(); location.reload(); };
+document.getElementById("btnNew").onclick = ()=>showSetup();
+document.getElementById("setupCancel").onclick =
+  ()=>{ document.getElementById("setup").style.display="none"; };
+document.getElementById("setupAll").onclick  = ()=>{ TEAM=SURVIVORS.map(v=>v.id); renderSetup(); };
+document.getElementById("setupNone").onclick = ()=>{ TEAM=[]; renderSetup(); };
+document.getElementById("setupStart").onclick = ()=>{
+  if(!TEAM.length){ document.getElementById("setupMsg").textContent="Choisis au moins un Survivant."; return; }
+  // on garde l'ordre de la boîte plutôt que l'ordre des clics
+  const ordonne = SURVIVORS.map(v=>v.id).filter(id=>TEAM.includes(id));
+  clearSave(); newGame(ordonne); zoomFit();
+};
 document.getElementById("btnSave").onclick = downloadSave;
 document.getElementById("btnLoad").onclick = ()=>document.getElementById("fileLoad").click();
 document.getElementById("fileLoad").onchange = async e=>{
@@ -2597,8 +2663,8 @@ preloadSprites(()=>{
   let memo = null;
   try{ memo = parseFloat(localStorage.getItem("zbp_zoom")); }catch(e){}
   applyZoom(memo > 0 ? memo : ZOOM_DEF, false);
-  if(!tryRestore()) newGame();
-  if(!(memo > 0)) zoomFit();          // première visite : on cadre la carte
+  if(tryRestore()){ if(!(memo > 0)) zoomFit(); }
+  else showSetup();                   // pas de partie en cours : on choisit l'équipe
 });
 </script>
 </body>

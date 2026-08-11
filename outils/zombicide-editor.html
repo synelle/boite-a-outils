@@ -489,7 +489,9 @@ function fromQuest(q){
                                                  :{x:p.x,y:p.y,color:p.color||"red"});
   m.hiddenBacks=[...(q.hiddenBacks||[])];
   m.locks={spawns:{...((q.locks||{}).spawns||{})}, doors:{...((q.locks||{}).doors||{})}};
-  m.win={need:(q.win||{}).need ?? "objectives:all", exit:(q.win||{}).exit || "all"};
+  // un `win` fourni fait foi : absence de `need` = aucune condition préalable
+  m.win = q.win ? {need:q.win.need ?? null, exit:q.win.exit || "all"}
+                : {need:"objectives:all", exit:"all"};
   m.start=q.start?{x:q.start.x,y:q.start.y}:null;
   m.exit=q.exit?{x:q.exit.x,y:q.exit.y}:null;
   return m;
@@ -730,23 +732,23 @@ function resize(W,H){
 
 /* ---------- carte d'exemple (celle du jeu) ---------- */
 const SAMPLE = {
-  name:"La Cloche de l'Aube",
-  goal:"Récupérez les 5 Objectifs, puis TOUS les Survivants vivants doivent quitter le plateau par la Zone de Sortie (impossible si elle contient des Zombies).",
-  W:9,H:7,
-  map:["AAA.BB.CC","AAA.BB.CC",".........","DD.EEE.FF","DD.EEE.FF",".........","........."],
-  doors:[{x:2,y:1,s:"e",color:"grey",open:true},{x:4,y:1,s:"s",color:"grey"},
-         {x:7,y:1,s:"s",color:"blue"},{x:1,y:3,s:"n",color:"grey"},
-         {x:4,y:3,s:"n",color:"green"},{x:7,y:4,s:"s",color:"grey"}],
-  cryptDoors:[{x:0,y:0,color:"violet"},{x:8,y:3,color:"violet"}],
-  spawns:[{x:0,y:2,color:"red",side:"w"},{x:3,y:0,color:"purple",side:"n"},
-          {x:8,y:6,color:"green",side:"s"},{x:0,y:6,color:"blue",side:"w"}],
-  start:{x:8,y:2}, exit:{x:0,y:6},
-  objectives:[{x:0,y:0,color:"blue"},{x:5,y:0,color:"red"},{x:8,y:0,hidden:true},
-              {x:0,y:4,hidden:true},{x:5,y:3,color:"green"}],
-  hiddenBacks:["green","red"],
-  locks:{spawns:{green:"objective:green", blue:"objectives:all"},
-         doors:{blue:"objective:blue", green:"objective:green"}},
-  win:{need:"objectives:all", exit:"all"}
+  name:"Q00-Danse macabre",
+  goal:"Utilisez le cercle magique pour vous téléporter en lieu sûr.\nRejoignez la zone de sortie avec tous les survivants. Tout survivant peut s'échapper par cette zone à la fin de son tour, à condition qu'aucun zombie ne s'y trouve.",
+  W:6, H:3,
+  map:[
+    "AABB.F",
+    "..B...",
+    "C.DD.E"
+  ],
+  doors:[ {x:2,y:2,s:"n",color:"grey"}, {x:2,y:0,s:"w",color:"grey"}, {x:5,y:2,s:"w",color:"grey"}, {x:1,y:1,s:"n",color:"blue"}, {x:1,y:2,s:"w",color:"grey",open:true}, {x:5,y:0,s:"w",color:"green"} ],
+  cryptDoors:[ {x:3,y:2,color:"jaune"}, {x:5,y:2,color:"jaune"} ],
+  spawns:[ {x:0,y:1,color:"red",side:"w"}, {x:4,y:0,color:"green",side:"n"} ],
+  start:{x:1,y:2},
+  exit:{x:5,y:0},
+  objectives:[ {x:0,y:2,color:"blue"}, {x:5,y:1,hidden:true}, {x:3,y:1,hidden:true} ],
+  hiddenBacks:["green"],
+  locks:{"spawns":{"green":"objective:green"},"doors":{"blue":"objective:blue","green":"objective:green"}},
+  win:{"exit":"all"}
 };
 
 /* ---------- zoom & cadrage ---------- */
@@ -790,7 +792,7 @@ document.addEventListener("keydown", e=>{
 const textToB64 = t => btoa(String.fromCharCode(...new TextEncoder().encode(t)));
 const b64ToText = s => new TextDecoder().decode(Uint8Array.from(atob(s), c=>c.charCodeAt(0)));
 
-document.getElementById("btnBack").onclick = ()=>{ location.href="zombicide.html"; }; // nom déjà correct côté jeu
+document.getElementById("btnBack").onclick = ()=>{ location.href="zombicide.html"; };
 document.getElementById("btnPlay").onclick = ()=>{
   const probs=problems();
   if(probs.length) return say("Impossible : "+probs[0],"err");
