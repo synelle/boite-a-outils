@@ -28,7 +28,10 @@ h1,h2,h3{margin:0;font-weight:600}
 #wrap{flex:1;overflow:auto;padding:26px;display:flex}
 /* `margin:auto` centre sur les deux axes sans rogner les bords en cas de débordement */
 #wrap .stage{margin:auto}
-#zoomBar{position:absolute;left:10px;top:10px;z-index:20;display:flex;gap:4px;
+#viewTabs{position:absolute;left:10px;top:10px;z-index:21;display:flex;gap:4px}
+#viewTabs button{padding:4px 12px;font-size:12px}
+#viewTabs button.on{background:#4a3a1c;border-color:var(--gold);font-weight:600}
+#zoomBar{position:absolute;right:10px;top:10px;z-index:20;display:flex;gap:4px;
   align-items:center;background:#1a1714dd;border:1px solid var(--line);
   border-radius:6px;padding:3px 6px}
 #zoomBar button{padding:2px 8px;font-size:13px;line-height:1.1}
@@ -59,6 +62,24 @@ body.zsmall .c .lbl{display:none}
 .spw.s{left:18%;bottom:2px;width:64%;height:calc(var(--zs)*.17)}
 .spw.w{top:18%;left:2px;height:64%;width:calc(var(--zs)*.17)}
 .spw.e{top:18%;right:2px;height:64%;width:calc(var(--zs)*.17)}
+/* Zombies de départ : une pastille par type, dessinée comme une pile */
+/* objets posés : pastille dorée en bas à droite */
+.itk{position:absolute;right:4px;bottom:4px;z-index:4;pointer-events:none;
+  width:calc(var(--zs)*.26);height:calc(var(--zs)*.26);border-radius:50%;
+  background:#c9a227;color:#241c06;border:1px solid #0009;display:grid;place-items:center;
+  font-weight:700;font-size:clamp(8px,calc(var(--zs)*.13),12px)}
+/* Grille carrée (2×2, 3×3…) plutôt qu'une ligne qui s'étire. */
+.zpile{position:absolute;left:4px;bottom:4px;display:grid;
+  grid-template-columns:repeat(var(--gc,2),1fr);gap:5px;z-index:4;pointer-events:none}
+.zp{position:relative;width:calc(var(--zs)*.30);height:calc(var(--zs)*.30);border-radius:50%;
+  background:var(--zc);border:2px solid #0009;display:grid;place-items:center;color:#fff;
+  font-weight:700;font-size:clamp(8px,calc(var(--zs)*.14),13px);text-shadow:0 1px 2px #0009}
+.zp.pile2{box-shadow:3px -3px 0 -2px var(--zc), 3px -3px 0 0 #000a}
+.zp.pile3{box-shadow:3px -3px 0 -2px var(--zc), 3px -3px 0 0 #000a,
+          6px -6px 0 -3px var(--zc), 6px -6px 0 -1px #000a}
+.zp .nb{position:absolute;bottom:-5px;right:-6px;background:#1a1714;color:#f0e2b8;
+  border:1px solid #000a;border-radius:8px;min-width:15px;height:15px;padding:0 3px;
+  font-size:10px;display:grid;place-items:center;line-height:1}
 
 /* Arêtes cliquables, actives en mode Portes. Une arête du plateau ne porte
    qu'UNE zone cliquable, sinon les cases voisines se recouvrent et la moitié
@@ -73,21 +94,130 @@ body.doormode .eh.has:hover{background:#e0604066}
 body.doormode .c:hover{filter:none}
 .eh.n{left:10%;top:-9px;width:80%;height:18px}
 .eh.w{top:10%;left:-9px;height:80%;width:18px}
+/* Est/Sud n'apparaissent que sur le bord du plateau : on les rentre dans la
+   case, sinon elles déborderaient de la grille (et passeraient sous le panneau). */
+.eh.e{top:10%;right:0;height:80%;width:16px}
+.eh.s{left:10%;bottom:0;width:80%;height:16px}
 /* Sur le pourtour du plateau, la zone cliquable est rentrée à l'intérieur de la
    case : débordante, elle sortirait de l'écran ou passerait sous le panneau. */
 
 .walls{position:absolute;left:0;top:0;pointer-events:none;z-index:6}
 .walls .wall{stroke:#8a7458;stroke-width:6;stroke-linecap:square}
+/* Ouverture : franchissable, mais c'est bien une limite entre deux Zones */
+.walls .lim-ouverture{stroke:#c9a227;stroke-width:4;stroke-dasharray:6 5;opacity:.95}
+.walls .wall.ouv{stroke-width:4;stroke-dasharray:6 5;opacity:.75}
 .walls .door{stroke-width:12;stroke-linecap:butt}
 .hatch{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   width:calc(var(--zs)*.45);height:calc(var(--zs)*.45);border-radius:6px;border:2px dashed var(--cc);
   background:#00000055;color:var(--cc);display:grid;place-items:center;
   font-size:15px;font-weight:700;pointer-events:none;z-index:2}
 
+/* ---------- vue Logique : graphe nodal ---------- */
+#logic{display:none;position:relative;background:#0d0b0a;border:3px solid #4a4038;
+  border-radius:4px;min-width:760px;min-height:460px}
+body.logicview #mapView{display:none}
+body.logicview #logic{display:block}
+body.logicview #zoomBar{display:none}
+/* Pas de width/height:100% avec une viewBox : le SVG serait mis à l'échelle
+   (la viewBox portait la largeur bordure comprise, la boîte non) et les liens
+   dérivaient d'autant plus qu'on s'éloignait de l'origine. */
+#logic svg.links{position:absolute;left:0;top:0;pointer-events:none}
+#logic svg.links path{fill:none;stroke-width:2.5}
+#logic svg.links path.on{stroke:#7fd48a}
+#logic svg.links path.off{stroke:#c07a34;stroke-dasharray:6 4}
+#logic svg.links path.hit{stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
+.gnode{position:absolute;width:196px;border:2px solid var(--nc);border-radius:8px;
+  background:#241f1b;padding:6px 9px;user-select:none;cursor:grab;z-index:2}
+/* Un nœud à deux entrées réserve une gouttière à gauche pour leurs libellés,
+   sinon « active » / « désactive » se superposent au titre. */
+.gnode.two{padding-left:64px;min-height:68px}
+.gnode.drag{cursor:grabbing;box-shadow:0 4px 14px #000a}
+.gnode .t{font-size:12px;font-weight:700;color:var(--nc)}
+.gnode .d{font-size:10px;color:var(--dim);line-height:1.3}
+.gnode.sel{box-shadow:0 0 0 2px var(--gold)}
+.gnode.mission{border-style:double;border-width:4px}
+.port{position:absolute;width:15px;height:15px;border-radius:50%;border:2px solid #0009;
+  background:#3c352e;cursor:pointer;z-index:3}
+.port:hover{background:var(--gold)}
+.port.out{right:-9px;top:calc(50% - 7px)}
+.port.in{left:-9px;top:calc(50% - 7px)}
+.port.in.two1{top:8px}
+.port.in.two2{top:auto;bottom:8px}
+.port.filled{background:#7fd48a}
+.port.filled.off{background:#c07a34}
+.port .lb{position:absolute;left:19px;top:-2px;font-size:9px;color:var(--dim);
+  white-space:nowrap;pointer-events:none}
+#logicHint{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--dim);
+  max-width:70%;line-height:1.4;pointer-events:none}
+
+/* ---------- vue Tuiles ---------- */
+#tiles{display:none}
+body.tilesview #mapView,body.tilesview #logic{display:none}
+body.tilesview #tiles{display:block;width:100%}
+body.tilesview #zoomBar{display:none}
+/* Ailleurs la scène se centre en margin:auto et se réduit à son contenu ; ici
+   elle doit prendre toute la largeur, sinon le canevas centré entraîne la
+   galerie avec lui et celle-ci se retrouve large de 390 px. */
+body.tilesview #wrap .stage{margin:0;flex:1;min-width:0}
+/* Le canevas est seul dans la zone principale : on le centre. Les outils sont
+   dans le panneau de droite, comme pour les autres vues. */
+#tileWork{display:flex;justify-content:center;margin-bottom:14px}
+/* --ova = opacité des repères posés sur l'image (murs, teinte des bâtiments).
+   La taille est fixée en JS : c'est le zoom de la vue Tuiles. */
+#tileEdit{position:relative;--ova:.55;width:390px;height:390px;flex:0 0 auto;
+  border:3px solid #4a4038;border-radius:4px;background:#0d0b0a;
+  background-size:cover;background-position:center}
+#tileEdit .tc{position:absolute;width:33.333%;height:33.333%;cursor:pointer;
+  border:1px dashed #ffffff35;display:grid;place-items:center;
+  font-size:26px;font-weight:800;color:#fff;text-shadow:0 0 6px #000,0 0 3px #000}
+#tileEdit .tc:hover{background:#c9a22733}
+#tileEdit .tc.rue{color:#ffffff55}
+#tileEdit .tc.bat{background:rgba(51,41,31,calc(var(--ova)*.55))}
+#tileEdit .tw{position:absolute;background:rgba(240,217,160,var(--ova));
+  box-shadow:0 0 3px #000a;z-index:3;pointer-events:none}
+#tileEdit .tw.lim-ouverture{background:repeating-linear-gradient(90deg,
+    rgba(201,162,39,var(--ova)) 0 5px, transparent 5px 10px);box-shadow:none}
+#tileEdit .tw.lim-ouverture.vert{background:repeating-linear-gradient(0deg,
+    rgba(201,162,39,var(--ova)) 0 5px, transparent 5px 10px)}
+/* Ouverture : mur volontairement absent (pas encore de porte) — pointillé.
+   Le sens du pointillé suit celui du mur, d'où la variante .vert. */
+#tileEdit .tw.ouv{box-shadow:none;
+  background:repeating-linear-gradient(90deg,
+    rgba(240,217,160,var(--ova)) 0 5px, transparent 5px 10px)}
+#tileEdit .tw.ouv.vert{background:repeating-linear-gradient(0deg,
+    rgba(240,217,160,var(--ova)) 0 5px, transparent 5px 10px)}
+#tileEdit .td{position:absolute;z-index:4;border-radius:2px;box-shadow:0 0 3px #000}
+#tileEdit .teh{position:absolute;z-index:5;cursor:pointer;background:#c9a2271a;
+  outline:1px dashed #c9a22766;border-radius:3px}
+#tileEdit .teh:hover{background:#c9a22788}
+/* .vide = arête sans mur : on la montre en creux, pour pouvoir en poser un */
+#tileEdit .teh.vide{background:#ffffff0d;outline:1px dotted #ffffff40}
+#tileEdit .teh.vide:hover{background:#c9a22766;outline:1px solid var(--gold)}
+#tileGal{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px;
+  max-height:330px;overflow:auto;padding:4px;background:#191614;border:1px solid var(--line);
+  border-radius:6px}
+.tg{position:relative;border:2px solid var(--line);border-radius:5px;overflow:hidden;
+  cursor:pointer;aspect-ratio:1}
+.tg img{width:100%;height:100%;object-fit:cover;display:block}
+.tg .lb{position:absolute;left:0;right:0;bottom:0;background:#000a;font-size:10px;
+  text-align:center;padding:1px 0}
+.tg.on{border-color:var(--gold);box-shadow:0 0 0 2px #c9a22766}
+.tg.faite{border-color:#4f9d5a}
+.tg .ok{position:absolute;right:2px;top:1px;font-size:11px;color:#7fd48a;text-shadow:0 0 3px #000}
+
+/* aperçu d'une tuile posée sur la carte */
+.tileBg{position:absolute;background-size:100% 100%;background-repeat:no-repeat;
+  opacity:.5;pointer-events:none;z-index:0}
+
 #crypts{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
-.cz{min-width:180px;border:2px dashed var(--cc);border-radius:8px;background:#241d28;padding:7px 9px}
-.cz .h{font-size:11px;font-weight:700;color:var(--cc);letter-spacing:.5px}
-.cz .i{font-size:10px;color:var(--dim)}
+.cz{width:150px;height:150px;border:2px solid var(--cc);border-radius:8px;
+  background:#241d28 center/cover no-repeat;padding:7px 9px;position:relative}
+.cz::before{content:"";position:absolute;inset:0;border-radius:6px;pointer-events:none;
+  background:linear-gradient(180deg,#000000cc 0%,#00000044 45%,#000000aa 100%)}
+.cz .h,.cz .i{position:relative;z-index:1}
+.cz .h{font-size:11px;font-weight:700;color:var(--cc);letter-spacing:.5px;
+  text-shadow:0 1px 3px #000,0 0 6px #000}
+.cz .i{font-size:10px;color:#d8cfc2;text-shadow:0 1px 3px #000}
 
 #side{width:410px;min-width:410px;background:var(--panel);border-left:1px solid var(--line);
   display:flex;flex-direction:column;height:100vh}
@@ -121,7 +251,16 @@ button.col.on{background:var(--bc);color:#1a1714;border-color:var(--bc)}
     <button id="zIn" title="Zoomer (Ctrl + molette, ou +)">+</button>
     <button id="zFit" title="Ajuster la carte à la fenêtre (touche 0)">Ajuster</button>
   </div>
-  <div id="wrap"><div class="stage"><div id="grid"></div><div id="crypts"></div></div></div>
+  <div id="viewTabs">
+    <button id="tabMap" class="on">🗺 Carte</button>
+    <button id="tabLogic">🔗 Logique</button>
+    <button id="tabTiles">🧩 Tuiles</button>
+  </div>
+  <div id="wrap"><div class="stage">
+    <div id="mapView"><div id="grid"></div><div id="crypts"></div></div>
+    <div id="logic"></div>
+    <div id="tiles"></div>
+  </div></div>
 </div>
 
 <div id="side">
@@ -133,6 +272,7 @@ button.col.on{background:var(--bc);color:#1a1714;border-color:var(--bc)}
   <div id="foot">
     <button id="btnPlay" class="prim">Jouer cette carte</button>
     <button id="btnBack">Retour au jeu</button>
+    <input type="file" id="tileFile" accept="application/json,.json" style="display:none">
   </div>
 </div>
 
@@ -140,12 +280,15 @@ button.col.on{background:var(--bc);color:#1a1714;border-color:var(--bc)}
 "use strict";
 const DXY={n:[0,-1],s:[0,1],e:[1,0],w:[-1,0]}, OPP={n:"s",s:"n",e:"w",w:"e"};
 const SIDES=["n","e","s","w"];
-const LETTERS="ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 /* La boîte de base contient 2 Zones de Crypte (violette, jaune) et 2 portes de
    chaque couleur. Les portes d'une même couleur mènent toutes à la même Zone de
    Crypte, posée à côté du plateau : c'est ainsi qu'on relie deux endroits par
    un souterrain. */
 const CRYPT_COLORS = {violet:"#a06bd8", jaune:"#c9a227"};
+/* Jetons Zone de Crypte officiels, dans le dossier des tuiles. */
+const CRYPT_IMG = {violet:"Vault_Purple", jaune:"Vault_Yellow"};
+const CRYPT_NOM = {violet:"violette", jaune:"jaune"};      // « crypte » est féminin
+const cryptNom = c => CRYPT_NOM[c] || c;
 const COLORS = {
   red:    {f:"rouge",    m:"rouge",  css:"#b5462d"},
   blue:   {f:"bleue",    m:"bleu",   css:"#3d6fb5"},
@@ -155,6 +298,40 @@ const COLORS = {
 };
 const colF=c=>(COLORS[c]||{}).f||c, colM=c=>(COLORS[c]||{}).m||c;
 const colCss=c=>(COLORS[c]||{}).css||"#8a8a8a";
+/* Profils zombies, en écho à ceux du jeu : couleur, initiale, stock de figurines. */
+const ZT_ED = {
+  walker:      {n:"Walker",       ini:"W", c:"#6f8f4e", pool:35},
+  runner:      {n:"Runner",       ini:"R", c:"#c07a34", pool:14},
+  brute:       {n:"Fatty",        ini:"F", c:"#8b5a3c", pool:14},
+  abomination: {n:"Abomination",  ini:"A", c:"#8e2b2b", pool:1},
+  necromancer: {n:"Nécromancien", ini:"N", c:"#7a4bb5", pool:1}
+};
+const Z_ORDRE = ["walker","runner","brute","abomination","necromancer"];
+/* Catalogue d'Équipement, en écho à EQUIP dans le jeu. Sert à poser des objets
+   sur la carte ou dans une crypte. Les Artefacts de crypte sont marqués `v`. */
+const EQUIP_ED = [
+ {id:"shortbow",n:"Arc court",k:"ranged"},{id:"shortsword",n:"Épée courte",k:"melee"},
+ {id:"manablast",n:"Décharge de mana",k:"spell"},{id:"hammer",n:"Marteau",k:"melee"},
+ {id:"axe",n:"Hache",k:"melee"},{id:"dagger",n:"Dague",k:"melee"},
+ {id:"sword",n:"Épée",k:"melee"},{id:"greatsword",n:"Épée à deux mains",k:"melee"},
+ {id:"crossbow",n:"Arbalète",k:"ranged"},{id:"handxbow",n:"Arbalète de poing",k:"ranged"},
+ {id:"repxbow",n:"Arbalète à répétition",k:"ranged"},{id:"longbow",n:"Arc long",k:"ranged"},
+ {id:"deathstrike",n:"Frappe mortelle",k:"spell"},{id:"fireball",n:"Boule de feu",k:"spell"},
+ {id:"lightning",n:"Éclair",k:"spell"},
+ {id:"leather",n:"Armure de cuir",k:"armor"},{id:"chainmail",n:"Cotte de mailles",k:"armor"},
+ {id:"plate",n:"Armure de plates",k:"armor"},{id:"shield",n:"Bouclier",k:"shield"},
+ {id:"healing",n:"Soins",k:"ench"},{id:"invisibility",n:"Invisibilité",k:"ench"},
+ {id:"repulse",n:"Repousser",k:"ench"},{id:"speed",n:"Vitesse",k:"ench"},
+ {id:"torch",n:"Torche",k:"item"},{id:"bile",n:"Bile de dragon",k:"item"},
+ {id:"arrows",n:"Provision de flèches",k:"item"},{id:"bolts",n:"Provision de carreaux",k:"item"},
+ {id:"apples",n:"Pommes",k:"item"},{id:"meat",n:"Viande salée",k:"item"},
+ {id:"water",n:"Eau",k:"item"},
+ {id:"inferno",n:"Enfer",k:"spell",v:1},{id:"orcxbow",n:"Arbalète orque",k:"ranged",v:1}
+];
+const EQ_ED = Object.fromEntries(EQUIP_ED.map(e=>[e.id,e]));
+const eqNom = id => (EQ_ED[id]||{}).n || id;
+const K_NOM = {melee:"Mêlée",ranged:"Distance",spell:"Sort",ench:"Enchantement",
+               armor:"Armure",shield:"Bouclier",item:"Objet"};
 const DOOR_COLORS  = ["grey","blue","green"];       // portes : grise, bleue, verte
 const SPAWN_COLORS = ["red","blue","green","purple"];
 const OBJ_COLORS   = ["red","green","blue"];
@@ -163,18 +340,28 @@ let M = null;                 // modèle de carte
 let tool = "room";            // room|street|door|start|exit|spawn|obj|crypt
 let cryptKind = "violet";
 let doorColor = "grey", doorOpen = false;   // outil Portes
+let tileStamp=null, tileRot=0;             // outil Tuile
+let zombType="walker";                     // outil Zombies
+let itemId="torch";                        // outil Objets
+let tileOpacity=0.5;                       // visibilité du décor des tuiles
 let spawnColor = "red", spawnSide = "n";    // outil Invasion
 let objColor = "red", objHidden = false;    // outil Objectif
-let letter = "A";
+/* Les cases ne portent plus de lettre : Rue ou Bâtiment, point. Les lettres
+   du format de quête sont recalculées à l'export (voir piecesParPropagation). */
+const BAT="#";
+const estBat = c => c!==".";
 
 function blank(W,H){
   return {
     name:"Ma quête",
     goal:"Récupérez tous les Objectifs, puis tous les Survivants doivent sortir.",
-    W, H, cells:new Array(W*H).fill("."), doors:[], cryptDoors:[],
-    spawns:[], objectives:[], start:null, exit:null,
-    hiddenBacks:[], locks:{spawns:{}, doors:{}},
-    win:{need:"objectives:all", exit:"all"}
+    W, H, cells:new Array(W*H).fill("."), doors:[], limites:{}, cryptDoors:[],
+    spawns:[], objectives:[], start:null, exit:null, zombies:[],
+    items:[], cryptItems:{},
+    hiddenBacks:[], locks:{spawns:{}, doors:{}, spawnsOff:{}},
+    win:{need:"objectives:all", exit:"all"},
+    nodePos:{},                // positions du graphe : éditeur seulement, non exporté
+    tiles:{}                   // "tx,ty" → {id, rot} : tuiles posées (décor + traçabilité)
   };
 }
 const I  = (x,y)=>y*M.W+x;
@@ -182,11 +369,80 @@ const IN = (x,y)=>x>=0&&y>=0&&x<M.W&&y<M.H;
 const ch = (x,y)=>M.cells[I(x,y)];
 const eqp= (a,b)=>a&&b&&a.x===b.x&&a.y===b.y;
 
-/* Mur = arête entre deux lettres différentes, ou entre une lettre et la rue. */
-function isWall(x,y,s){
-  const nx=x+DXY[s][0], ny=y+DXY[s][1];
-  if(!IN(nx,ny)) return false;                 // bord de plateau
-  return ch(x,y)!==ch(nx,ny);
+/* ==========================================================================
+   LES MURS FONT FOI
+   Un mur est déclaré arête par arête, comme sur le dessin d'une tuile — au
+   lieu d'être déduit d'un nom de pièce. Les pièces, elles, se déduisent des
+   murs (piecesParPropagation) : deux tuiles juxtaposées dont on a retiré le
+   mur commun forment donc une seule pièce, sans avoir à accorder des lettres.
+
+   Chaque arête interne est le Nord ou l'Ouest d'exactement une case : on la
+   nomme toujours de la même façon, d'où qu'on la regarde. Sans ça, une même
+   arête aurait deux entrées et pourrait se contredire.
+   ========================================================================== */
+function cleMur(x,y,s){
+  if(s==="s" && y+1<M.H) return x+","+(y+1)+",n";
+  if(s==="e" && x+1<M.W) return (x+1)+","+y+",w";
+  return x+","+y+","+s;
+}
+
+/* --------------------------------------------------------------------------
+   TYPES DE LIMITE
+   Vocabulaire des règles : une Zone de rue fait toujours UNE case ; une Zone de
+   bâtiment peut en couvrir plusieurs, à condition qu'AUCUNE limite ne les
+   sépare. Toute limite — même franchissable — sépare deux Zones, et c'est ce
+   qui compte pour la génération des monstres : une Invasion se résout dans
+   chaque Zone, donc deux fois de part et d'autre d'une ouverture.
+
+   L'absence de limite n'est pas un type : c'est l'absence d'entrée, et c'est le
+   seul cas qui FUSIONNE deux cases de bâtiment en une seule Zone.
+   -------------------------------------------------------------------------- */
+const LIMITES = {
+  mur:       {n:"Mur",       c:"#8a7458", bloqueMouv:true,  bloqueVue:true,
+              aide:"Infranchissable, et coupe la ligne de vue."},
+  ouverture: {n:"Ouverture", c:"#c9a227", bloqueMouv:false, bloqueVue:false,
+              aide:"On passe et on voit librement, mais ce sont bien DEUX Zones : une Invasion s'y résout deux fois."}
+  /* À venir (Green Horde) — la structure les accepte déjà, il manque leurs
+     règles dans le moteur :
+       barriere {bloqueMouv:true,  bloqueVue:false}
+       haie     {bloqueMouv:false, bloqueVue:true}
+       rebord / rive : bords de Zone immergée, mouvement distinct joueurs/zombies */
+};
+const LIMITES_ORDRE = ["mur","ouverture"];
+
+const limiteDe = (x,y,s)=>M.limites[cleMur(x,y,s)]||null;
+const poseLimite=(x,y,s,t)=>{ M.limites[cleMur(x,y,s)]=t; };
+const oteLimite =(x,y,s)=>{ delete M.limites[cleMur(x,y,s)]; };
+const estMur    =(x,y,s)=>limiteDe(x,y,s)==="mur";
+/* Sépare-t-elle deux Zones ? Toute limite le fait, une porte aussi. */
+const separe    =(x,y,s)=>!!limiteDe(x,y,s) || !!findDoor(x,y,s);
+/* Bloque-t-elle le déplacement ? (une porte se franchit une fois ouverte) */
+function bloqueMouv(x,y,s){
+  const t=limiteDe(x,y,s);
+  return !!(t && LIMITES[t] && LIMITES[t].bloqueMouv);
+}
+
+/* Les pièces se déduisent des murs : deux cases de Bâtiment voisines sans mur
+   entre elles sont la même pièce. Rend un tableau de lettres (une par case,
+   null pour la Rue) — c'est exactement le `map` du format de quête. */
+function piecesParPropagation(){
+  const lab=new Array(M.W*M.H).fill(null);
+  let n=0;
+  for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++){
+    if(!estBat(ch(x,y)) || lab[I(x,y)]) continue;
+    const L=POOL_LETTRES[n++]||"?";
+    const pile=[[x,y]]; lab[I(x,y)]=L;
+    while(pile.length){
+      const [cx,cy]=pile.pop();
+      for(const s of SIDES){
+        const nx=cx+DXY[s][0], ny=cy+DXY[s][1];
+        if(!IN(nx,ny) || !estBat(ch(nx,ny)) || lab[I(nx,ny)]) continue;
+        if(separe(cx,cy,s)) continue;      // ouverture comprise : deux Zones
+        lab[I(nx,ny)]=L; pile.push([nx,ny]);
+      }
+    }
+  }
+  return {lab, n};
 }
 /* Une porte normale est symétrique (deux cases) ; une porte de crypte
    appartient à une seule case et peut border le plateau. */
@@ -219,20 +475,34 @@ function missionTexte(){
 /* Une porte se pose sur un MUR. Chaque arête interne du plateau est le Nord ou
    l'Ouest d'exactement une case : une seule zone cliquable par arête, donc
    aucun recouvrement entre cases voisines. */
-const edgeSides = (x,y) => ["n","w"].filter(s=>isWall(x,y,s));
+/* Une porte se pose sur une limite existante, mur comme ouverture — poser la
+   porte fait alors du passage un mur qui la porte. */
+const edgeSides = (x,y) => ["n","w"].filter(s=>!!limiteDe(x,y,s));
+/* Toutes les arêtes d'une case, sans doublon entre voisines : l'outil Murs doit
+   pouvoir en AJOUTER un là où il n'y en a pas, donc on ne filtre pas. */
+function toutesAretes(x,y){
+  const l=["n","w"];
+  if(x===M.W-1) l.push("e");
+  if(y===M.H-1) l.push("s");
+  return l;
+}
 
 /* ---------- rendu ---------- */
 function render(){
   const g=document.getElementById("grid");
   g.style.gridTemplateColumns=`repeat(${M.W}, var(--zs))`;
   g.innerHTML="";
-  document.body.classList.toggle("doormode", tool==="door");
+  document.body.classList.toggle("doormode", tool==="door"||tool==="limites");
+  // la lettre affichée est la pièce DÉDUITE des murs, pas une donnée saisie
+  const {lab}=piecesParPropagation();
   for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++){
     const c=ch(x,y), d=document.createElement("div");
-    d.className="c"+(c!=="."?" room":"");
+    d.className="c"+(estBat(c)?" room":"");
     const lb=document.createElement("div"); lb.className="lbl"; lb.textContent=`${x},${y}`;
     d.appendChild(lb);
-    if(c!=="."){ const r=document.createElement("div"); r.className="rl"; r.textContent=c; d.appendChild(r); }
+    if(estBat(c)){ const r=document.createElement("div"); r.className="rl";
+      r.textContent=lab[I(x,y)]||"?"; r.title="Pièce "+(lab[I(x,y)]||"?")+" (déduite des murs)";
+      d.appendChild(r); }
     const tk=document.createElement("div"); tk.className="tk";
     const T=(cl,t)=>{const e=document.createElement("div");e.className="tok "+cl;e.textContent=t;tk.appendChild(e);return e;};
     if(eqp(M.exit,{x,y})) T("exit","S");
@@ -249,6 +519,29 @@ function render(){
       e.title=`Zone d'Invasion ${colF(p.color||"red")} (bord ${p.side||"n"})`;
       d.appendChild(e);
     });
+    // objets posés dans la Zone
+    const its=M.items.filter(i=>i.x===x&&i.y===y);
+    if(its.length){
+      const e=el("div","itk", its.length>1?String(its.length):"◈");
+      e.title=its.map(i=>eqNom(i.id)).join(", ");
+      d.appendChild(e);
+    }
+    // zombies de départ : une pastille par type, empilée, avec l'effectif
+    const zs=M.zombies.filter(z=>z.x===x&&z.y===y)
+                      .sort((a,b)=>Z_ORDRE.indexOf(a.t)-Z_ORDRE.indexOf(b.t));
+    if(zs.length){
+      const zc=el("div","zpile");
+      zs.forEach(z=>{
+        const pr=ZT_ED[z.t]||{n:z.t,ini:"?",c:"#888"};
+        const e=el("div","zp"+(z.n>2?" pile3":(z.n>1?" pile2":"")), pr.ini);
+        e.style.setProperty("--zc", pr.c);
+        e.title=`${z.n} ${pr.n}${z.n>1?"s":""}`;
+        if(z.n>1){ const b=el("span","nb",z.n); e.appendChild(b); }
+        zc.appendChild(e);
+      });
+      zc.style.setProperty("--gc", Math.max(1, Math.ceil(Math.sqrt(zc.children.length))));
+      d.appendChild(zc);
+    }
     const cd=findCrypt(x,y);
     if(cd){
       const t=document.createElement("div"); t.className="hatch";
@@ -267,13 +560,50 @@ function render(){
         d.appendChild(e);
       });
     }
+    if(tool==="limites"){
+      toutesAretes(x,y).forEach(s=>{
+        const cur=limiteDe(x,y,s);
+        const e=document.createElement("div");
+        e.className="eh "+s+(cur?" has":"");
+        e.title = cur===limiteType
+          ? "Retirer cette limite"+(limiteType==="mur"?" (les Zones fusionnent)":"")
+          : (cur ? "Remplacer : "+LIMITES[cur].n+" → "+LIMITES[limiteType].n
+                 : "Poser : "+LIMITES[limiteType].n);
+        e.onclick=ev=>{ ev.stopPropagation(); toggleLimite(x,y,s,limiteType); };
+        d.appendChild(e);
+      });
+    }
     d.onclick=()=>paint(x,y);
     d.oncontextmenu=ev=>{ ev.preventDefault(); erase(x,y); };
     g.appendChild(d);
   }
+  g.appendChild(renderTileBackgrounds());
   g.appendChild(renderWalls());
   renderCrypts();
+  if(view==="logic") renderLogic();
+  if(view==="tiles") renderTiles();
   renderPanel();
+}
+/* Image des tuiles posées, en fond de la grille : la carte ressemble alors au
+   plateau réel. Purement décoratif, sans effet sur les règles. */
+function renderTileBackgrounds(){
+  const zs=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--zs"))||76;
+  const frag=document.createDocumentFragment();
+  Object.entries(M.tiles||{}).forEach(([k,v])=>{
+    const [tx,ty]=k.split(",").map(Number);
+    if(tx*3>=M.W || ty*3>=M.H) return;
+    const d=el("div","tileBg");
+    d.style.left=(tx*3*zs)+"px"; d.style.top=(ty*3*zs)+"px";
+    d.style.width=(3*zs)+"px";   d.style.height=(3*zs)+"px";
+    d.style.backgroundImage=`url("${tileImg(v.id)}")`;
+    d.style.opacity=tileOpacity;
+    if(v.rot) d.style.transform=`rotate(${v.rot*90}deg)`;
+    frag.appendChild(d);
+  });
+  const wrap=document.createElement("div");
+  wrap.style.cssText="position:absolute;inset:0;pointer-events:none;z-index:0";
+  wrap.appendChild(frag);
+  return wrap;
 }
 function renderWalls(){
   const NS="http://www.w3.org/2000/svg";
@@ -290,10 +620,11 @@ function renderWalls(){
   for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++){
     const X=x*zs, Y=y*zs;
     const seg={ n:[X,Y,X+zs,Y], w:[X,Y,X,Y+zs], e:[X+zs,Y,X+zs,Y+zs], s:[X,Y+zs,X+zs,Y+zs] };
-    for(const s of ["n","w"]){
-      if(!isWall(x,y,s)) continue;
+    for(const s of toutesAretes(x,y)){
+      const t=limiteDe(x,y,s);
+      if(!t) continue;
       const [a,b,c,d]=seg[s];
-      line(a,b,c,d,"wall");
+      line(a,b,c,d,"wall lim-"+t);
       const dr=findDoor(x,y,s);
       if(!dr) continue;
       const col=colCss(dr.color||"grey");
@@ -313,7 +644,8 @@ function renderCrypts(){
     const n=M.cryptDoors.filter(d=>d.color===col).length;
     const d=document.createElement("div"); d.className="cz";
     d.style.setProperty("--cc", CRYPT_COLORS[col]||"#888");
-    const h=document.createElement("div"); h.className="h"; h.textContent="CRYPTE "+col.toUpperCase();
+    if(CRYPT_IMG[col]) d.style.backgroundImage=`url("${TILE_DIR}${CRYPT_IMG[col]}.jpg")`;
+    const h=document.createElement("div"); h.className="h"; h.textContent="CRYPTE "+cryptNom(col).toUpperCase();
     const i=document.createElement("div"); i.className="i";
     i.textContent = n+" trappe(s)"+(n<2?" — une seule : cul-de-sac":" — souterrain reliant ces "+n+" accès");
     d.appendChild(h); d.appendChild(i); box.appendChild(d);
@@ -323,6 +655,11 @@ function renderCrypts(){
 /* ---------- outils ---------- */
 function paint(x,y){
   if(tool==="door") return;
+  if(tool==="tile"){
+    if(!tileStamp) return say("Aucune tuile sélectionnée.","err");
+    poserTuile(Math.floor(x/3), Math.floor(y/3), tileStamp, tileRot);
+    return render();
+  }
   if(tool==="crypt"){
     const ex=findCrypt(x,y);
     if(ex){ M.cryptDoors.splice(M.cryptDoors.indexOf(ex),1); say(""); return render(); }
@@ -331,7 +668,7 @@ function paint(x,y){
     M.cryptDoors.push({x,y,color:cryptKind}); say("");
     return render();
   }
-  if(tool==="room")        setCell(x,y,letter);
+  if(tool==="room")        setCell(x,y,BAT);
   else if(tool==="street") setCell(x,y,".");
   else if(tool==="start")  M.start={x,y};
   else if(tool==="exit")   M.exit={x,y};
@@ -341,6 +678,18 @@ function paint(x,y){
     if(k>=0) M.spawns.splice(k,1);
     else M.spawns.push({x,y,color:spawnColor,side:spawnSide});
   }
+  else if(tool==="item"){
+    M.items.push({x,y,id:itemId}); say("");
+  }
+  else if(tool==="zomb"){
+    // un clic ajoute une figurine du type courant ; les identiques s'empilent
+    const ex=M.zombies.find(z=>z.x===x&&z.y===y&&z.t===zombType);
+    const total=M.zombies.filter(z=>z.t===zombType).reduce((a,z)=>a+z.n,0);
+    if(total>=ZT_ED[zombType].pool)
+      return say(`La boîte ne contient que ${ZT_ED[zombType].pool} ${ZT_ED[zombType].n}(s).`,"err");
+    if(ex) ex.n++; else M.zombies.push({x,y,t:zombType,n:1});
+    say("");
+  }
   else if(tool==="obj"){
     const k=M.objectives.findIndex(p=>p.x===x&&p.y===y);
     if(k>=0) M.objectives.splice(k,1);
@@ -349,6 +698,18 @@ function paint(x,y){
   render();
 }
 function erase(x,y){
+  if(tool==="item"){
+    const k=[...M.items].reverse().findIndex(i=>i.x===x&&i.y===y);
+    if(k>=0) M.items.splice(M.items.length-1-k,1);
+    return render();
+  }
+  if(tool==="zomb"){
+    const ex=M.zombies.find(z=>z.x===x&&z.y===y&&z.t===zombType);
+    if(ex){ ex.n--; if(ex.n<=0) M.zombies.splice(M.zombies.indexOf(ex),1); }
+    else M.zombies=M.zombies.filter(z=>!(z.x===x&&z.y===y));   // sinon on vide la case
+    return render();
+  }
+  if(tool==="tile"){ retirerTuile(Math.floor(x/3), Math.floor(y/3)); say("Bloc vidé."); return render(); }
   M.cryptDoors = M.cryptDoors.filter(p=>!(p.x===x&&p.y===y));
   M.spawns = M.spawns.filter(p=>!(p.x===x&&p.y===y));
   M.objectives = M.objectives.filter(p=>!(p.x===x&&p.y===y));
@@ -356,11 +717,32 @@ function erase(x,y){
   if(eqp(M.exit,{x,y}))  M.exit=null;
   render();
 }
+/* Une case de Bâtiment naît entièrement murée : on ouvre ensuite à la main les
+   côtés où la pièce se poursuit. En repassant en Rue, on ne retire que les murs
+   qui ne bordent plus rien — ceux d'un bâtiment voisin lui appartiennent. */
 function setCell(x,y,v){
   if(ch(x,y)===v) return;
   M.cells[I(x,y)]=v;
-  // les portes normales devenues invalides (l'arête n'est plus un mur) partent
-  M.doors = M.doors.filter(d=>IN(d.x,d.y) && isWall(d.x,d.y,d.s));
+  for(const s of SIDES){
+    const nx=x+DXY[s][0], ny=y+DXY[s][1];
+    const voisinBat = IN(nx,ny) && estBat(ch(nx,ny));
+    if(estBat(v)) poseLimite(x,y,s,"mur");
+    else if(!voisinBat) oteLimite(x,y,s);
+  }
+  M.doors = M.doors.filter(d=>IN(d.x,d.y) && estMur(d.x,d.y,d.s));
+}
+/* Clic sur une arête, outil Limites : applique le type courant, ou le retire si
+   c'est déjà lui — même geste que l'outil Portes. Retirer TOUTE limite entre
+   deux cases de Bâtiment les réunit en une seule Zone ; poser une Ouverture les
+   laisse séparées tout en laissant passer. */
+function toggleLimite(x,y,s,t){
+  if(limiteDe(x,y,s)===t) oteLimite(x,y,s);
+  else poseLimite(x,y,s,t);
+  // une porte n'a de sens que sur un mur
+  if(!estMur(x,y,s)){
+    const dr=findDoor(x,y,s); if(dr) M.doors.splice(M.doors.indexOf(dr),1);
+  }
+  say(""); render();
 }
 /* Clic sur une arête : pose une porte du type courant (couleur + état). Si une
    porte identique s'y trouve déjà elle est retirée, sinon elle est remplacée. */
@@ -370,7 +752,11 @@ function toggleDoor(x,y,s){
     const identique = (ex.color||"grey")===doorColor && !!ex.open===doorOpen;
     M.doors.splice(M.doors.indexOf(ex),1);
     if(identique){ say(""); return render(); }
-  } else if(!isWall(x,y,s)) return say("Une porte ne se pose que sur un mur.","err");
+  } else if(!limiteDe(x,y,s))
+    return say("Une porte se pose sur une limite : commence par un Mur ou une Ouverture.","err");
+  /* Une porte implique un mur : sans ça une porte fermée posée sur une
+     ouverture ne bloquerait rien. Le trait redevient plein, avec son icône. */
+  if(!estMur(x,y,s)) poseLimite(x,y,s,"mur");
   const d={x,y,s,color:doorColor};
   if(doorOpen) d.open=true;
   M.doors.push(d);
@@ -384,20 +770,28 @@ function problems(){
   if(!M.exit && M.win.exit!=="none") p.push("Zone de sortie manquante.");
   if(!M.spawns.length) p.push("Aucune Zone d'Invasion.");
   if(!M.objectives.length) p.push("Aucun Objectif.");
-  if(M.start && ch(M.start.x,M.start.y)!==".")
-    p.push("Le départ est dans un bâtiment : les Survivants y seraient enfermés.");
-  // chaque bâtiment doit avoir une porte
-  [...new Set(M.cells.filter(c=>c!=="."))].forEach(r=>{
-    let has=false;
-    for(let y=0;y<M.H&&!has;y++) for(let x=0;x<M.W&&!has;x++){
-      if(ch(x,y)!==r) continue;
-      for(const s of SIDES) if(findDoor(x,y,s)) has=true;
+  /* Accès d'une Zone de bâtiment. Exiger une porte serait faux : une Ouverture
+     laisse passer tout autant. Est un accès toute arête menant à une AUTRE Zone
+     et qui ne bloque pas le déplacement, porte comprise. */
+  const {lab:labV}=piecesParPropagation();
+  const zoneOuverte = r => {
+    for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++){
+      if(labV[I(x,y)]!==r) continue;
+      for(const s of SIDES){
+        const nx=x+DXY[s][0], ny=y+DXY[s][1];
+        if(!IN(nx,ny)) continue;             // bord de plateau : rien au-delà
+        if(labV[I(nx,ny)]===r) continue;     // arête interne à la Zone
+        if(findDoor(x,y,s) || !bloqueMouv(x,y,s)) return true;
+      }
     }
-    if(!has) p.push(`Le bâtiment « ${r} » n'a aucune porte : il est inaccessible.`);
-  });
+    return false;
+  };
+  const closes = [...new Set(labV.filter(Boolean))].filter(r=>!zoneOuverte(r));
+  closes.forEach(r=>p.push(`La Zone « ${r} » n'a aucun accès : ni porte, ni ouverture.`));
+  if(M.start && estBat(ch(M.start.x,M.start.y)) && closes.includes(labV[I(M.start.x,M.start.y)]))
+    p.push("Le départ est dans une Zone close : les Survivants y seraient enfermés.");
   // conditions portant sur une couleur d'Objectif absente de la carte
-  const couleursObj = new Set(M.objectives.map(o=>o.hidden?null:o.color).filter(Boolean)
-                        .concat(M.hiddenBacks));
+  const couleursObj = couleursDisponibles();
   const verifCond=(cible,libelle)=>Object.entries(M.locks[cible]||{}).forEach(([col,cond])=>{
     const m=/^objective:(\w+)$/.exec(cond||"");
     if(m && !couleursObj.has(m[1]))
@@ -417,6 +811,20 @@ function problems(){
   // toutes les Zones d'Invasion inactives pour toujours ?
   if(M.spawns.length && M.spawns.every(sp=>(M.locks.spawns||{})[sp.color]==="never"))
     p.push("Toutes les Zones d'Invasion sont verrouillées sur « jamais » : aucun zombie n'apparaîtra.");
+  M.items.forEach(i=>{ if(!EQ_ED[i.id]) p.push(`Objet inconnu posé en (${i.x},${i.y}) : ${i.id}.`); });
+  Object.entries(M.cryptItems||{}).forEach(([col,l])=>{
+    if(l.length && !cryptColorsUsed().includes(col))
+      p.push(`Des objets sont prévus pour la crypte ${cryptNom(col)}, qui n'existe pas sur la carte.`);
+  });
+  Z_ORDRE.forEach(t=>{
+    const n=M.zombies.filter(z=>z.t===t).reduce((a,z)=>a+z.n,0);
+    if(n>ZT_ED[t].pool)
+      p.push(`${n} ${ZT_ED[t].n}(s) placés alors que la boîte n'en contient que ${ZT_ED[t].pool}.`);
+  });
+  M.zombies.forEach(z=>{
+    if(M.start && z.x===M.start.x && z.y===M.start.y)
+      p.push(`Des ${ZT_ED[z.t].n}s occupent la Zone de départ : les Survivants y commenceraient au contact.`);
+  });
   cryptColorsUsed().forEach(col=>{
     if(M.cryptDoors.filter(d=>d.color===col).length<2)
       p.push(`La crypte ${col} n'a qu'un accès : elle ne relie rien (cul-de-sac).`);
@@ -441,7 +849,7 @@ function problems(){
       for(const s of SIDES){
         const nx=c.x+DXY[s][0], ny=c.y+DXY[s][1];
         if(!IN(nx,ny)) continue;
-        if(isWall(c.x,c.y,s) && !findDoor(c.x,c.y,s)) continue;
+        if(bloqueMouv(c.x,c.y,s) && !findDoor(c.x,c.y,s)) continue;
         if(seen.has(key(nx,ny))) continue;
         seen.add(key(nx,ny)); q.push({x:nx,y:ny});
       }
@@ -455,9 +863,41 @@ function problems(){
 }
 
 /* ---------- import / export ---------- */
+/* Traduction du modèle « murs » vers le format de quête, qui reste fondé sur
+   des lettres (le jeu, les sauvegardes et les quêtes existantes ne bougent pas).
+   Les lettres viennent de la propagation ; restent les arêtes que les lettres
+   seules ne savent pas dire, et qu'on énumère explicitement :
+     openings — l'éditeur n'a PAS de mur là où les lettres en impliquent un
+                (une façade ouverte sur la rue, un bord de plateau ouvert) ;
+     walls    — l'éditeur A un mur là où les lettres n'en impliquent aucun
+                (un mur entre deux Rues, ou dans une pièce qui communique en
+                contournant). */
+/* Les lettres de `map` disent déjà « même Zone ou non ». Reste à donner le TYPE
+   des limites, quand il ne correspond pas à ce que les lettres impliquent :
+     - lettres différentes  → un mur est implicite ; on n'émet que si c'est autre
+                              chose (ouverture, ou rien du tout) ;
+     - lettres identiques   → aucune limite implicite ; on émet dès qu'il y en a
+                              une (typiquement un mur entre deux Zones de rue).
+   Le type "aucune" est un cas réel : une façade de bâtiment ouverte sur la rue,
+   sans limite du tout — deux Zones distinctes, franchissables. */
+function limitesExplicites(lab){
+  const out=[];
+  for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++) for(const s of toutesAretes(x,y)){
+    const nx=x+DXY[s][0], ny=y+DXY[s][1], dedans=IN(nx,ny);
+    const a = lab[I(x,y)]||".";
+    const b = dedans ? (lab[I(nx,ny)]||".") : null;
+    const implicite = (dedans ? a!==b : a!==".") ? "mur" : null;
+    const reel = limiteDe(x,y,s);
+    if(reel===implicite) continue;
+    out.push({x,y,s,t: reel || "aucune"});
+  }
+  return out;
+}
 function toQuest(){
+  const {lab}=piecesParPropagation();
   const map=[];
-  for(let y=0;y<M.H;y++){ let r=""; for(let x=0;x<M.W;x++) r+=ch(x,y); map.push(r); }
+  for(let y=0;y<M.H;y++){ let r=""; for(let x=0;x<M.W;x++) r+=(lab[I(x,y)]||"."); map.push(r); }
+  const lim=limitesExplicites(lab);
   const q = { name:M.name, goal:M.goal, W:M.W, H:M.H, map,
     doors:M.doors.map(d=>{const o={x:d.x,y:d.y,s:d.s,color:d.color||"grey"};
                           if(d.open) o.open=true; return o;}),
@@ -466,32 +906,72 @@ function toQuest(){
     start:M.start, exit:M.exit,
     objectives:M.objectives.map(o=>o.hidden?{x:o.x,y:o.y,hidden:true}
                                            :{x:o.x,y:o.y,color:o.color||"red"}) };
+  if(lim.length) q.limits=lim;
+  if(M.zombies.length) q.zombies=M.zombies.map(z=>({x:z.x,y:z.y,t:z.t,n:z.n}));
+  if(M.items.length) q.items=M.items.map(i=>({x:i.x,y:i.y,id:i.id}));
+  const ci={}; Object.entries(M.cryptItems||{}).forEach(([c,l])=>{ if(l&&l.length) ci[c]=[...l]; });
+  if(Object.keys(ci).length) q.cryptItems=ci;
   if(M.hiddenBacks.length) q.hiddenBacks=[...M.hiddenBacks];
   const L={};
-  if(Object.keys(M.locks.spawns||{}).length) L.spawns={...M.locks.spawns};
-  if(Object.keys(M.locks.doors ||{}).length) L.doors ={...M.locks.doors};
+  if(Object.keys(M.locks.spawns||{}).length)    L.spawns   ={...M.locks.spawns};
+  if(Object.keys(M.locks.doors ||{}).length)    L.doors    ={...M.locks.doors};
+  if(Object.keys(M.locks.spawnsOff||{}).length) L.spawnsOff={...M.locks.spawnsOff};
   if(Object.keys(L).length) q.locks=L;
   q.win={exit:M.win.exit};
   if(M.win.need) q.win.need=M.win.need;
+  if(Object.keys(M.tiles||{}).length) q.tiles={...M.tiles};
   return q;
 }
 function fromQuest(q){
   const m=blank(q.W,q.H);
   m.name=q.name||"Quête"; m.goal=q.goal||"";
-  for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++) m.cells[y*q.W+x]=q.map[y][x];
+  for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++)
+    m.cells[y*q.W+x] = q.map[y][x]==="." ? "." : BAT;
   m.doors=(q.doors||[]).filter(d=>!d.crypt)
             .map(d=>({x:d.x,y:d.y,s:d.s,color:d.color||"grey",open:!!d.open}));
+  /* Chemin inverse : on repart des lettres pour reconstituer les murs, puis on
+     applique les exceptions déclarées. C'est ce qui rend l'aller-retour exact. */
+  const cle=(x,y,s)=>{
+    if(s==="s" && y+1<q.H) return x+","+(y+1)+",n";
+    if(s==="e" && x+1<q.W) return (x+1)+","+y+",w";
+    return x+","+y+","+s;
+  };
+  const lettre=(x,y)=>(x<0||y<0||x>=q.W||y>=q.H) ? null : q.map[y][x];
+  m.limites={};
+  for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++){
+    const cotes=["n","w"];
+    if(x===q.W-1) cotes.push("e");
+    if(y===q.H-1) cotes.push("s");
+    for(const s of cotes){
+      const a=lettre(x,y), b=lettre(x+DXY[s][0], y+DXY[s][1]);
+      // au bord du plateau, seul un bâtiment est muré (voir limitesExplicites)
+      if(b===null ? a!=="." : a!==b) m.limites[cle(x,y,s)]="mur";
+    }
+  }
+  (q.limits||[]).forEach(l=>{
+    const k=cle(l.x,l.y,l.s);
+    if(!l.t || l.t==="aucune") delete m.limites[k];
+    else m.limites[k]=l.t;
+  });
+  // formats antérieurs : openings = plus de limite, walls = un mur
+  (q.openings||[]).forEach(o=>{ delete m.limites[cle(o.x,o.y,o.s)]; });
+  (q.walls   ||[]).forEach(w=>{ m.limites[cle(w.x,w.y,w.s)]="mur"; });
   // ancien format accepté : une porte marquée `crypt` devient une trappe
   m.cryptDoors=(q.cryptDoors||[]).map(d=>({x:d.x,y:d.y,color:d.color}))
     .concat((q.doors||[]).filter(d=>d.crypt).map(d=>({x:d.x,y:d.y,color:d.crypt})));
   m.spawns=(q.spawns||[]).map(p=>({x:p.x,y:p.y,color:p.color||"red",side:p.side||"n"}));
   m.objectives=(q.objectives||[]).map(p=>p.hidden?{x:p.x,y:p.y,hidden:true}
                                                  :{x:p.x,y:p.y,color:p.color||"red"});
+  m.zombies=(q.zombies||[]).map(z=>({x:z.x,y:z.y,t:z.t,n:Math.max(1,z.n|0||1)}));
+  m.items=(q.items||[]).map(i=>({x:i.x,y:i.y,id:i.id}));
+  m.cryptItems={}; Object.entries(q.cryptItems||{}).forEach(([c,l])=>m.cryptItems[c]=[...l]);
   m.hiddenBacks=[...(q.hiddenBacks||[])];
-  m.locks={spawns:{...((q.locks||{}).spawns||{})}, doors:{...((q.locks||{}).doors||{})}};
+  m.locks={spawns:{...((q.locks||{}).spawns||{})}, doors:{...((q.locks||{}).doors||{})},
+           spawnsOff:{...((q.locks||{}).spawnsOff||{})}};
   // un `win` fourni fait foi : absence de `need` = aucune condition préalable
   m.win = q.win ? {need:q.win.need ?? null, exit:q.win.exit || "all"}
                 : {need:"objectives:all", exit:"all"};
+  m.tiles = {...(q.tiles||{})};
   m.start=q.start?{x:q.start.x,y:q.start.y}:null;
   m.exit=q.exit?{x:q.exit.x,y:q.exit.y}:null;
   return m;
@@ -512,9 +992,15 @@ function questSource(){
   L.push(`  exit:${pt(q.exit||{x:0,y:0})},`);
   const fin=[];
   fin.push(`  objectives:[ ${q.objectives.map(o=>o.hidden?`{x:${o.x},y:${o.y},hidden:true}`:`{x:${o.x},y:${o.y},color:"${o.color}"}`).join(", ")} ]`);
+  if(q.limits) fin.push(`  limits:${JSON.stringify(q.limits)}`);
+  if(q.zombies) fin.push(`  zombies:${JSON.stringify(q.zombies)}`);
+  if(q.items) fin.push(`  items:${JSON.stringify(q.items)}`);
+  if(q.cryptItems) fin.push(`  cryptItems:${JSON.stringify(q.cryptItems)}`);
   if(q.hiddenBacks) fin.push(`  hiddenBacks:${JSON.stringify(q.hiddenBacks)}`);
   if(q.locks)       fin.push(`  locks:${JSON.stringify(q.locks)}`);
   fin.push(`  win:${JSON.stringify(q.win)}`);
+  // décor : quelles tuiles composent le plateau (ignoré par les règles)
+  if(q.tiles) fin.push(`  tiles:${JSON.stringify(q.tiles)}`);
   return "const DEFAULT_QUEST = {\n" + L.join("\n") + "\n" + fin.join(",\n") + "\n};";
 }
 function say(t,cls){ const m=document.getElementById("msg"); m.className=cls||""; m.textContent=t; }
@@ -522,27 +1008,156 @@ function say(t,cls){ const m=document.getElementById("msg"); m.className=cls||""
 /* ---------- panneau ---------- */
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
 function btn(l,f,c){const b=el("button",c,l);b.onclick=f;return b;}
+/* Rangée Exporter / Importer de la bibliothèque de tuiles. */
+function rangeeTuilesIO(){
+  const r=el("div","row"); r.style.marginTop="8px";
+  r.appendChild(btn("Exporter", ()=>{
+    const blob=new Blob([JSON.stringify(TILES,null,1)],{type:"application/json"});
+    const u=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=u; a.download="zombicide-tuiles.json"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),2000); say("Bibliothèque exportée.","ok"); }));
+  r.appendChild(btn("Importer…", ()=>document.getElementById("tileFile").click()));
+  return r;
+}
+
+/* Outils de la vue Tuiles. Ils vivent dans le panneau de droite, comme ceux des
+   autres vues ; le canevas reste seul et centré dans la zone principale. */
+function cartesTuile(p){
+  const faites=()=>Object.keys(TILES).filter(tuileDefinie).length;
+  if(!tileSel){
+    const c=el("div","card");
+    c.appendChild(el("h3",null,"Bibliothèque de tuiles"));
+    c.appendChild(el("div","hint","Les 84 tuiles du dossier tuiles_zombicide (42 numéros, recto R et verso V). Configure-les une fois : elles serviront ensuite à composer les cartes."));
+    c.appendChild(el("div","hint","Choisis une tuile dans la galerie, sous le canevas."));
+    c.appendChild(el("div","hint",`${faites()} / ${TILE_IDS.length} configurées.`));
+    c.appendChild(rangeeTuilesIO());
+    p.appendChild(c);
+    return;
+  }
+  const t=TILES[tileSel]||tuileVide();
+
+  // --- ce que décrit la tuile ---
+  const c1=el("div","card");
+  c1.appendChild(el("h3",null,"Tuile "+tileNum(tileSel)+" — "+tileBox(tileSel)));
+  c1.appendChild(el("div","hint","Grille 3×3 posée sur l'image. On y décrit deux choses : quelles cases sont des bâtiments, et où sont les limites."));
+  const r1=el("div","row"); r1.style.marginTop="6px";
+  r1.appendChild(el("label",null,"Mode :"));
+  r1.appendChild(btn("Cases", ()=>{tileMode="cells"; render();}, tileMode==="cells"?"on":""));
+  r1.appendChild(btn("Limites", ()=>{tileMode="limites"; render();}, tileMode==="limites"?"on":""));
+  c1.appendChild(r1);
+  if(tileMode==="cells"){
+    c1.appendChild(el("div","hint","Clique une case pour la basculer entre Rue et Bâtiment. Une case de Bâtiment naît ENTIÈREMENT MURÉE — passe ensuite en mode Limites pour ouvrir les côtés où la Zone se poursuit."));
+    c1.appendChild(el("div","hint","Aucune lettre à attribuer : une tuile ne décrit que des cases et des limites. Les Zones sont recalculées sur la carte, ce qui permet à deux tuiles juxtaposées de n'en former qu'une."));
+  } else {
+    c1.appendChild(choixLimite());
+    c1.appendChild(el("div","hint",LIMITES[limiteType].aide));
+    c1.appendChild(el("div","hint","Clique une arête pour y appliquer ce type ; reclique le même type pour l'enlever. C'est le dessin de la tuile qui fait référence."));
+    c1.appendChild(el("div","hint","Les arêtes du BORD comptent autant que les autres : c'est par elles que la tuile se raccorde à sa voisine. Un bord laissé libre fusionnera avec la tuile d'à côté si elle aussi le laisse libre."));
+    c1.appendChild(el("div","hint","Pas de porte ici : les portes se posent sur la carte, en deuxième passe."));
+  }
+  p.appendChild(c1);
+
+  // --- confort de lecture ---
+  const c2=el("div","card"); c2.appendChild(el("h3",null,"Affichage"));
+  const rv=el("div","row");
+  rv.appendChild(el("label",null,"Zoom :"));
+  const zoomer=d=>{ tileZoom=Math.max(TZ_MIN,Math.min(TZ_MAX,tileZoom+d));
+                    enregistrerVueTuile(); render(); };
+  const bz=(lab,d)=>{ const b=btn(lab, ()=>zoomer(d));
+    b.disabled = d<0 ? tileZoom<=TZ_MIN : tileZoom>=TZ_MAX; return b; };
+  rv.appendChild(bz("−",-TZ_PAS));
+  rv.appendChild(bz("+", TZ_PAS));
+  rv.appendChild(btn("Ajuster", ()=>{ tileZoom=TZ_DEF; enregistrerVueTuile(); render(); }));
+  rv.appendChild(el("span","hint", tileZoom+" px"));
+  c2.appendChild(rv);
+  const ra=el("div","row"); ra.style.marginTop="6px";
+  ra.appendChild(el("label",null,"Opacité :"));
+  const sa=document.createElement("input");
+  sa.type="range"; sa.min=10; sa.max=100; sa.value=Math.round(tileAlpha*100); sa.style.flex="1";
+  // pas de render() ici : on ne veut pas perdre le curseur pendant le glissement
+  sa.oninput=e=>{ tileAlpha=e.target.value/100;
+    const b=document.getElementById("tileEdit");
+    if(b) b.style.setProperty("--ova", tileAlpha);
+    enregistrerVueTuile(); };
+  ra.appendChild(sa);
+  c2.appendChild(ra);
+  c2.appendChild(el("div","hint","Baisse l'opacité pour voir le dessin sous les repères : c'est ce qui permet de repérer les limites à renseigner."));
+  p.appendChild(c2);
+
+  // --- bibliothèque ---
+  const c3=el("div","card"); c3.appendChild(el("h3",null,"Bibliothèque"));
+  const r3=el("div","row");
+  r3.appendChild(btn("Effacer cette tuile", ()=>{ delete TILES[tileSel]; enregistrerTuiles(); render(); },"danger"));
+  r3.appendChild(btn("Copier depuis…", ()=>{
+    const src=Object.keys(TILES).filter(k=>k!==tileSel && tuileDefinie(k));
+    if(!src.length) return say("Aucune autre tuile configurée.","err");
+    const k=prompt("Copier la configuration de quelle tuile ?\n"+src.join(", "));
+    if(k && TILES[k]){ TILES[tileSel]=JSON.parse(JSON.stringify(TILES[k])); enregistrerTuiles(); render(); }
+  }));
+  c3.appendChild(r3);
+  c3.appendChild(el("div","hint",`${faites()} / ${TILE_IDS.length} tuiles configurées. Enregistrement automatique dans le navigateur.`));
+  c3.appendChild(rangeeTuilesIO());
+  p.appendChild(c3);
+}
+
+/* Sélecteur de type de limite, partagé par la vue Carte et la vue Tuiles. */
+function choixLimite(){
+  const r=el("div","row"); r.style.marginTop="6px";
+  r.appendChild(el("label",null,"Type :"));
+  LIMITES_ORDRE.forEach(k=>{
+    const b=btn(LIMITES[k].n, ()=>{limiteType=k; render();}, "col"+(limiteType===k?" on":""));
+    b.style.setProperty("--bc", LIMITES[k].c); r.appendChild(b);
+  });
+  return r;
+}
 function renderPanel(){
   const p=document.getElementById("scroll"); p.innerHTML="";
+
+  if(view==="tiles"){
+    cartesTuile(p);
+    ajouterCartesCommunes(p);
+    return;
+  }
+  if(view==="logic"){
+    const cl=el("div","card"); cl.appendChild(el("h3",null,"Logique de quête"));
+    cl.appendChild(el("div","hint",
+      "À gauche, les conditions : chaque couleur d'Objectif présente sur la carte, plus « Tous les Objectifs ». "+
+      "À droite, ce qu'elles commandent : les portes de couleur, les Zones d'Invasion et la Mission."));
+    cl.appendChild(el("div","hint",
+      "Clique un nœud de gauche, puis une entrée à droite. Une cible n'accepte qu'une condition : "+
+      "relier une nouvelle source remplace la précédente. Clique un lien pour le couper."));
+    cl.appendChild(el("div","hint",
+      "Les Zones d'Invasion ont deux entrées : « active » les met en service quand la condition est remplie, "+
+      "« désactive » les éteint. Sans lien, une Zone est active dès le début."));
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(btn("Ranger les nœuds", ()=>{ M.nodePos={}; render(); say("Disposition réinitialisée."); }));
+    r.appendChild(btn("Tout délier", ()=>{
+      M.locks={spawns:{},doors:{},spawnsOff:{}}; M.win.need=null; render(); say("Tous les liens retirés."); },"danger"));
+    cl.appendChild(r);
+    cl.appendChild(el("div","hint","Mission : "+missionTexte()+"."));
+    const bMaj=btn("Recopier dans le texte d'objectif", ()=>{
+      M.goal = missionTexte().charAt(0).toUpperCase()+missionTexte().slice(1)+".";
+      render(); say("Texte d'objectif mis à jour.","ok"); });
+    cl.appendChild(bMaj);
+    p.appendChild(cl);
+    ajouterCartesCommunes(p);
+    return;
+  }
 
   const c1=el("div","card"); c1.appendChild(el("h3",null,"Outil"));
   const g=el("div","row g");
   const T=(k,l)=>g.appendChild(btn(l, ()=>{tool=k; say(""); render();}, tool===k?"on":""));
   T("room","Bâtiment"); T("street","Rue");
-  T("door","Portes");   T("start","Départ");
+  T("door","Portes"); T("limites","Limites"); T("start","Départ");
   T("exit","Sortie");   T("spawn","Invasion");
-  T("obj","Objectif"); T("crypt","Crypte");
+  T("obj","Objectif"); T("crypt","Crypte"); T("tile","Tuile"); T("zomb","Zombies");
+  T("item","Objets");
   c1.appendChild(g);
 
   if(tool==="room"){
-    const r=el("div","row"); r.style.marginTop="6px";
-    r.appendChild(el("label",null,"Lettre :"));
-    const sel=document.createElement("select");
-    LETTERS.forEach(L=>{ const o=document.createElement("option"); o.value=L;
-      o.textContent=L+(M.cells.includes(L)?" (utilisée)":""); if(L===letter)o.selected=true; sel.appendChild(o); });
-    sel.onchange=e=>{letter=e.target.value; render();};
-    r.appendChild(sel); c1.appendChild(r);
-    c1.appendChild(el("div","hint","Une lettre = un BÂTIMENT ; chacune de ses cases est une Zone distincte. Ouvrir sa porte déclenche une Invasion dans CHAQUE Zone du bâtiment — un grand bâtiment est donc très dangereux."));
+    c1.appendChild(el("div","hint","Clique une case pour la passer en Bâtiment. Elle naît ENTIÈREMENT MURÉE : c'est ensuite avec l'outil Murs qu'on retire les murs là où la pièce se poursuit."));
+    c1.appendChild(el("div","hint","Il n'y a plus de lettre à choisir : les pièces sont déduites des murs, et la lettre affichée sur chaque case est le résultat de ce calcul. Deux cases sans mur entre elles = une seule pièce."));
+    c1.appendChild(el("div","hint","Ouvrir la porte d'une pièce déclenche une Invasion dans CHACUNE de ses Zones — une grande pièce est donc très dangereuse."));
   }
   const colBtn=(c,cur,fn,lab)=>{
     const b=btn(lab||colF(c), fn, "col"+(cur===c?" on":""));
@@ -558,6 +1173,14 @@ function renderPanel(){
       ()=>{doorOpen=!doorOpen; render();}, doorOpen?"on":""));
     c1.appendChild(r2);
     c1.appendChild(el("div","hint","Clique une arête surlignée pour poser une porte du type choisi ; reclique dessus (même type) pour la retirer, ou pose un autre type pour la remplacer. Une porte de couleur peut être verrouillée par une condition (voir plus bas). Une porte ouverte l'est dès le début de partie."));
+    c1.appendChild(el("div","hint","La porte se pose aussi bien sur un Mur que sur une Ouverture : dans ce cas le passage devient un mur qui porte la porte, et le trait redevient plein. Repasser l'arête en Ouverture avec l'outil Limites retire la porte."));
+  }
+  if(tool==="limites"){
+    c1.appendChild(choixLimite());
+    c1.appendChild(el("div","hint",LIMITES[limiteType].aide));
+    c1.appendChild(el("div","hint","Clique une arête pour y appliquer ce type ; reclique le même type pour l'enlever. Les arêtes déjà limitées sont surlignées en rouge, les libres en doré."));
+    c1.appendChild(el("div","hint","AUCUNE limite entre deux cases de Bâtiment = une SEULE Zone (la lettre des cases fusionne). Une Ouverture = deux Zones qu'on franchit librement : une Invasion s'y résout donc deux fois."));
+    c1.appendChild(el("div","hint","Une porte se pose sur un Mur ; changer ce mur en autre chose retire la porte."));
   }
   if(tool==="spawn"){
     const r=el("div","row"); r.style.marginTop="6px";
@@ -592,6 +1215,85 @@ function renderPanel(){
     }
     c1.appendChild(el("div","hint","Un Objectif caché montre toujours un recto ROUGE ; sa vraie couleur n'est révélée qu'à sa récupération."));
   }
+  if(tool==="tile"){
+    const faites=TILE_IDS.filter(tuileDefinie);
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Tuile :"));
+    const sel=document.createElement("select"); sel.style.flex="1";
+    if(!faites.length){ const o=document.createElement("option");
+      o.textContent="— aucune tuile configurée —"; sel.appendChild(o); sel.disabled=true; }
+    faites.forEach(id=>{ const o=document.createElement("option");
+      o.value=id; o.textContent=tileNum(id)+" — "+tileBox(id);
+      if(id===tileStamp) o.selected=true; sel.appendChild(o); });
+    sel.onchange=e=>{ tileStamp=e.target.value; render(); };
+    if(!tileStamp && faites.length) tileStamp=faites[0];
+    r.appendChild(sel);
+    c1.appendChild(r);
+    const r2=el("div","row"); r2.style.marginTop="4px";
+    r2.appendChild(el("label",null,"Rotation :"));
+    [0,1,2,3].forEach(k=>r2.appendChild(btn(k*90+"°", ()=>{tileRot=k; render();}, tileRot===k?"on":"")));
+    c1.appendChild(r2);
+    if(!faites.length)
+      c1.appendChild(el("div","hint","Passe d'abord par l'onglet 🧩 Tuiles pour décrire au moins une tuile."));
+    else
+      c1.appendChild(el("div","hint","Clique une case : la tuile se pose sur le bloc 3×3 qui la contient, en remplaçant ce qui s'y trouvait. Clic droit sur le bloc pour le vider. Les lettres de bâtiment sont renumérotées automatiquement."));
+    c1.appendChild(el("div","hint","Le plateau doit être un multiple de 3 dans les deux dimensions pour un pavage complet ("+M.W+"×"+M.H+" → "+Math.floor(M.W/3)+"×"+Math.floor(M.H/3)+" tuiles)."));
+  }
+  if(tool==="item"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Carte :"));
+    const sel=document.createElement("select"); sel.style.flex="1";
+    // un groupe par type, quel que soit l'ordre de la liste
+    const groupes={};
+    EQUIP_ED.forEach(e=>{
+      const k = e.v ? "Artefact de crypte" : (K_NOM[e.k]||e.k);
+      if(!groupes[k]){ const g=document.createElement("optgroup"); g.label=k;
+                       groupes[k]=g; sel.appendChild(g); }
+      const o=document.createElement("option"); o.value=e.id; o.textContent=e.n;
+      if(e.id===itemId) o.selected=true;
+      groupes[k].appendChild(o);
+    });
+    sel.onchange=ev=>{ itemId=ev.target.value; render(); };
+    r.appendChild(sel);
+    c1.appendChild(r);
+    c1.appendChild(el("div","hint","Clique une case pour y déposer la carte choisie ; plusieurs cartes peuvent s'empiler dans la même Zone. Clic droit en retire la dernière."));
+    c1.appendChild(el("div","hint","Un Survivant les ramasse au prix d'1 Action, sans que ce soit une Fouille — même mécanique que les Artefacts de crypte, mais sans expérience."));
+    // contenu des cryptes
+    const cols=cryptColorsUsed();
+    if(cols.length){
+      c1.appendChild(el("div","hint","— Contenu des cryptes —"));
+      cols.forEach(col=>{
+        const liste=(M.cryptItems||{})[col]||[];
+        const rr=el("div","row"); rr.style.marginTop="4px";
+        const lab=el("label",null,"Crypte "+cryptNom(col)+" :");
+        lab.style.color=CRYPT_COLORS[col]; rr.appendChild(lab);
+        rr.appendChild(btn("+ "+eqNom(itemId), ()=>{
+          M.cryptItems=M.cryptItems||{}; (M.cryptItems[col]=M.cryptItems[col]||[]).push(itemId);
+          render(); }));
+        if(liste.length) rr.appendChild(btn("Vider", ()=>{ M.cryptItems[col]=[]; render(); },"danger"));
+        c1.appendChild(rr);
+        c1.appendChild(el("div","hint", liste.length
+          ? liste.map(eqNom).join(", ")
+          : "vide — par défaut le jeu y répartit les Artefacts de crypte (Enfer, Arbalète orque)."));
+      });
+    }
+  }
+  if(tool==="zomb"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    Z_ORDRE.forEach(t=>{
+      const b=btn(ZT_ED[t].n, ()=>{zombType=t; render();}, "col"+(zombType===t?" on":""));
+      b.style.setProperty("--bc", ZT_ED[t].c); r.appendChild(b);
+    });
+    c1.appendChild(r);
+    const total=t=>M.zombies.filter(z=>z.t===t).reduce((a,z)=>a+z.n,0);
+    c1.appendChild(el("div","hint",
+      "Clic gauche : ajoute une figurine du type choisi (les identiques s'empilent). "+
+      "Clic droit : en retire une, ou vide la case si le type n'y est pas."));
+    c1.appendChild(el("div","hint",
+      Z_ORDRE.map(t=>`${ZT_ED[t].n} ${total(t)}/${ZT_ED[t].pool}`).join(" · ")));
+    c1.appendChild(el("div","hint",
+      "Ces zombies sont en place dès le début de partie et pris sur le stock de figurines."));
+  }
   if(tool==="crypt"){
     const r=el("div","row"); r.style.marginTop="6px";
     [["violet","Crypte violette"],["jaune","Crypte jaune"]].forEach(([k,lab])=>r.appendChild(
@@ -613,36 +1315,32 @@ function renderPanel(){
   mkNum("Largeur",M.W,v=>resize(v,M.H));
   mkNum("Hauteur",M.H,v=>resize(M.W,v));
   c2.appendChild(r2);
+  const rt=el("div","row"); rt.style.marginTop="4px";
+  rt.appendChild(el("label",null,"ou en tuiles 3×3 :"));
+  const mkT=(lab,val,fn)=>{ rt.appendChild(el("label",null,lab));
+    const i=document.createElement("input"); i.type="number"; i.min=1; i.max=6; i.value=val;
+    i.style.width="52px"; i.onchange=e=>fn(+e.target.value); rt.appendChild(i); };
+  mkT("↔",Math.floor(M.W/3),v=>resize(Math.max(3,v*3),M.H));
+  mkT("↕",Math.floor(M.H/3),v=>resize(M.W,Math.max(3,v*3)));
+  c2.appendChild(rt);
+  if(M.W%3||M.H%3)
+    c2.appendChild(el("div","hint","Plateau non multiple de 3 : la dernière rangée de tuiles sera incomplète."));
+  if(Object.keys(M.tiles||{}).length){
+    const ro=el("div","row"); ro.style.marginTop="6px";
+    ro.appendChild(el("label",null,"Fond des tuiles :"));
+    const sl=document.createElement("input");
+    sl.type="range"; sl.min=0; sl.max=100; sl.value=Math.round(tileOpacity*100); sl.style.flex="1";
+    sl.oninput=e=>{ tileOpacity=e.target.value/100;
+      document.querySelectorAll('.tileBg').forEach(d=>d.style.opacity=tileOpacity); };
+    ro.appendChild(sl);
+    c2.appendChild(ro);
+    c2.appendChild(el("div","hint",Object.keys(M.tiles).length+" tuile(s) posée(s). Le décor n'a aucun effet sur les règles."));
+  }
   const r2b=el("div","row"); r2b.style.marginTop="6px";
   r2b.appendChild(btn("Tout effacer", ()=>{ if(confirm("Effacer toute la carte ?")){ M=blank(M.W,M.H); render(); } },"danger"));
   r2b.appendChild(btn("Charger l'exemple", ()=>{ M=fromQuest(SAMPLE); render(); say("Carte d'exemple chargée.","ok"); }));
   c2.appendChild(r2b);
   p.appendChild(c2);
-
-  // --- objectif de la mission ---
-  const cW=el("div","card"); cW.appendChild(el("h3",null,"Objectif de la mission"));
-  const gw=el("div","cond");
-  gw.appendChild(el("label",null,"Condition"));
-  const selN=document.createElement("select");
-  CONDS.forEach(([v,t])=>{ const o=document.createElement("option");
-    o.value=v; o.textContent=t; if((M.win.need||"")===v) o.selected=true; selN.appendChild(o); });
-  selN.onchange=e=>{ M.win.need=e.target.value||null; render(); };
-  gw.appendChild(selN);
-  gw.appendChild(el("label",null,"Sortie"));
-  const selE=document.createElement("select");
-  Object.entries(EXIT_TXT).forEach(([v,t])=>{ const o=document.createElement("option");
-    o.value=v; o.textContent=t; if(M.win.exit===v) o.selected=true; selE.appendChild(o); });
-  selE.onchange=e=>{ M.win.exit=e.target.value; render(); };
-  gw.appendChild(selE);
-  cW.appendChild(gw);
-  cW.appendChild(el("div","hint","Résumé : "+missionTexte()+"."));
-  cW.appendChild(el("div","hint","Tant que la condition n'est pas remplie, la Zone de Sortie refuse les Survivants. Les autres Objectifs restent ramassables — ils rapportent de l'expérience et peuvent déverrouiller portes et Invasions, sans être obligatoires."));
-  const bMaj=btn("Recopier dans le texte d'objectif", ()=>{
-    M.goal = missionTexte().charAt(0).toUpperCase()+missionTexte().slice(1)+".";
-    render(); say("Texte d'objectif mis à jour.","ok");
-  });
-  cW.appendChild(bMaj);
-  p.appendChild(cW);
 
   const c3=el("div","card"); c3.appendChild(el("h3",null,"Quête"));
   const n=document.createElement("input"); n.value=M.name; n.style.width="100%";
@@ -656,6 +1354,10 @@ function renderPanel(){
   const c4=el("div","card"); c4.appendChild(el("h3",null,"Légende"));
   [["#c9c9c9","D — Départ des Survivants"],["#2f6b4a","S — Sortie"],
    ["#b5462d","Rectangle sur un bord = Zone d'Invasion (couleur au choix)"],
+   ["#6f8f4e","Pastille en bas à gauche = zombies présents au départ"],
+   [null,"Lettre sur une case = Zone DÉDUITE des limites (non saisie)"],
+   ["#c9a227","Trait doré en pointillé = Ouverture (on passe, mais 2 Zones)"],
+   ["#c9a227","Pastille ◈ en bas à droite = objets posés dans la Zone"],
    ["#c9a227","O — Objectif ; « ? » sur fond rouge = face cachée"],
    ["#8a8a8a","Porte grise (jamais verrouillée)"],
    ["#3d6fb5","Porte bleue"],["#4f9d5a","Porte verte"],
@@ -666,34 +1368,11 @@ function renderPanel(){
   c4.appendChild(el("div","hint","Les Artefacts de crypte (Inferno, Arbalète orque) sont placés automatiquement dans les cryptes au début de la partie."));
   p.appendChild(c4);
 
-  // --- conditions de quête ---
-  const cQ=el("div","card"); cQ.appendChild(el("h3",null,"Conditions de quête"));
-  const grille=(titre, cible, couleurs)=>{
-    cQ.appendChild(el("div","hint",titre));
-    const g=el("div","cond");
-    couleurs.forEach(c=>{
-      const lab=el("label",null,cible==="doors"?"Portes "+colF(c):"Invasion "+colF(c));
-      lab.style.color=colCss(c);
-      g.appendChild(lab);
-      const sel=document.createElement("select");
-      CONDS.forEach(([v,t])=>{ const o=document.createElement("option");
-        o.value=v; o.textContent=t;
-        if((M.locks[cible]||{})[c]===v || (!((M.locks[cible]||{})[c]) && v==="")) o.selected=true;
-        sel.appendChild(o); });
-      sel.onchange=e=>{ M.locks[cible]=M.locks[cible]||{};
-        if(e.target.value) M.locks[cible][c]=e.target.value;
-        else delete M.locks[cible][c];
-        render(); };
-      g.appendChild(sel);
-    });
-    cQ.appendChild(g);
-  };
-  grille("Une Zone d'Invasion reste INACTIVE tant que sa condition n'est pas remplie.",
-         "spawns", SPAWN_COLORS);
-  grille("Une porte de couleur ne peut pas être ouverte tant que sa condition n'est pas remplie.",
-         "doors", DOOR_COLORS.filter(c=>c!=="grey"));
-  p.appendChild(cQ);
+  ajouterCartesCommunes(p);
+}
 
+/* Cartes présentes dans les deux vues : nom de quête, vérification, export. */
+function ajouterCartesCommunes(p){
   const probs=problems();
   const c5=el("div","card"); c5.appendChild(el("h3",null,"Vérification"));
   if(!probs.length) c5.appendChild(el("div",null,"✓ Carte jouable."));
@@ -720,12 +1399,28 @@ function resize(W,H){
   W=Math.max(3,Math.min(20,W)); H=Math.max(3,Math.min(20,H));
   const n=blank(W,H); n.name=M.name; n.goal=M.goal;
   n.hiddenBacks=[...M.hiddenBacks]; n.locks=M.locks; n.win={...M.win};
+  n.tiles={}; Object.entries(M.tiles||{}).forEach(([k,v])=>{
+    const [tx,ty]=k.split(",").map(Number);
+    if(tx*3<W && ty*3<H) n.tiles[k]=v; });
   for(let y=0;y<Math.min(H,M.H);y++) for(let x=0;x<Math.min(W,M.W);x++) n.cells[y*W+x]=ch(x,y);
+  /* Les cases de Bâtiment qui se retrouvent au nouveau bord doivent y retrouver
+     un mur : sans ça, agrandir puis rétrécir ouvrirait le bâtiment sur le vide. */
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(n.cells[y*W+x]===".") continue;
+    if(x===W-1) n.limites[(x)+","+y+",e"]="mur";
+    if(y===H-1) n.limites[x+","+(y)+",s"]="mur";
+  }
   const keep=p=>p&&p.x<W&&p.y<H?p:null;
   n.doors=M.doors.filter(d=>d.x<W&&d.y<H);
+  n.limites={}; Object.entries(M.limites||{}).forEach(([k,t])=>{
+    const [wx,wy]=k.split(",").map(Number);
+    if(wx<W && wy<H) n.limites[k]=t; });
   n.cryptDoors=M.cryptDoors.filter(d=>d.x<W&&d.y<H);
   n.spawns=M.spawns.filter(p=>p.x<W&&p.y<H);
   n.objectives=M.objectives.filter(p=>p.x<W&&p.y<H);
+  n.zombies=M.zombies.filter(p=>p.x<W&&p.y<H);
+  n.items=M.items.filter(p=>p.x<W&&p.y<H);
+  n.cryptItems=JSON.parse(JSON.stringify(M.cryptItems||{}));
   n.start=keep(M.start); n.exit=keep(M.exit);
   M=n; render();
 }
@@ -751,6 +1446,536 @@ const SAMPLE = {
   win:{"exit":"all"}
 };
 
+
+/* ==========================================================================
+   BIBLIOTHÈQUE DE TUILES
+   Une tuile Zombicide est un plateau 3×3. On décrit ici sa grammaire — quelles
+   cases sont des bâtiments, où sont les portes — puis on la « tamponne » sur la
+   carte. Les lettres de bâtiment sont locales à la tuile et renumérotées à la
+   pose, pour que deux tuiles voisines ne fusionnent pas leurs bâtiments.
+   ========================================================================== */
+const TILE_DIR="tuiles_zombicide/";
+const TILE_IDS=["1R_BP","1V_BP","2R_BP","2V_BP","3R_BP","3V_BP","4R_BP","4V_BP","5R_BP","5V_BP",
+"6R_BP","6V_BP","7R_BP","7V_BP","8R_BP","8V_BP","9R_BP","9V_BP","10R_WB","10V_WB","11R_WB","11V_WB",
+"12R_GH","12V_GH","13R_GH","13V_GH","14R_GH","14V_GH","15R_GH","15V_GH","16R_GH","16V_GH","17R_GH",
+"17V_GH","18R_GH","18V_GH","19R_GH","19V_GH","20R_GH","20V_GH","21R_FF","21V_FF","22R_FF","22V_FF",
+"23R_FF","23V_FF","24R_FF","24V_FF","25R_FF","25V_FF","26R_WD","26V_WD","27R_WD","27V_WD","28R_WD",
+"28V_WD","29R_WD","29V_WD","30R_WD","30V_WD","31R_WD","31V_WD","32R_WD","32V_WD","33R_WD","33V_WD",
+"34R_WD","34V_WD","35R_EE","35V_EE","36R_EE","36V_EE","37R_EE","37V_EE","38R_EE","38V_EE","39R_TC",
+"39V_TC","40R_TC","40V_TC","41R_TC","41V_TC","42R_TC","42V_TC"];
+const BOITES={BP:"Black Plague",WB:"Wulfsburg",GH:"Green Horde",FF:"Friends & Foes",
+              WD:"White Death",EE:"Eternal Empire",TC:"Thundercats"};
+const tileImg = id => TILE_DIR+id+".jpg";
+const tileBox = id => BOITES[id.split("_")[1]]||id.split("_")[1];
+const tileNum = id => id.split("_")[0];
+
+let TILES={};              // id → {cells:[9] "."|"#", limites:{"x,y,s":type}}
+let tileSel=null, tileMode="cells";   // cells | limites
+let limiteType="mur";                 // type courant, outil Limites et vue Tuiles
+
+/* Même convention de nom d'arête que sur la carte, mais dans une grille 3×3. */
+function cleMurT(x,y,s){
+  if(s==="s" && y+1<3) return x+","+(y+1)+",n";
+  if(s==="e" && x+1<3) return (x+1)+","+y+",w";
+  return x+","+y+","+s;
+}
+const tLim   = (t,x,y,s)=>(t.limites||{})[cleMurT(x,y,s)]||null;
+const tPose  = (t,x,y,s,ty)=>{ (t.limites=t.limites||{})[cleMurT(x,y,s)]=ty||"mur"; };
+const tOte   = (t,x,y,s)=>{ if(t.limites) delete t.limites[cleMurT(x,y,s)]; };
+const tIn    = (x,y)=>x>=0&&y>=0&&x<3&&y<3;
+
+/* Ancien format (lettres + openings) → nouveau (cases + murs explicites).
+   Le mur se déduisait des lettres : on fige cette déduction une fois pour
+   toutes, puis on rouvre les arêtes qui étaient déclarées comme ouvertures. */
+function migrerTuile(t){
+  if(!t || !t.cells) return t;
+  if(t.limites) return t;                       // déjà au format « limites typées »
+  if(t.walls){                                  // format intermédiaire : murs binaires
+    const nt={cells:[...t.cells], limites:{}};
+    Object.keys(t.walls).forEach(k=>{ nt.limites[k]="mur"; });
+    return nt;
+  }
+  const anc=t.cells;                            // format d'origine : lettres + ouvertures
+  const nt={cells:anc.map(c=>c==="."?".":BAT), limites:{}};
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++) for(const s of SIDES){
+    const nx=x+DXY[s][0], ny=y+DXY[s][1];
+    const mur = !tIn(nx,ny) ? anc[y*3+x]!=="."          // bord : mur si bâtiment
+                            : anc[y*3+x]!==anc[ny*3+nx];
+    if(mur) nt.limites[cleMurT(x,y,s)]="mur";
+  }
+  (t.openings||[]).forEach(o=>{ delete nt.limites[cleMurT(o.x,o.y,o.s)]; });
+  return nt;
+}
+/* Vue Tuiles : taille de la boîte d'édition (zoom) et opacité des repères. */
+const TZ_MIN=260, TZ_MAX=1040, TZ_DEF=390, TZ_PAS=90;
+let tileZoom=TZ_DEF, tileAlpha=0.55;
+
+function chargerTuiles(){
+  try{ const b=localStorage.getItem("zbp_tiles"); if(b) TILES=JSON.parse(b)||{}; }catch(e){ TILES={}; }
+  /* Deux migrations successives du format de tuile :
+     1. portes colorées → ouvertures (la couleur se choisit sur la carte) ;
+     2. lettres + ouvertures → cases + murs explicites (les murs font foi). */
+  Object.values(TILES).forEach(t=>{
+    if(t && t.doors && !t.openings){
+      t.openings=t.doors.map(d=>({x:d.x,y:d.y,s:d.s}));
+      delete t.doors;
+    }
+  });
+  Object.keys(TILES).forEach(k=>{ TILES[k]=migrerTuile(TILES[k]); });
+}
+function enregistrerTuiles(){
+  try{ localStorage.setItem("zbp_tiles", JSON.stringify(TILES)); }catch(e){}
+}
+/* Réglages d'affichage de la vue Tuiles — confort de travail, sans rapport
+   avec le contenu des tuiles, d'où une clé de stockage distincte. */
+function chargerVueTuile(){
+  try{
+    const v=JSON.parse(localStorage.getItem("zbp_tileview")||"null");
+    if(v){
+      if(v.zoom)  tileZoom =Math.max(TZ_MIN,Math.min(TZ_MAX, v.zoom));
+      if(v.alpha) tileAlpha=Math.max(.1,Math.min(1, v.alpha));
+    }
+  }catch(e){}
+}
+function enregistrerVueTuile(){
+  try{ localStorage.setItem("zbp_tileview", JSON.stringify({zoom:tileZoom, alpha:tileAlpha})); }catch(e){}
+}
+const tuileDefinie = id => !!(TILES[id] && TILES[id].cells);
+function tuileVide(){ return {cells:new Array(9).fill("."), limites:{}}; }
+
+/* Rotation d'une tuile par quarts de tour horaires : la case (x,y) va en
+   (2-y, x) et chaque côté tourne avec elle. */
+function tuileTournee(t, rot){
+  let cells=[...t.cells], limites={...(t.limites||{})};
+  const ROT={n:"e",e:"s",s:"w",w:"n"};
+  for(let k=0;k<((rot%4)+4)%4;k++){
+    const nc=new Array(9);
+    for(let y=0;y<3;y++) for(let x=0;x<3;x++) nc[x*3+(2-y)]=cells[y*3+x];
+    cells=nc;
+    const nl={};
+    for(let y=0;y<3;y++) for(let x=0;x<3;x++) for(const s of SIDES){
+      const ty=limites[cleMurT(x,y,s)];
+      if(ty) nl[cleMurT(2-y, x, ROT[s])]=ty;
+    }
+    limites=nl;
+  }
+  return {cells, limites};
+}
+
+/* ==========================================================================
+   VUE LOGIQUE — graphe nodal des conditions de quête
+   Colonne de gauche : les conditions (Objectifs récupérés).
+   Colonne de droite  : ce qu'elles commandent (portes, Invasions, Mission).
+   Un lien = « cette condition débloque cette cible ». Chaque cible n'accepte
+   qu'une condition : relier une nouvelle source remplace l'ancienne.
+   Les Zones d'Invasion ont deux entrées : ACTIVE et DÉSACTIVE (spawnsOff).
+   ========================================================================== */
+let view = "map";          // map | logic
+let linkFrom = null;       // source en cours de branchement
+
+/* Couleurs d'Objectif qu'un Survivant peut réellement récupérer :
+   les Objectifs visibles, les versos déclarés, et ROUGE dès qu'un Objectif
+   caché n'a pas de verso — le jeu lui en attribue un rouge par défaut. */
+function couleursDisponibles(){
+  const d = new Set(M.objectives.filter(o=>!o.hidden).map(o=>o.color).concat(M.hiddenBacks));
+  if(M.objectives.filter(o=>o.hidden).length > M.hiddenBacks.length) d.add("red");
+  return d;
+}
+function graphNodes(){
+  const dispo = couleursDisponibles();
+  const src = OBJ_COLORS.filter(c=>dispo.has(c)).map(c=>({
+    id:"objective:"+c, color:c, titre:"Objectif "+colM(c),
+    detail:(()=>{
+      const vis=M.objectives.filter(o=>!o.hidden&&o.color===c).length;
+      let cach=M.hiddenBacks.filter(x=>x===c).length;
+      const sansVerso=M.objectives.filter(o=>o.hidden).length - M.hiddenBacks.length;
+      if(c==="red" && sansVerso>0) cach+=sansVerso;      // versos par défaut
+      return `${vis} visible(s), ${cach} caché(s)`;
+    })()}));
+  src.push({id:"objectives:all", color:"grey", titre:"Tous les Objectifs",
+            detail:M.objectives.length+" au total"});
+  // cibles : seulement ce qui existe sur la carte
+  const tgt = [];
+  DOOR_COLORS.filter(c=>c!=="grey").forEach(c=>{
+    const n=M.doors.filter(d=>d.color===c).length;
+    if(n) tgt.push({id:"door:"+c, color:c, titre:"Portes "+colF(c)+"s",
+                    detail:n+" porte(s) — verrouillées sans condition remplie", ports:1});
+  });
+  SPAWN_COLORS.forEach(c=>{
+    const n=M.spawns.filter(x=>x.color===c).length;
+    if(n) tgt.push({id:"spawn:"+c, color:c, titre:"Invasion "+colF(c),
+                    detail:n+" pion(s)", ports:2});
+  });
+  tgt.push({id:"mission", color:"grey", titre:"MISSION", detail:missionTexte(),
+            ports:1, mission:true});
+  return {src, tgt};
+}
+function graphLinks(){
+  const L=[];
+  Object.entries(M.locks.doors||{}).forEach(([c,v])=>{ if(v) L.push({from:v,to:"door:"+c,kind:"on"}); });
+  Object.entries(M.locks.spawns||{}).forEach(([c,v])=>{ if(v) L.push({from:v,to:"spawn:"+c,kind:"on"}); });
+  Object.entries(M.locks.spawnsOff||{}).forEach(([c,v])=>{ if(v) L.push({from:v,to:"spawn:"+c,kind:"off"}); });
+  if(M.win.need) L.push({from:M.win.need, to:"mission", kind:"on"});
+  return L;
+}
+function bucketOf(to, kind){
+  if(to==="mission") return null;
+  const t = to.split(":")[0];
+  return t==="door" ? "doors" : (kind==="off" ? "spawnsOff" : "spawns");
+}
+function setLink(from, to, kind){
+  if(to==="mission"){ M.win.need = from; return; }
+  const c = to.split(":")[1], b = bucketOf(to,kind);
+  M.locks[b] = M.locks[b]||{}; M.locks[b][c] = from;
+}
+function clearLink(to, kind){
+  if(to==="mission"){ M.win.need = null; return; }
+  const c = to.split(":")[1], b = bucketOf(to,kind);
+  if(M.locks[b]) delete M.locks[b][c];
+}
+function linkOn(to, kind){
+  if(to==="mission") return M.win.need||null;
+  const c = to.split(":")[1], b = bucketOf(to,kind);
+  return (M.locks[b]||{})[c] || null;
+}
+
+const NW=196, NH=58, GAPY=86, TOPY=28;
+/* La colonne de droite se cale sur la place disponible : sur une fenêtre
+   étroite elle se rapproche plutôt que de sortir de l'écran. */
+function colonnes(){
+  const w = document.getElementById("wrap");
+  const dispo = (w ? w.clientWidth : 900) - 60;
+  return [34, Math.max(NW+70, Math.min(470, dispo - NW))];
+}
+function nodePos(id, defaut){
+  const p = (M.nodePos||{})[id];
+  return p ? p : defaut;
+}
+function renderLogic(){
+  const box=document.getElementById("logic");
+  box.innerHTML="";
+  const {src,tgt}=graphNodes();
+  const COLX=colonnes(), pos={};
+  src.forEach((n,i)=>pos[n.id]=nodePos(n.id,{x:COLX[0], y:TOPY+i*GAPY}));
+  tgt.forEach((n,i)=>pos[n.id]=nodePos(n.id,{x:COLX[1], y:TOPY+i*GAPY}));
+  // taille provisoire : les nœuds sont en position absolue, la redimensionner
+  // ensuite ne les déplace pas.
+  box.style.width=(COLX[1]+NW+34)+"px"; box.style.height="420px";
+
+  const NS="http://www.w3.org/2000/svg";
+  const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("class","links");
+  box.appendChild(svg);                       // sous les nœuds
+
+  const refPort={};                           // (id|kind) → élément du connecteur
+  const refNode={};
+  const faire=(n,role)=>{
+    const d=document.createElement("div");
+    d.className="gnode"+(n.mission?" mission":"")+(linkFrom===n.id?" sel":"");
+    d.style.setProperty("--nc", colCss(n.color));
+    d.style.left=pos[n.id].x+"px"; d.style.top=pos[n.id].y+"px";
+    d.appendChild(el("div","t",n.titre));
+    d.appendChild(el("div","d",n.detail));
+    if(role==="src"){
+      const port=el("div","port out");
+      refPort[n.id+"|out"]=port;
+      port.title="Cliquer, puis cliquer une entrée à droite";
+      port.onclick=ev=>{ ev.stopPropagation();
+        linkFrom = (linkFrom===n.id) ? null : n.id;
+        say(linkFrom ? "Source « "+n.titre+" » — clique maintenant une entrée." : "");
+        render(); };
+      d.appendChild(port);
+      d.onclick=()=>port.onclick({stopPropagation(){}});
+    } else {
+      const mk=(kind,cls,lbl)=>{
+        const port=el("div","port in "+cls+(linkOn(n.id,kind)?" filled":"")+(kind==="off"?" off":""));
+        refPort[n.id+"|"+kind]=port;
+        if(lbl){ const t=el("span","lb",lbl); port.appendChild(t); }
+        port.title = kind==="off" ? "Désactive quand la condition est remplie"
+                                  : "Active / déverrouille quand la condition est remplie";
+        port.onclick=ev=>{ ev.stopPropagation();
+          if(!linkFrom){ if(linkOn(n.id,kind)){ clearLink(n.id,kind); say("Lien retiré."); render(); }
+                         else say("Choisis d'abord une condition à gauche.","err");
+                         return; }
+          setLink(linkFrom, n.id, kind); linkFrom=null; say("Lien créé."); render(); };
+        d.appendChild(port);
+      };
+      if((n.ports||1)>=2){ d.classList.add("two"); mk("on","two1","active"); mk("off","two2","désactive"); }
+      else mk("on","","");
+      if(n.mission){
+        const sel=document.createElement("select");
+        sel.style.cssText="width:100%;font-size:11px;margin-top:4px;padding:1px 3px";
+        Object.entries(EXIT_TXT).forEach(([v,t])=>{ const o=document.createElement("option");
+          o.value=v; o.textContent=t; if(M.win.exit===v) o.selected=true; sel.appendChild(o); });
+        sel.onclick=ev=>ev.stopPropagation();
+        sel.onchange=ev=>{ M.win.exit=ev.target.value; render(); };
+        d.appendChild(sel);
+      }
+    }
+    rendreDeplacable(d, n.id);
+    refNode[n.id]=d;
+    box.appendChild(d);
+  };
+  src.forEach(n=>faire(n,"src"));
+  tgt.forEach(n=>faire(n,"tgt"));
+
+  /* Les nœuds sont posés : on mesure la géométrie RÉELLE des connecteurs plutôt
+     que de la déduire d'une hauteur supposée — le contenu des nœuds varie. */
+  /* Taille finale d'abord : la scène est centrée par `margin:auto`, donc
+     redimensionner la boîte la déplace à l'écran. Mesurer l'origine avant le
+     redimensionnement décalait tous les liens d'autant. */
+  const dims=Object.values(refNode).map(n=>({d:n.offsetLeft+n.offsetWidth,
+                                             b:n.offsetTop+n.offsetHeight}));
+  const largeur=Math.max(COLX[1]+NW+34, ...dims.map(o=>o.d+34));
+  const hauteur=Math.max(420, ...dims.map(o=>o.b+34));
+  box.style.width=largeur+"px"; box.style.height=hauteur+"px";
+  svg.setAttribute("width",largeur); svg.setAttribute("height",hauteur);
+  svg.setAttribute("viewBox",`0 0 ${largeur} ${hauteur}`);
+
+  // Origine du repère SVG relevée APRÈS le redimensionnement.
+  const rSvg=svg.getBoundingClientRect();
+  const centre=(id,kind)=>{
+    const pt=refPort[id+"|"+kind];
+    if(!pt) return null;
+    const r=pt.getBoundingClientRect();
+    return {x:r.left-rSvg.left+r.width/2, y:r.top-rSvg.top+r.height/2};
+  };
+
+  graphLinks().forEach(l=>{
+    const a=centre(l.from,"out"), b=centre(l.to,l.kind);
+    if(!a||!b) return;                        // lien orphelin : ignoré
+    const dx=Math.max(40,(b.x-a.x)/2);
+    const d=`M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
+    const trait=document.createElementNS(NS,"path");
+    trait.setAttribute("d",d); trait.setAttribute("class",l.kind);
+    svg.appendChild(trait);
+    const zone=document.createElementNS(NS,"path");   // zone de clic élargie
+    zone.setAttribute("d",d); zone.setAttribute("class","hit");
+    zone.style.pointerEvents="stroke";
+    zone.onclick=()=>{ clearLink(l.to,l.kind); say("Lien retiré."); render(); };
+    svg.appendChild(zone);
+  });
+
+  const aide=el("div"); aide.id="logicHint";
+  aide.textContent = linkFrom
+    ? "Clique une entrée (rond de gauche) d'un nœud de droite pour créer le lien."
+    : "Clique un nœud de gauche pour choisir une condition, puis une entrée à droite. "+
+      "Clique un lien ou une entrée déjà remplie pour la retirer. Les nœuds se déplacent au glisser.";
+  box.appendChild(aide);
+}
+/* Déplacement d'un nœud ; la position n'est PAS exportée dans la quête. */
+function rendreDeplacable(d, id){
+  d.onpointerdown=ev=>{
+    if(ev.target.closest(".port,select")) return;
+    ev.preventDefault();
+    const bx=document.getElementById("logic");
+    const rb=bx.getBoundingClientRect();
+    // origine = boîte INTÉRIEURE : `left`/`top` d'un enfant absolu s'y réfèrent,
+    // sinon le nœud dérivait de l'épaisseur de bordure à chaque déplacement
+    const box={left:rb.left+bx.clientLeft, top:rb.top+bx.clientTop};
+    const r=d.getBoundingClientRect();
+    const dx=ev.clientX-r.left, dy=ev.clientY-r.top;
+    d.classList.add("drag"); d.setPointerCapture(ev.pointerId);
+    let bougé=false;
+    const move=e=>{
+      bougé=true;
+      const x=Math.max(0, e.clientX-box.left-dx), y=Math.max(0, e.clientY-box.top-dy);
+      d.style.left=x+"px"; d.style.top=y+"px";
+      M.nodePos=M.nodePos||{}; M.nodePos[id]={x:Math.round(x),y:Math.round(y)};
+    };
+    const up=()=>{ d.classList.remove("drag");
+      d.removeEventListener("pointermove",move); d.removeEventListener("pointerup",up);
+      if(bougé) render(); };
+    d.addEventListener("pointermove",move); d.addEventListener("pointerup",up);
+  };
+}
+function setView(v){
+  view=v; linkFrom=null;
+  document.body.classList.toggle("logicview", v==="logic");
+  document.body.classList.toggle("tilesview", v==="tiles");
+  document.getElementById("tabMap").classList.toggle("on", v==="map");
+  document.getElementById("tabLogic").classList.toggle("on", v==="logic");
+  document.getElementById("tabTiles").classList.toggle("on", v==="tiles");
+  render();
+}
+
+
+/* ---------- pose d'une tuile sur la carte ----------
+   Plus aucun remappage de lettres : une tuile pose des cases et des murs. Deux
+   tuiles voisines dont les bords en vis-à-vis n'ont pas de mur forment une
+   seule pièce, calculée après coup. C'est ce qui règle le bâtiment coupé en
+   deux à la jointure.
+   Sur une arête commune à deux tuiles, la DERNIÈRE posée fait foi ; l'outil
+   Murs permet ensuite de rectifier à la main. */
+const POOL_LETTRES="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("");
+/* Ce que la tuile posée à cet endroit déclare pour une arête, ou null si aucune
+   tuile n'y est posée (case peinte à la main, ou emplacement vide). */
+function limiteTuileEn(X,Y,s){
+  const rec=(M.tiles||{})[Math.floor(X/3)+","+Math.floor(Y/3)];
+  if(!rec) return null;
+  const base=TILES[rec.id];
+  if(!base || !base.cells) return null;
+  const t=tuileTournee(base, rec.rot||0);
+  return tLim(t, X-Math.floor(X/3)*3, Y-Math.floor(Y/3)*3, s);
+}
+/* Sur une arête, on réunit ce que déclarent les DEUX tuiles de part et d'autre.
+   Une tuile de rue ne déclare rien sur son bord : son silence ne doit pas
+   effacer le mur de la façade d'en face. Un mur l'emporte sur une ouverture,
+   qui l'emporte sur rien — c'est ce qu'on voit en accolant deux plateaux. */
+function limiteComposee(X,Y,s){
+  const nx=X+DXY[s][0], ny=Y+DXY[s][1];
+  const a=limiteTuileEn(X,Y,s);
+  const b=IN(nx,ny) ? limiteTuileEn(nx,ny,OPP[s]) : null;
+  if(a==="mur"||b==="mur") return "mur";
+  if(a&&b===null) return a;
+  if(b&&a===null) return b;
+  if(a==="ouverture"||b==="ouverture") return "ouverture";
+  return null;
+}
+/* Réécrit les limites d'un bloc 3×3 d'après les tuiles réellement posées —
+   la sienne et ses voisines. Appelé après pose comme après retrait, pour que
+   les deux opérations donnent le même résultat. */
+function recalculerLimitesBloc(tx,ty){
+  const x0=tx*3, y0=ty*3;
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++) for(const s of SIDES){
+    const X=x0+x, Y=y0+y, ty2=limiteComposee(X,Y,s);
+    if(ty2) poseLimite(X,Y,s,ty2); else oteLimite(X,Y,s);
+  }
+}
+function poserTuile(tx,ty,id,rot){
+  const base=TILES[id];
+  if(!base || !base.cells) return say("Cette tuile n'est pas encore configurée.","err");
+  const t=tuileTournee(base, rot||0);
+  const x0=tx*3, y0=ty*3;
+  if(x0+3>M.W || y0+3>M.H) return say("La tuile déborde du plateau.","err");
+
+  M.doors=M.doors.filter(d=>!(d.x>=x0&&d.x<x0+3&&d.y>=y0&&d.y<y0+3));
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++)
+    M.cells[(y0+y)*M.W+(x0+x)] = t.cells[y*3+x]==="." ? "." : BAT;
+  // enregistrer AVANT de recalculer : le bloc doit se voir lui-même
+  M.tiles=M.tiles||{}; M.tiles[tx+","+ty]={id, rot:((rot%4)+4)%4};
+  recalculerLimitesBloc(tx,ty);
+  say(`Tuile ${tileNum(id)} posée${rot?" (rotation "+(rot*90)+"°)":""}.`,"ok");
+}
+function retirerTuile(tx,ty){
+  const x0=tx*3, y0=ty*3;
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++) M.cells[(y0+y)*M.W+(x0+x)]=".";
+  M.doors=M.doors.filter(d=>!(d.x>=x0&&d.x<x0+3&&d.y>=y0&&d.y<y0+3));
+  if(M.tiles) delete M.tiles[tx+","+ty];
+  // les murs des tuiles voisines qui bordent ce bloc doivent survivre
+  recalculerLimitesBloc(tx,ty);
+}
+
+/* ---------- vue Tuiles : configuration d'une tuile 3×3 ---------- */
+const tSide={n:[0,-1],e:[1,0],s:[0,1],w:[-1,0]};
+/* Arêtes à parcourir pour une case de tuile : Nord et Ouest couvrent toutes les
+   arêtes internes sans doublon, plus Est/Sud sur la dernière colonne/ligne. */
+function tCotes(x,y){
+  const l=["n","w"];
+  if(x===2) l.push("e");
+  if(y===2) l.push("s");
+  return l;
+}
+/* Poser une case de Bâtiment la mure entièrement ; la remettre en Rue ne
+   retire que les murs qui ne bordent plus de bâtiment. Même règle que la carte. */
+function tSetCell(t,x,y,v){
+  t.cells[y*3+x]=v;
+  for(const s of SIDES){
+    const nx=x+tSide[s][0], ny=y+tSide[s][1];
+    const voisinBat = tIn(nx,ny) && estBat(t.cells[ny*3+nx]);
+    if(estBat(v)) tPose(t,x,y,s,"mur");
+    else if(!voisinBat) tOte(t,x,y,s);
+  }
+}
+
+function renderTiles(){
+  const box=document.getElementById("tiles");
+  box.innerHTML="";
+  const work=el("div"); work.id="tileWork";
+
+  // --- éditeur 3×3 sur l'image ---
+  const ed=el("div"); ed.id="tileEdit";
+  ed.style.width=tileZoom+"px"; ed.style.height=tileZoom+"px";
+  ed.style.setProperty("--ova", tileAlpha);
+  if(tileSel){
+    ed.style.backgroundImage=`url("${tileImg(tileSel)}")`;
+    const t=TILES[tileSel] || tuileVide();
+    for(let y=0;y<3;y++) for(let x=0;x<3;x++){
+      const c=t.cells[y*3+x];
+      const d=el("div","tc "+(c==="."?"rue":"bat"));
+      d.style.left=(x*33.333)+"%"; d.style.top=(y*33.333)+"%";
+      d.textContent = c==="." ? "·" : "▪";
+      d.title = c==="." ? "Rue" : "Bâtiment";
+      d.onclick=()=>{ if(tileMode!=="cells") return;
+        tSetCell(t, x, y, estBat(c) ? "." : BAT);
+        TILES[tileSel]=t; enregistrerTuiles(); render(); };
+      ed.appendChild(d);
+    }
+    /* Murs déduits. Est et Sud se dessinent comme le Ouest / Nord de la case
+       suivante : une seule formule pour les quatre côtés. */
+    const U=33.333;
+    const EP=Math.max(3, Math.round(tileZoom/98));   // épaisseur du mur, suit le zoom
+    const trait=(x,y,side,cls)=>{
+      const vert=(side==="w"||side==="e");
+      const w=el("div", cls + (vert?" vert":""));    // .vert oriente le pointillé
+      const px=(x+(side==="e"?1:0))*U, py=(y+(side==="s"?1:0))*U;
+      w.style.cssText = vert
+        ? `left:calc(${px}% - ${EP/2}px);top:${py}%;height:${U}%;width:${EP}px`
+        : `left:${px}%;top:calc(${py}% - ${EP/2}px);width:${U}%;height:${EP}px`;
+      ed.appendChild(w);
+    };
+    for(let y=0;y<3;y++) for(let x=0;x<3;x++) for(const side of tCotes(x,y)){
+      const ty=tLim(t,x,y,side);
+      if(ty) trait(x,y,side,"tw lim-"+ty);
+      if(tileMode==="limites"){
+        const h=el("div","teh");
+        const vert=(side==="w"||side==="e");
+        const bord=!tIn(x+tSide[side][0], y+tSide[side][1]);
+        const px=(x+(side==="e"?1:0))*U, py=(y+(side==="s"?1:0))*U;
+        const HB=Math.max(16, Math.round(tileZoom/22));  // zone cliquable, suit le zoom
+        /* Sur un bord de tuile la zone cliquable est rentrée vers l'intérieur,
+           pour rester dans l'image plutôt que de déborder autour. */
+        const dec = bord ? (side==="e"||side==="s" ? `- ${HB}px` : "+ 0px") : `- ${HB/2}px`;
+        h.style.cssText = vert
+          ? `left:calc(${px}% ${dec});top:calc(${py}% + 6%);height:21%;width:${HB}px`
+          : `left:calc(${px}% + 6%);top:calc(${py}% ${dec});width:21%;height:${HB}px`;
+        h.className="teh"+(ty?"":" vide");
+        h.title = ty===limiteType ? "Retirer cette limite"
+                : (ty ? "Remplacer : "+LIMITES[ty].n+" → "+LIMITES[limiteType].n
+                      : "Poser : "+LIMITES[limiteType].n);
+        h.onclick=ev=>{ ev.stopPropagation();
+          if(tLim(t,x,y,side)===limiteType) tOte(t,x,y,side);
+          else tPose(t,x,y,side,limiteType);
+          TILES[tileSel]=t; enregistrerTuiles(); render(); };
+        ed.appendChild(h);
+      }
+    }
+  } else {
+    ed.style.display="grid"; ed.style.placeItems="center";
+    ed.appendChild(el("div","hint","Choisis une tuile dans la galerie ci-dessous."));
+  }
+  work.appendChild(ed);
+
+  box.appendChild(work);
+
+  // --- galerie ---
+  const gal=el("div"); gal.id="tileGal";
+  TILE_IDS.forEach(id=>{
+    const d=el("div","tg"+(id===tileSel?" on":"")+(tuileDefinie(id)?" faite":""));
+    const im=document.createElement("img");
+    im.src=tileImg(id); im.loading="lazy"; im.alt=id;
+    im.onerror=()=>{ d.style.background="#3a2020"; im.remove();
+                     d.appendChild(el("div","hint","image absente")); };
+    d.appendChild(im);
+    d.appendChild(el("div","lb", tileNum(id)));
+    if(tuileDefinie(id)) d.appendChild(el("div","ok","✓"));
+    d.title=id+" — "+tileBox(id);
+    d.onclick=()=>{ tileSel=id; if(!TILES[id]) TILES[id]=tuileVide(); render(); };
+    gal.appendChild(d);
+  });
+  box.appendChild(gal);
+}
+
 /* ---------- zoom & cadrage ---------- */
 const ZOOM_MIN=34, ZOOM_MAX=150, ZOOM_DEF=76;
 let ZOOM = ZOOM_DEF;
@@ -773,6 +1998,17 @@ function zoomFit(){
   applyZoom(calcul(), false);
   applyZoom(calcul());
 }
+document.getElementById("tabMap").onclick   = ()=>setView("map");
+document.getElementById("tabLogic").onclick = ()=>setView("logic");
+document.getElementById("tabTiles").onclick = ()=>setView("tiles");
+document.getElementById("tileFile").onchange = async e=>{
+  const f=e.target.files&&e.target.files[0]; e.target.value="";
+  if(!f) return;
+  try{ const d=JSON.parse(await f.text());
+       if(typeof d!=="object") throw new Error("format inattendu");
+       TILES=d; enregistrerTuiles(); render(); say("Bibliothèque importée.","ok"); }
+  catch(err){ say("Import impossible : "+err.message,"err"); }
+};
 document.getElementById("zIn").onclick  = ()=>zoomBy(1.15);
 document.getElementById("zOut").onclick = ()=>zoomBy(1/1.15);
 document.getElementById("zFit").onclick = zoomFit;
@@ -807,6 +2043,8 @@ document.getElementById("btnPlay").onclick = ()=>{
        if(d){ M = fromQuest(JSON.parse(d)); return; } }catch(e){}
   M = fromQuest(SAMPLE);
 })();
+chargerTuiles();
+chargerVueTuile();
 (function initZoom(){
   let memo=null;
   try{ memo=parseFloat(localStorage.getItem("zbp_zoom_ed")); }catch(e){}
