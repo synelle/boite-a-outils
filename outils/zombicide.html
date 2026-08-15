@@ -112,28 +112,45 @@ body.zsmall .zone .lbl{display:none}
   font-size:clamp(7px,calc(var(--zs)*.11),12px)}
 .tok.exit{background:#2f6b4a;color:#fff}
 .tok.bile{background:#6bbf3f;color:#123}
+/* Marqueur de Zone : 60 % de la case, centré, sous tout le reste (le décor des
+   tuiles est en z-index 0, les figurines en 2, les jetons en 3). */
+.zmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:60%;height:60%;z-index:1;pointer-events:none;
+  background-size:contain;background-repeat:no-repeat;background-position:center}
+.zmark.vide{border:1px dashed #ffffff4d;border-radius:6px;display:grid;
+  place-items:center;font-size:10px;color:#ffffff8a;text-align:center;line-height:1.1}
+/* La Sortie se comporte comme un pion d'Invasion : jeton de bord, orienté. */
+.spw.exitk{display:grid;place-items:center;color:#fff;font-weight:700;
+  font-size:clamp(7px,calc(var(--zs)*.12),13px)}
+.spw.exitk.img{color:transparent}
 .tok.item{background:#c9a227;color:#241c06;border-color:#000a}
-/* Objectif : pastille de la couleur de la quête ; un Objectif caché montre
-   toujours sa face rouge, marquée d'un « ? ». */
-.tok.obj{background:var(--oc);color:#fff;border-color:#0009}
+/* Objectif : jeton CARRÉ, comme dans la boîte — c'est ce qui le distingue des
+   autres pastilles, toutes rondes. Un Objectif caché montre sa face rouge,
+   marquée d'un « ? ». */
+.tok.obj{background:var(--oc);color:#fff;border-color:#0009;border-radius:3px}
 .tok.obj.hidden{border:2px dashed #fff8}
-/* Bruit : triangle, pas un rond */
+/* Bruit : triangle ÉQUILATÉRAL, base en bas. Base = 2 × .12 = .24 ; la hauteur
+   d'un équilatéral vaut base × √3/2, soit .24 × .8660 = .2078. */
 .tok.noise{width:0;height:0;border:none;border-radius:0;background:none;
   border-left:calc(var(--zs)*.12) solid transparent;
   border-right:calc(var(--zs)*.12) solid transparent;
-  border-bottom:calc(var(--zs)*.21) solid #d8d2c4;position:relative;color:transparent}
-.tok.noise span{position:absolute;left:calc(var(--zs)*-.055);top:calc(var(--zs)*.08);
-  width:calc(var(--zs)*.11);text-align:center;font-weight:700;color:#241c06;
-  font-size:clamp(6px,calc(var(--zs)*.1),11px)}
+  border-bottom:calc(var(--zs)*.2078) solid #d8d2c4;position:relative;color:transparent}
+/* Le chiffre est blanc et gras ; le triangle étant beige clair, un liseré
+   sombre le rend lisible. Il siège dans le bas du triangle, là où il est large. */
+.tok.noise span{position:absolute;left:calc(var(--zs)*-.09);top:calc(var(--zs)*.065);
+  width:calc(var(--zs)*.18);text-align:center;font-weight:800;color:#fff;
+  font-size:clamp(9px,calc(var(--zs)*.14),16px);line-height:1;
+  text-shadow:0 0 2px #000,0 0 3px #000,0 1px 1px #000}
 /* Jeton remplacé par un PNG : l'image porte tout le décor, on efface le fond
    et la bordure dessinés en CSS. Le Bruit retrouve une boîte carrée, son
    triangle CSS n'ayant plus lieu d'être. */
 .tok.img{background-size:cover;background-position:center;background-color:transparent;
   border:none;color:transparent}
+.tok.obj.img{border-radius:3px}
 .tok.noise.img{width:calc(var(--zs)*.22);height:calc(var(--zs)*.22);border-radius:0;
   position:relative}
 .tok.noise.img span{position:absolute;left:0;top:auto;bottom:0;width:100%;
-  color:#241c06;text-shadow:0 0 3px #fff,0 0 2px #fff}
+  color:#fff;text-shadow:0 0 2px #000,0 0 3px #000}
 
 /* Zone d'Invasion : rectangle plaqué sur un bord de la case */
 .spw{position:absolute;background:var(--sc);border:1px solid #0009;z-index:3;
@@ -143,6 +160,28 @@ body.zsmall .zone .lbl{display:none}
 .spw.s{left:18%;bottom:2px;width:64%;height:calc(var(--zs)*.14)}
 .spw.w{top:18%;left:2px;height:64%;width:calc(var(--zs)*.14)}
 .spw.e{top:18%;right:2px;height:64%;width:calc(var(--zs)*.14)}
+/* Avec une image, le pion d'Invasion devient un jeton CARRÉ posé au milieu du
+   bord choisi, au lieu d'un bandeau étiré sur toute la longueur. */
+/* Le jeton garde le RATIO de son image : on fixe la hauteur, la largeur en
+   découle (--ratio = largeur/hauteur, relevé au préchargement).
+   Il s'oriente ensuite selon le bord, dans le sens horaire :
+   haut 0°, droite 90°, bas 180°, gauche 270°. Le jeton est centré sur le bord
+   et tourne autour de ce centre, ce qui garde le même point d'ancrage quel que
+   soit l'angle. */
+.spw.img{background-color:transparent;border:none;
+  background-size:contain;background-repeat:no-repeat;background-position:center}
+.spw.img.n,.spw.img.s,.spw.img.w,.spw.img.e{
+  height:calc(var(--zs)*.26);
+  width:calc(var(--zs)*.26*var(--ratio,1));
+  right:auto;bottom:auto}
+.spw.img.n{left:50%;top:calc(var(--zs)*.13);
+  transform:translate(-50%,-50%) rotate(0deg)}
+.spw.img.e{left:calc(100% - var(--zs)*.13);top:50%;
+  transform:translate(-50%,-50%) rotate(90deg)}
+.spw.img.s{left:50%;top:calc(100% - var(--zs)*.13);
+  transform:translate(-50%,-50%) rotate(180deg)}
+.spw.img.w{left:calc(var(--zs)*.13);top:50%;
+  transform:translate(-50%,-50%) rotate(270deg)}
 .spw.off{opacity:.32;border-style:dashed}
 .spw.necro{outline:1px solid #fff6;outline-offset:1px}
 
@@ -246,8 +285,12 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
   border:1px solid var(--line);border-radius:7px;background:#241f1b;cursor:pointer}
 .pick:hover{border-color:var(--gold)}
 .pick.on{background:#33291a;border-color:var(--gold)}
-.pick .dot{width:26px;height:26px;border-radius:50%;flex:0 0 auto;border:2px solid #0009;
-  background:var(--pc);display:grid;place-items:center;font-weight:700;font-size:12px;color:#1a1714}
+.pick .dot{width:38px;height:38px;border-radius:50%;flex:0 0 auto;border:2px solid #0009;
+  background:var(--pc);display:grid;place-items:center;font-weight:700;font-size:15px;color:#1a1714}
+/* Avec son portrait, la pastille montre le personnage plutôt que son initiale ;
+   le cercle de couleur reste en fond, visible si l'image est transparente. */
+.pick .dot.img{background-image:var(--portrait);background-size:cover;
+  background-position:center;color:transparent}
 .pick .nm{font-weight:600;font-size:13px}
 .pick .sk{font-size:11px;color:var(--dim);line-height:1.3}
 .pick .nfo{min-width:0;flex:1}
@@ -256,6 +299,12 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 .pick .ck{margin-left:auto;font-size:15px;color:var(--gold);opacity:0}
 .pick.on .ck{opacity:1}
 #setupMsg{min-height:18px;color:#e08080}
+#missionInfo{display:none;margin:0 0 10px;padding:9px 11px;border:1px solid var(--line);
+  border-radius:7px;background:#221d19}
+#missionInfo .ti{font-weight:600;color:var(--gold);font-size:13px}
+#missionInfo .de{font-size:12px;color:var(--ink);margin-top:4px;line-height:1.45;white-space:pre-line}
+#missionInfo .ob{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.45;white-space:pre-line}
+#missionInfo .rs{font-size:11px;color:var(--dim);margin-top:6px}
 
 #banner{position:fixed;inset:0;background:#000c;display:none;place-items:center;z-index:60}
 #banner .bx{background:var(--panel);border:2px solid var(--gold);border-radius:10px;
@@ -302,10 +351,20 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
   </div>
 </div>
 
+<!-- catalogue des missions : une balise de script passe partout, file:// compris -->
+<script src="zombicide_fichiers/zombicide_missions/missions.js"></script>
+
 <div id="setup"><div class="bx">
   <h2>Qui part en chasse ?</h2>
   <p class="sub">Choisis les Survivants de la partie. La boîte de base en met 6 en scène ;
      en jouer moins rend la partie plus rude, l'Invasion ne diminuant pas.</p>
+  <div class="row" id="missionRow" style="margin-bottom:12px;display:none">
+    <label for="missionSel">Mission :</label>
+    <select id="missionSel" style="flex:1"></select>
+    <button id="missionLoad">Charger</button>
+  </div>
+  <div id="missionInfo"></div>
+  <div id="missionMsg" style="min-height:16px;font-size:12px;color:#e0a060;margin-bottom:8px"></div>
   <div id="setupList"></div>
   <div class="row" style="margin-top:12px;justify-content:space-between">
     <div class="row">
@@ -338,7 +397,7 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
    Dépose tes fichiers dans ./sprites/ . Si un PNG est absent, une pastille
    de couleur générée est utilisée à la place (le jeu reste fonctionnel).
    -------------------------------------------------------------------------- */
-const SPRITE_DIR = "sprites/";
+const SPRITE_DIR = "zombicide_fichiers/sprites/";
 const SPRITES = {
   // figurines — la clé est celle du Survivant ou du type de Zombie
   ann:"surv_ann.png", baldric:"surv_baldric.png", clovis:"surv_clovis.png",
@@ -349,20 +408,31 @@ const SPRITES = {
   // puisque son image doit rester lisible sans dépendre du fond CSS.
   tok_exit:"tok_sortie.png",
   tok_bile:"tok_bile.png",
+  tok_cercle_magique:"tok_cercle_magique.png",
+  tok_feu:"tok_feu.png",
   tok_item:"tok_objet.png",
   tok_noise:"tok_bruit.png",
   tok_obj_red:"tok_objectif_rouge.png",
   tok_obj_green:"tok_objectif_vert.png",
   tok_obj_blue:"tok_objectif_bleu.png",
-  tok_obj_hidden:"tok_objectif_cache.png"
+  tok_obj_hidden:"tok_objectif_cache.png",
+  tok_spawn_red:"tok_spawn_rouge.png",
+  tok_spawn_blue:"tok_spawn_bleu.png",
+  tok_spawn_green:"tok_spawn_vert.png",
+  tok_spawn_purple:"tok_spawn_violet.png",
+  tok_spawn_necro:"tok_spawn_necromancer.png"
 };
 const SPRITE_OK = {};                         // rempli par le préchargement
+const SPRITE_RATIO = {};                      // largeur/hauteur de chaque image
 function preloadSprites(cb){
   const keys = Object.keys(SPRITES); let left = keys.length;
   if(!left) return cb();
   keys.forEach(k=>{
     const im = new Image();
-    im.onload  = ()=>{ SPRITE_OK[k]=true;  if(!--left) cb(); };
+    im.onload  = ()=>{ SPRITE_OK[k]=true;
+      // le ratio réel sert à ne pas déformer les jetons (voir .spw.img)
+      if(im.naturalHeight) SPRITE_RATIO[k]=im.naturalWidth/im.naturalHeight;
+      if(!--left) cb(); };
     im.onerror = ()=>{ SPRITE_OK[k]=false; if(!--left) cb(); };
     im.src = SPRITE_DIR + SPRITES[k];
   });
@@ -413,8 +483,10 @@ const DANGER = [
 const ZT = {
   walker:      {n:"Walker",       actions:1, dmg:1, lethal:1, xp:1, c:"#6f8f4e", ini:"W", pool:35},
   runner:      {n:"Runner",       actions:2, dmg:1, lethal:1, xp:1, c:"#c07a34", ini:"R", pool:14},
-  brute:       {n:"Fatty",        actions:1, dmg:1, lethal:2, xp:1, c:"#8b5a3c", ini:"F", pool:14},
-  abomination: {n:"Abomination",  actions:1, dmg:1, lethal:3, xp:5, c:"#8e2b2b", ini:"A", pool:1,
+  /* `pl` : pluriel irrégulier. Sans lui on ajoute simplement un « s ». */
+  brute:       {n:"Fatty", pl:"Fatties", actions:1, dmg:1, lethal:2, xp:1, c:"#8b5a3c", ini:"F", pool:14},
+  /* `f` : nom féminin, pour accorder les phrases qui en parlent. */
+  abomination: {n:"Abomination", f:1,  actions:1, dmg:1, lethal:3, xp:5, c:"#8e2b2b", ini:"A", pool:1,
                 noArmor:true},
   necromancer: {n:"Nécromancien", actions:1, dmg:1, lethal:1, xp:1, c:"#7a4bb5", ini:"N", pool:1,
                 flees:true}
@@ -591,8 +663,17 @@ function validateQuest(q){
   if(q.win){
     if(q.win.exit && !["all","any","none"].includes(q.win.exit))
       return "condition de sortie inconnue : "+q.win.exit;
-    if(q.win.need && !/^(objectives:all|objective:\w+|never)$/.test(q.win.need))
+    const condOK = c => /^(objectives:all|vault:all|never|objective:at:\d+,\d+|objective:\w+|kill:\w+|danger:\w+)$/.test(c);
+    if(q.win.need && !condOK(q.win.need))
       return "condition de victoire inconnue : "+q.win.need;
+    if(q.win.goals!==undefined){
+      if(!Array.isArray(q.win.goals)) return "win.goals doit être une liste";
+      for(const g of q.win.goals){
+        const need = Array.isArray(g && g.need) ? g.need : (g&&g.need?[g.need]:[]);
+        if(!need.length) return "objectif de mission sans condition";
+        for(const c of need) if(!condOK(c)) return "condition de victoire inconnue : "+c;
+      }
+    }
   }
   const dxy = {n:[0,-1], s:[0,1], e:[1,0], w:[-1,0]};   // DXY n'existe pas encore ici
   for(const d of (q.doors||[])){
@@ -611,6 +692,22 @@ function validateQuest(q){
   for(const l of (q.limits||[])){
     if(!ok(l) || !dxy[l.s]) return "limite invalide";
   }
+  for(const m of (q.markers||[])){
+    if(!ok(m)) return "marqueur hors plateau";
+    if(!MARQUEURS[m.t]) return "marqueur inconnu : "+m.t;
+  }
+  if(q.exit && q.exit.side && !dxy[q.exit.side]) return "bord de Sortie inconnu : "+q.exit.side;
+  for(const [col,liste] of Object.entries(q.objEffects||{}))
+    for(const ef of (liste||[])){
+      if(!ef || !["xp","necro","equip","draw"].includes(ef.t))
+        return `effet d'Objectif inconnu (${col}) : `+(ef&&ef.t);
+      if(ef.t==="equip" && !EQ[ef.id]) return `effet d'Objectif ${col} : équipement inconnu `+ef.id;
+      if(ef.t==="xp" && !(ef.n>0)) return `effet d'Objectif ${col} : XP invalides`;
+      if(ef.t==="draw"){
+        if(!Array.isArray(ef.ids) || !ef.ids.length) return `effet d'Objectif ${col} : liste de tirage vide`;
+        for(const id of ef.ids) if(!EQ[id]) return `effet d'Objectif ${col} : carte inconnue `+id;
+      }
+    }
   for(const d of (q.cryptDoors||[])){
     if(!ok(d)) return "trappe de crypte hors plateau";
     if(!d.color) return "trappe de crypte sans couleur";
@@ -626,6 +723,8 @@ function validateQuest(q){
   for(const [col,liste] of Object.entries(q.cryptItems||{}))
     for(const id of (liste||[]))
       if(!EQ[id]) return `objet inconnu dans la crypte ${col} : ${id}`;
+  for(const id of (q.cryptPool||[]))
+    if(!EQ[id]) return `objet inconnu dans la réserve de crypte : ${id}`;
   return null;
 }
 const b64ToText = s => new TextDecoder().decode(Uint8Array.from(atob(s), c=>c.charCodeAt(0)));
@@ -657,13 +756,27 @@ let QUEST = CUSTOM_QUEST || DEFAULT_QUEST;
      locks.doors  = {blue:"objective:blue"} → les portes bleues ne s'ouvrent pas
         avant qu'un Objectif bleu ait été récupéré (p.19) ;
      locks.spawnsOff = {green:"objectives:all"} → désactivation conditionnelle.
-   Conditions reconnues : "objective:<couleur>", "objectives:all", "never".
+   Conditions reconnues : "objective:<couleur>", "objectives:all", "vault:all"
+   (les deux Artefacts de crypte récupérés), "never".
    Une couleur absente de la table n'est soumise à aucune condition.
    ========================================================================== */
 function condMet(cond){
   if(!cond) return true;
   if(cond==="never") return false;
   if(cond==="objectives:all") return G.objectivesLeft===0;
+  if(cond==="vault:all") return artefactsRecuperes();
+  const mk = /^kill:(\w+)$/.exec(cond);
+  if(mk) return (G.kills[mk[1]]||0) > 0;
+  // un Objectif PRÉCIS, désigné par sa case
+  const ma = /^objective:at:(\d+),(\d+)$/.exec(cond);
+  if(ma) return !!G.takenAt[ma[1]+","+ma[2]];
+  // niveau de danger atteint par AU MOINS un Survivant
+  const md = /^danger:(\w+)$/.exec(cond);
+  if(md){
+    const seuil = DANGER.findIndex(x=>x.key===md[1]);
+    if(seuil<0) return true;
+    return G.survivors.some(s2=>!s2.dead && dangerIdx(s2.xp)>=seuil);
+  }
   const m = /^objective:(\w+)$/.exec(cond);
   if(m) return !!G.taken[m[1]];
   console.warn("Condition de quête inconnue :", cond);
@@ -672,6 +785,15 @@ function condMet(cond){
 function condText(cond){
   if(cond==="never") return "jamais";
   if(cond==="objectives:all") return "tous les Objectifs récupérés";
+  if(cond==="vault:all") return "les deux Artefacts de crypte récupérés";
+  const mk = /^kill:(\w+)$/.exec(cond||"");
+  if(mk){ const z=ZT[mk[1]]||{}, e=z.f?"e":"";
+    return `au moins un${e} ${z.n||mk[1]} tué${e}`; }
+  const ma = /^objective:at:(\d+),(\d+)$/.exec(cond||"");
+  if(ma) return `l'Objectif en (${+ma[1]+1},${+ma[2]+1}) récupéré`;
+  const md = /^danger:(\w+)$/.exec(cond||"");
+  if(md){ const n=(DANGER.find(x=>x.key===md[1])||{}).name || md[1];
+    return `niveau ${n} atteint par un Survivant`; }
   const m = /^objective:(\w+)$/.exec(cond||"");
   return m ? `Objectif ${colM(m[1])} récupéré` : "—";
 }
@@ -688,19 +810,41 @@ const locks = () => (G.q.locks||{});
 /* Si la quête fournit un objet `win`, il fait foi tel quel : un `win` sans
    `need` signifie « aucune condition préalable », pas « tous les Objectifs ».
    Le défaut historique ne s'applique qu'aux quêtes sans `win` du tout. */
-const winCond = () => G.q.win
-  ? {need: G.q.win.need ?? null, exit: G.q.win.exit || "all"}
-  : {need: "objectives:all", exit: "all"};
+/* Objectifs de mission. La quête en déclare une LISTE — « atteignez ces
+   objectifs dans l'ordre que vous voulez » — chacun portant son intitulé et
+   une ou plusieurs conditions, toutes requises.
+     win.goals : [{label, need:[cond, …]}, …]
+   L'ancienne forme `win.need` (une seule condition) reste lue, et vaut un
+   objectif unique sans intitulé. */
+function winCond(){
+  const w = G.q.win;
+  if(!w) return {goals:[{label:"", need:["objectives:all"]}], exit:"all"};
+  let goals = Array.isArray(w.goals) ? w.goals.map(g=>({
+        label: g.label||"",
+        need: Array.isArray(g.need) ? g.need.filter(Boolean) : (g.need?[g.need]:[])
+      })).filter(g=>g.need.length)
+    : (w.need ? [{label:"", need:[w.need]}] : []);
+  return {goals, exit: w.exit || "all"};
+}
+const objectifAtteint = g => g.need.every(condMet);
+const missionPrete = () => winCond().goals.every(objectifAtteint);
 const EXIT_TXT = {all:"tous les Survivants vivants doivent sortir",
                   any:"au moins un Survivant doit sortir",
                   none:"aucune sortie requise"};
+/* Intitulé d'un objectif : celui de la quête, sinon ses conditions en clair. */
+const texteObjectif = g => g.label || g.need.map(condText).join(" et ");
 function missionText(){
   const w = winCond();
-  if(w.exit==="none") return w.need ? condText(w.need) : "aucune condition";
-  const bouts = [];
-  if(w.need) bouts.push(condText(w.need));
-  bouts.push(EXIT_TXT[w.exit] || EXIT_TXT.all);
-  return bouts.join(", puis ");
+  const bouts = w.goals.map(texteObjectif);
+  if(w.exit!=="none") bouts.push(EXIT_TXT[w.exit] || EXIT_TXT.all);
+  return bouts.length ? bouts.join(", puis ") : "aucune condition";
+}
+/* Même chose, mais coché : c'est ce qui s'affiche pendant la partie. */
+function missionChecklist(){
+  const w = winCond();
+  const bouts = w.goals.map(g=>(objectifAtteint(g)?"✓ ":"✗ ")+texteObjectif(g));
+  if(w.exit!=="none") bouts.push(EXIT_TXT[w.exit] || EXIT_TXT.all);
+  return bouts.join(" · ");
 }
 /* Une Zone d'Invasion est active si sa couleur n'est pas verrouillée (ou l'est
    devenue) et n'a pas été désactivée. */
@@ -747,6 +891,7 @@ function buildBoard(q){
       exit:false,
       obj:null,                          // {color, hidden, back, revealed}
       noise:0, bile:false,
+      markers:[],               // repères de quête posés au centre de la Zone
       explored: false,          // bâtiment déjà révélé (brouillard)
       buildingOpened:false
     });
@@ -816,7 +961,7 @@ function buildBoard(q){
       i: zones.length, x:-1, y:-1, crypt: col, room:"crypte:"+col, building:"crypte:"+col,
       edge:{}, door:{}, doorColor:{}, cryptDoor:null, cryptOpen:true,
       spawnTokens:[], items:[], exit:false, obj:null,
-      noise:0, bile:false, explored:true, buildingOpened:true,
+      noise:0, bile:false, markers:[], explored:true, buildingOpened:true,
       vaultCards:[]
     });
   });
@@ -825,6 +970,12 @@ function buildBoard(q){
     const z=at(p.x,p.y); if(z) z.spawnTokens.push({color:p.color||"red", side:p.side||"n"});
   });
   if(q.exit && at(q.exit.x,q.exit.y)) at(q.exit.x,q.exit.y).exit = true;
+  /* Marqueurs décrits par la quête. Un marqueur « bile » pose une vraie Bile de
+     Dragon ; les autres ne sont, pour l'instant, que des repères visuels. */
+  (q.markers||[]).forEach(m=>{
+    const z=at(m.x,m.y); if(!z || !MARQUEURS[m.t]) return;
+    if(m.t==="bile") z.bile=true; else z.markers.push(m.t);
+  });
   q.objectives.forEach(p=>{
     const z=at(p.x,p.y); if(!z) return;
     z.obj = {color:p.color||"red", hidden:!!p.hidden, back:p.back||null, revealed:!p.hidden};
@@ -936,6 +1087,111 @@ function noiseOf(i){ return Z(i).noise + survIn(i).filter(s=>!s.invisible).lengt
 function dangerIdx(xp){ for(let k=0;k<4;k++) if(xp<=DANGER[k].max) return k; return 3; }
 function teamDanger(){ return alive().length ? Math.max(...alive().map(s=>dangerIdx(s.xp))) : 0; }
 function hasSkill(s, name){ return s.skills.includes(name); }
+/* Nom d'un type de Zombie accordé en nombre. */
+const plurZ = (t,n) => n>1 ? (ZT[t].pl || ZT[t].n+"s") : ZT[t].n;
+
+/* Marqueurs de Zone : grande image posée au centre de la case, SOUS les
+   figurines et les autres jetons. Seule la Bile a une règle dans le moteur ;
+   Feu et Cercle magique sont pour l'instant de simples repères de quête. */
+const MARQUEURS = {
+  cercle_magique:{n:"Cercle magique", regle:false},
+  feu:           {n:"Feu",            regle:false},
+  bile:          {n:"Bile de Dragon", regle:true}
+};
+const MARQ_ORDRE = ["cercle_magique","feu","bile"];
+
+/* --------------------------------------------------------------------------
+   CATALOGUE DE MISSIONS
+   Un navigateur ne sait pas lister un dossier : la liste vient du fichier
+   zombicide_fichiers/zombicide_missions/missions.js, inclus par une balise de
+   script dans la page.
+   Une entrée porte soit la quête directement (`quest`), soit le nom d'un JSON
+   voisin (`file`). Le second cas passe par fetch(), que les navigateurs
+   REFUSENT quand la page est ouverte en file:// — d'où le message explicite.
+   -------------------------------------------------------------------------- */
+const MISSION_DIR = "zombicide_fichiers/zombicide_missions/";
+/* Chaque mission est un fichier .js qui s'annonce lui-même par ZBP_MISSION().
+   C'est la seule forme qui marche AUSSI en file:// : une balise de script est
+   autorisée là où fetch ne l'est pas. Surtout, la quête n'existe qu'à UN seul
+   endroit — une copie dans le catalogue finissait fatalement par dater. */
+window.ZBP_MISSIONS = window.ZBP_MISSIONS || [];
+window.ZBP_MISSION = e => { if(e) window.ZBP_MISSIONS.push(e); };
+const missionsDispo = () => Array.isArray(window.ZBP_MISSIONS) ? window.ZBP_MISSIONS : [];
+/* Charge les fichiers listés par missions.js, puis rend la main. Un fichier
+   absent est ignoré : le menu montre simplement les autres. */
+function chargerFichiersMissions(cb){
+  const liste = Array.isArray(window.ZBP_MISSION_FILES) ? window.ZBP_MISSION_FILES : [];
+  let reste = liste.length;
+  if(!reste) return cb();
+  liste.forEach(f=>{
+    const sc=document.createElement("script");
+    sc.src = MISSION_DIR + f;
+    sc.onload = sc.onerror = ()=>{ if(!--reste) cb(); };
+    document.head.appendChild(sc);
+  });
+}
+/* Quand une entrée porte les DEUX, le FICHIER fait foi : la copie `quest` du
+   catalogue n'est qu'un repli pour file://, où fetch est interdit. Sans cette
+   priorité, modifier le .json resterait sans effet — la copie l'emporterait en
+   silence. `chargerMission` rend aussi d'où vient la quête, pour le dire. */
+async function chargerMission(entree){
+  if(!entree) return null;
+  if(entree.file){
+    let r=null, lisible=true;
+    try{ r = await fetch(MISSION_DIR + entree.file); }
+    catch(e){ lisible=false; }
+    if(lisible && r && r.ok){
+      const q = await r.json();
+      q.__source = "fichier";
+      return q;
+    }
+    if(!entree.quest)
+      throw new Error(lisible
+        ? ("fichier introuvable : "+entree.file)
+        : "lecture impossible depuis file:// — sers le dossier en http, "+
+          "ou écris la quête dans missions.js (champ `quest`)");
+  }
+  if(entree.quest){
+    const q = JSON.parse(JSON.stringify(entree.quest));
+    q.__source = entree.file ? "copie du catalogue" : "catalogue";
+    return q;
+  }
+  throw new Error("entrée de mission sans `quest` ni `file`");
+}
+
+/* --------------------------------------------------------------------------
+   RÈGLES SPÉCIALES DE QUÊTE
+   Deux familles. Les règles GLOBALES modifient la mise en place ou la lecture
+   des cartes ; les EFFETS D'OBJECTIF se déclenchent quand un Survivant
+   récupère un Objectif de la couleur voulue.
+   -------------------------------------------------------------------------- */
+const regles = () => (G && G.q.rules) || {};
+const REGLES_GLOBALES = {
+  necroAside:  "Cartes Nécromancien mises de côté",
+  abomAsFatty: "Un « A » sur une carte d'Invasion place un Fatty"
+};
+const EFFETS_OBJ = {
+  xp:    {n:"Gagner des XP",             val:"nombre"},
+  necro: {n:"Faire apparaître un Nécromancien"},
+  equip: {n:"Recevoir un Équipement précis", val:"equip"},
+  draw:  {n:"Tirer une carte au hasard dans une liste", val:"liste"}
+};
+/* Les Artefacts de crypte ne sont pas une récompense mais un BUT : « récupérer
+   les deux Artefacts » est une condition, au même titre que « tous les
+   Objectifs ». Elle peut donc commander une porte, une Invasion ou la Mission. */
+const ARTEFACTS = EQUIP.filter(e=>e.vault).map(e=>e.id);
+function artefactsRecuperes(){
+  if(!ARTEFACTS.length) return true;
+  return ARTEFACTS.every(id => G.survivors.some(s =>
+    [...s.hands, ...s.back, s.body].some(c => c && c.id===id)));
+}
+function texteEffet(ef){
+  if(!ef || !EFFETS_OBJ[ef.t]) return "?";
+  if(ef.t==="xp")    return `+${ef.n|0} XP`;
+  if(ef.t==="equip") return "Équipement : "+((EQ[ef.id]||{}).n || ef.id);
+  if(ef.t==="draw")  return `Tirage au hasard parmi ${(ef.ids||[]).length} carte(s)`;
+  return EFFETS_OBJ[ef.t].n;
+}
 
 /* --------------------------------------------------------------------------
    MISE EN PLACE
@@ -955,6 +1211,8 @@ function newGame(ids){
     equipDeck: [], equipDiscard: [], spawnDeck: [], spawnDiscard: [],
     pool: {}, vaultDeck: [], objectivesLeft: q.objectives.length, firstPlayer: 0,
     taken: {},                       // Objectifs récupérés, par couleur
+    kills: {},                       // zombies tués, par type
+    takenAt: {},                     // Objectifs récupérés, par case "x,y"
     customMap: JSON.stringify(q) !== JSON.stringify(DEFAULT_QUEST)
   };
   /* Objectifs cachés : recto toujours rouge, verso tiré au sort dans la réserve
@@ -981,7 +1239,15 @@ function newGame(ids){
     if(e.vault) G.vaultDeck.push(mkCard(e.id));
   });
   shuffle(G.equipDeck); shuffle(starters); shuffle(G.vaultDeck);
-  G.spawnDeck = shuffle(SPAWN_TABLE.map((r,i)=>({id:i+1, row:r})));
+  /* « Mettez de côté les cartes Nécromancien » : elles quittent le paquet,
+     elles ne sont pas simplement ignorées à la lecture. */
+  let cartesInv = SPAWN_TABLE.map((r,i)=>({id:i+1, row:r}));
+  if((q.rules||{}).necroAside){
+    const avant = cartesInv.length;
+    cartesInv = cartesInv.filter(c=>!c.row.some(x=>x.indexOf("N")>=0));
+    logLine(`Règle spéciale : ${avant-cartesInv.length} carte(s) Nécromancien mises de côté.`,"l-sys");
+  }
+  G.spawnDeck = shuffle(cartesInv);
 
   // survivants retenus — on conserve l'index d'origine dans SURVIVORS, dont
   // dépend la relecture des sauvegardes
@@ -1022,13 +1288,27 @@ function newGame(ids){
   });
   const crypts = G.zones.filter(z=>z.crypt);
   const ci = q.cryptItems || null;
+  const reserve = (q.cryptPool||[]).slice();
+  // contenu imposé, crypte par crypte
   if(ci){
     crypts.forEach(z=>(ci[z.crypt]||[]).forEach(id=>{
       const c=mkCard(id);
       if(c.e) z.vaultCards.push(c); else console.warn("Objet inconnu :", id);
     }));
-  } else if(crypts.length){
-    G.vaultDeck.forEach((c,k)=>crypts[k%crypts.length].vaultCards.push(c));
+  }
+  /* Réserve commune : les cartes sont réparties AU HASARD entre les cryptes —
+     on mélange la réserve ET l'ordre des cryptes, sinon la première carte
+     retomberait toujours dans la même. */
+  if(reserve.length && crypts.length){
+    const cartes = shuffle(reserve.map(id=>mkCard(id)).filter(c=>c.e));
+    const ordre  = shuffle(crypts.slice());
+    cartes.forEach((c,k)=>ordre[k%ordre.length].vaultCards.push(c));
+  }
+  /* Rien d'imposé : les deux Artefacts de crypte se répartissent au hasard,
+     le paquet ayant déjà été mélangé plus haut. */
+  if(!ci && !reserve.length && crypts.length){
+    shuffle(crypts.slice()).forEach((z,k)=>{ if(G.vaultDeck[k]) z.vaultCards.push(G.vaultDeck[k]); });
+    G.vaultDeck.slice(crypts.length).forEach((c,k)=>crypts[k%crypts.length].vaultCards.push(c));
   }
   G.vaultDeck = [];
   refreshSkills(true);
@@ -1037,6 +1317,7 @@ function newGame(ids){
   logLine("── Round 1 ──","l-round");
   logLine("Équipe : "+G.survivors.map(x=>
     x.n+(x.hands[0]?` (${x.hands[0].e.n})`:"")).join(", ")+".","l-sys");
+  if(q.description) logLine(q.description,"l-sys");
   logLine("Quête : "+q.name+". "+q.goal,"l-sys");
   render();
 }
@@ -1122,9 +1403,10 @@ function afterMove(s){
 }
 function tryExit(s){
   if(zombiesIn(s.z).length){ logLine("La Zone de Sortie est occupée par des Zombies.","l-bad"); return; }
-  const w = winCond();
-  if(!condMet(w.need)){
-    logLine(`Sortie impossible — la mission exige : ${condText(w.need)}.`,"l-bad"); return;
+  const restants = winCond().goals.filter(g=>!objectifAtteint(g));
+  if(restants.length){
+    logLine(`Sortie impossible — il reste à accomplir : `+
+            restants.map(texteObjectif).join(", ")+".","l-bad"); return;
   }
   s.escaped=true;
   logLine(`${s.n} quitte le plateau par la Sortie !`,"l-obj");
@@ -1299,7 +1581,7 @@ function cardName(c){ return c ? c.e.n : "vide"; }
 /* ---------- objectifs ---------- */
 /* Un Objectif caché montre toujours sa face rouge ; sa vraie couleur (le verso)
    n'est révélée qu'au moment où un Survivant le récupère. */
-function doObjective(s){
+async function doObjective(s){
   const z=Z(s.z);
   if(!z.obj) return toast("Aucun Objectif dans cette Zone.");
   if(!canPay(s,"objective")) return toast("Plus d'Action disponible.");
@@ -1307,13 +1589,58 @@ function doObjective(s){
   const o = z.obj, couleur = o.hidden ? (o.back||"red") : o.color;
   z.obj = null; G.objectivesLeft--;
   G.taken[couleur] = (G.taken[couleur]||0) + 1;
+  G.takenAt[z.x+","+z.y] = true;
   gainXP(s, RULES.xpObjective);
   logLine(`${s.n} récupère un Objectif ${colM(couleur)}`+
           (o.hidden ? ` (face cachée retournée !)` : ``) +
           ` (+${RULES.xpObjective} XP). Restants : ${G.objectivesLeft}.`,"l-obj");
+  await effetsObjectif(s, couleur);
   announceUnlocks(couleur);
   render(); checkEnd();
 }
+/* Effets déclenchés par la couleur de l'Objectif récupéré, dans l'ordre où la
+   quête les déclare. */
+async function effetsObjectif(s, couleur){
+  const liste = ((G.q.objEffects||{})[couleur]) || [];
+  for(const ef of liste){
+    if(ef.t==="xp"){
+      const n = Math.max(0, ef.n|0);
+      gainXP(s, n);
+      logLine(`Règle spéciale : ${s.n} gagne ${n} XP de plus.`,"l-obj");
+    }
+    else if(ef.t==="necro") effetNecromancien(s.z);
+    else if(ef.t==="equip"){
+      const c = mkCard(ef.id);
+      if(!c.e){ console.warn("Équipement inconnu :", ef.id); continue; }
+      logLine(`Règle spéciale : ${s.n} reçoit « ${c.e.n} ».`,"l-obj");
+      await giveCard(s,c);
+    }
+    else if(ef.t==="draw"){
+      // une carte tirée au hasard dans la liste décrite par la quête
+      const ids = (ef.ids||[]).filter(id=>EQ[id]);
+      if(!ids.length){ console.warn("Liste de tirage vide ou inconnue"); continue; }
+      const c = mkCard(ids[Math.floor(Math.random()*ids.length)]);
+      logLine(`Règle spéciale : ${s.n} tire « ${c.e.n} » (1 carte parmi ${ids.length}).`,"l-obj");
+      await giveCard(s,c);
+    }
+  }
+}
+/* Un Nécromancien apparaît ; s'il est déjà en jeu, c'est une Abomination ; si
+   les deux sont là, il ne se passe rien (une seule figurine de chaque). */
+function effetNecromancien(zi){
+  const necro = G.zombies.some(z=>z.t==="necromancer");
+  const abom  = G.zombies.some(z=>z.t==="abomination");
+  if(!necro && G.pool.necromancer>0){
+    addZombie("necromancer", zi);
+    logLine(`Règle spéciale : un NÉCROMANCIEN surgit ${zn(zi)} !`,"l-bad");
+  } else if(!abom && G.pool.abomination>0){
+    addZombie("abomination", zi);
+    logLine(`Règle spéciale : Nécromancien déjà en jeu → une ABOMINATION surgit ${zn(zi)} !`,"l-bad");
+  } else {
+    logLine("Règle spéciale : Nécromancien et Abomination déjà en jeu → rien.","l-sys");
+  }
+}
+
 /* Signale les verrous que ce nouvel Objectif vient de lever. */
 function announceUnlocks(couleur){
   const L = locks();
@@ -1531,6 +1858,8 @@ async function friendlyFire(s, zi, misses, dmg, pointBlank){
 function killZombie(zz, by){
   G.zombies.splice(G.zombies.indexOf(zz),1);
   G.pool[zz.t]++;
+  // compteur par type : sert aux conditions « tuer au moins un … »
+  G.kills[zz.t] = (G.kills[zz.t]||0) + 1;
   if(by) gainXP(by, ZT[zz.t].xp);
   if(zz.t==="necromancer") onNecroKilled(zz);
 }
@@ -1721,7 +2050,7 @@ async function activateAll(runnersOnly){
         });
       });
       if(steps.length>1)
-        logLine(`Le groupe de ${ZT[t].n}s se scinde en ${steps.length} (renforts ajoutés).`,"l-bad");
+        logLine(`Le groupe de ${plurZ(t,2)} se scinde en ${steps.length} (renforts ajoutés).`,"l-bad");
     });
   });
   // 1) toutes les attaques
@@ -1835,6 +2164,10 @@ function drawSpawn(){
 }
 /* Résout UNE carte d'Invasion déjà tirée (hors « double invasion »). */
 function applySpawnCell(cell, zi){
+  /* « Les Abominations comptent comme des Fatties à la lecture des cartes » :
+     un « A » se lit donc « B ». Utile quand la quête met en scène UNE
+     Abomination nommée, qu'on ne veut pas voir se multiplier. */
+  if(regles().abomAsFatty && cell.indexOf("A")>=0) cell = cell.replace(/A/g,"B");
   if(cell==="-"){ logLine(`Invasion ${zn(zi)} : rien.`); return; }
   if(cell==="N"){
     // Une seule figurine de Nécromancien dans la boîte (p.27) : s'il est déjà
@@ -1865,7 +2198,7 @@ function applySpawnCell(cell, zi){
     logLine(`Invasion ${zn(zi)} : Activation supplémentaire — ${ZT[t].n}.`,"l-bad");
     activateType(t); return; }
   const n = +cell[0], t = LTR[cell[1]];
-  logLine(`Invasion ${zn(zi)} : ${n} ${ZT[t].n}${n>1?"s":""}.`, "l-bad");
+  logLine(`Invasion ${zn(zi)} : ${n} ${plurZ(t,n)}.`, "l-bad");
   for(let k=0;k<n;k++) addZombie(t, zi);
 }
 /* Séquence d'Invasion sur une liste ordonnée de Zones (p.26).
@@ -1916,7 +2249,7 @@ function checkEnd(){
   const living = G.survivors.filter(s=>!s.dead);
   if(!living.length) return lose("Tous les Survivants sont morts.");
   const w = winCond();
-  if(!condMet(w.need)) return;
+  if(!missionPrete()) return;
   const sortis = living.filter(s=>s.escaped).length;
   if(w.exit==="none")                    return win("Mission accomplie : "+missionText()+".");
   if(w.exit==="any"  && sortis>0)        return win("Mission accomplie : "+missionText()+".");
@@ -1955,7 +2288,7 @@ function serialize(){
     v:SAVE_VERSION, date:new Date().toISOString(),
     q:G.q, round:G.round, phase:G.phase, over:G.over,
     nextZid:G.nextZid, objectivesLeft:G.objectivesLeft, firstPlayer:G.firstPlayer,
-    taken:{...G.taken},
+    taken:{...G.taken}, kills:{...(G.kills||{})}, takenAt:{...(G.takenAt||{})},
     pool:{...G.pool}, tab:UI.tab,
     // seul l'état mutable des Zones est stocké : la structure (murs, portes,
     // cryptes) est reconstruite depuis la quête.
@@ -1963,7 +2296,8 @@ function serialize(){
       door:{...z.door}, cryptOpen:!!z.cryptOpen,
       spawnTokens:z.spawnTokens.map(t=>({...t})),
       items:(z.items||[]).map(cardOut),
-      obj:z.obj?{...z.obj}:null, noise:z.noise, bile:z.bile, explored:z.explored,
+      obj:z.obj?{...z.obj}:null, noise:z.noise, bile:z.bile,
+      markers:[...(z.markers||[])], explored:z.explored,
       buildingOpened:z.buildingOpened, vaultCards:(z.vaultCards||[]).map(cardOut)
     })),
     survivors:G.survivors.map(s=>({
@@ -2000,7 +2334,8 @@ function loadState(d){
       spawnTokens: (sz.spawnTokens||[]).map(t=>({...t})),
       items: (sz.items||[]).map(cardIn).filter(Boolean),
       obj: sz.obj ? {...sz.obj} : null,
-      noise: sz.noise|0, bile: !!sz.bile, explored: !!sz.explored,
+      noise: sz.noise|0, bile: !!sz.bile, markers:[...(sz.markers||[])],
+      explored: !!sz.explored,
       buildingOpened: !!sz.buildingOpened
     });
     if(z.crypt) z.vaultCards = (sz.vaultCards||[]).map(cardIn).filter(Boolean);
@@ -2033,6 +2368,8 @@ function loadState(d){
     objectivesLeft: d.objectivesLeft|0, firstPlayer: d.firstPlayer|0,
     customMap: JSON.stringify(d.q) !== JSON.stringify(DEFAULT_QUEST)
   };
+  G.kills = {...(d.kills||{})};
+  G.takenAt = {...(d.takenAt||{})};
   Object.keys(ZT).forEach(k=>{ if(typeof G.pool[k]!=="number") G.pool[k]=ZT[k].pool; });
 
   UI = {tab: d.tab|0, mode:null, data:null, reorgSel:null};
@@ -2109,7 +2446,7 @@ function ajouterZombies(container, zoneIdx){
     const n=cnt[t];
     const p=pastille(ZT[t].c, t, ZT[t].ini, n>2?"pile3":(n>1?"pile2":""));
     p.style.setProperty("--zc", ZT[t].c);
-    p.title = n+" "+ZT[t].n+(n>1?"s":"");
+    p.title = n+" "+plurZ(t,n);
     if(n>1){ const e=document.createElement("div"); e.className="nb"; e.textContent=n; p.appendChild(e); }
     container.appendChild(p);
   });
@@ -2156,7 +2493,18 @@ function renderBoard(){
         e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[sp]})`; }
       else e.textContent=t;
       e.title=title||""; tk.appendChild(e); return e;};
-    if(z.exit) T("exit","S","Sortie","tok_exit");
+    if(z.exit){
+      // la Sortie se pose sur un bord, comme un pion d'Invasion
+      const e=document.createElement("div");
+      const cote=(G.q.exit && G.q.exit.side) || "n";
+      e.className="spw exitk "+cote;
+      e.style.setProperty("--sc","#2f6b4a");
+      e.textContent="S"; e.title="Zone de Sortie";
+      if(SPRITE_OK.tok_exit){ e.classList.add("img");
+        e.style.setProperty("--ratio", SPRITE_RATIO.tok_exit||1);
+        e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES.tok_exit})`; }
+      d.appendChild(e);
+    }
     if(z.obj){
       // face rouge tant que l'Objectif est caché ; sa vraie couleur reste secrète
       const face = z.obj.hidden ? "red" : z.obj.color;
@@ -2169,7 +2517,20 @@ function renderBoard(){
     if(z.items && z.items.length)
       T("item", z.items.length>1?String(z.items.length):"◈",
         z.items.map(c=>c.e.n).join(", "), "tok_item");
-    if(z.bile) T("bile","B","Bile de Dragon","tok_bile");
+    /* Marqueurs de Zone, sous le reste. La Bile en fait partie : avec son
+       image elle devient un grand marqueur, sinon elle garde sa pastille. */
+    const marq=[...(z.markers||[])];
+    if(z.bile && SPRITE_OK.tok_bile) marq.push("bile");
+    else if(z.bile) T("bile","B","Bile de Dragon");
+    marq.forEach(t=>{
+      const m=document.createElement("div");
+      const cle="tok_"+t;
+      if(SPRITE_OK[cle]){ m.className="zmark";
+        m.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[cle]})`; }
+      else { m.className="zmark vide"; m.textContent=MARQUEURS[t].n; }
+      m.title=MARQUEURS[t].n;
+      d.appendChild(m);
+    });
     if(z.noise){ const e=T("noise","","Bruit : "+z.noise,"tok_noise");
                  const sp=document.createElement("span"); sp.textContent=z.noise; e.appendChild(sp); }
     d.appendChild(tk);
@@ -2180,6 +2541,13 @@ function renderBoard(){
       e.className="spw "+(t.side||"n")+(actif?"":" off")+(t.necro?" necro":"");
       e.style.setProperty("--sc", colCss(t.color));
       e.textContent = t.necro ? "N" : "";
+      // un jeton dessiné remplace le bandeau de couleur, s'il existe
+      // le pion posé par un Nécromancien a son propre jeton
+      const sp = t.necro && SPRITE_OK.tok_spawn_necro ? "tok_spawn_necro"
+                                                      : "tok_spawn_"+t.color;
+      if(SPRITE_OK[sp]){ e.classList.add("img");
+        e.style.setProperty("--ratio", SPRITE_RATIO[sp]||1);
+        e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[sp]})`; }
       const cond = (locks().spawns||{})[t.color];
       e.title = `Zone d'Invasion ${colF(t.color)}`+(t.necro?" (Nécromancien)":"")+
                 (actif ? " — active" : ` — inactive : ${condText(cond)}`);
@@ -2212,7 +2580,7 @@ function renderBoard(){
 }
 /* Illustrations des tuiles de terrain, sous la grille. Purement décoratif :
    les règles ne dépendent que de la carte en lettres et des portes. */
-const TILE_DIR = "tuiles_zombicide/";
+const TILE_DIR = "zombicide_fichiers/tuiles_zombicide/";
 let tileBg = true, tileBgOpacity = 0.9;
 function renderTileLayer(){
   const couche = document.createElement("div");
@@ -2389,11 +2757,11 @@ function actionState(s){
 
 function renderPanel(){
   const p=document.getElementById("scroll"); p.innerHTML="";
-  const w = winCond(), pret = condMet(w.need);
+  const pret = missionPrete();
   document.getElementById("questLine").textContent =
     `${G.q.name}${G.customMap?" (carte perso)":""} — Round ${G.round} · `+
     `Danger ${DANGER[teamDanger()].name} · Objectifs sur le plateau : ${G.objectivesLeft} · `+
-    `Mission ${pret?"✓":"✗"} ${missionText()}`;
+    `Mission ${pret?"✓":"✗"} ${missionChecklist()}`;
 
   // onglets survivants
   const tabs=el("div","tabs");
@@ -2490,7 +2858,7 @@ function renderPanel(){
                        ()=>doTakeItem(s), "prim", !canPay(s,"objective")));
   ar.appendChild(btn("Faire du bruit", ()=>doNoise(s), "", !canPay(s,"noise")));
   if(zi.exit && winCond().exit!=="none")
-    ar.appendChild(btn(condMet(winCond().need) ? "Sortir" : "Sortie verrouillée",
+    ar.appendChild(btn(missionPrete() ? "Sortir" : "Sortie verrouillée",
                        ()=>{tryExit(s);render();}, "prim"));
   if(hasSkill(s,"Soif de sang : Mêlée"))
     ar.appendChild(btn("Soif de sang", ()=>{ if(!pay(s,"bloodlust")) return toast("Plus d'Action.");
@@ -2672,11 +3040,66 @@ function showSetup(){
        if(Array.isArray(m) && m.length) TEAM=m.filter(id=>SURVIVORS.some(v=>v.id===id)); }catch(e){}
   if(!TEAM.length) TEAM=SURVIVORS.map(v=>v.id);
   chargerGear();
+  renderMissions();
   renderSetup();
   document.getElementById("setupMsg").textContent="";
+  document.getElementById("missionMsg").textContent="";
   // on ne peut annuler que s'il y a une partie en cours à retrouver
   document.getElementById("setupCancel").style.display = (G && !G.over) ? "" : "none";
   document.getElementById("setup").style.display="grid";
+}
+/* Résumé des Objectifs d'une quête, pour l'écran de choix. */
+function resumeObjectifs(q){
+  const o=q.objectives||[];
+  if(!o.length) return "aucun Objectif";
+  const parCouleur={}; let caches=0;
+  o.forEach(x=>{ if(x.hidden) caches++;
+    else { const c=x.color||"red"; parCouleur[c]=(parCouleur[c]||0)+1; } });
+  const bouts=Object.entries(parCouleur).map(([c,n])=>`${n} ${colM(c)}`);
+  if(caches) bouts.push(`${caches} face cachée${caches>1?"s":""}`);
+  return `${o.length} Objectif${o.length>1?"s":""} : ${bouts.join(", ")}`;
+}
+/* Fiche de la mission choisie : description, objectif, et un repère chiffré.
+   Une entrée qui ne porte qu'un `file` n'est lisible qu'après chargement. */
+function afficherInfoMission(q, entree){
+  const b=document.getElementById("missionInfo");
+  b.innerHTML="";
+  if(!q){
+    b.style.display = entree ? "" : "none";
+    if(entree){
+      b.appendChild(el("div","ti", entree.name||"Mission"));
+      b.appendChild(el("div","ob","Clique « Charger » pour lire le détail."));
+    }
+    return;
+  }
+  b.style.display="";
+  b.appendChild(el("div","ti", q.name||"Mission"));
+  if(q.description) b.appendChild(el("div","de", q.description));
+  if(q.goal) b.appendChild(el("div","ob","Objectif — "+q.goal));
+  const t=Object.keys(q.tiles||{}).length;
+  b.appendChild(el("div","rs",
+    `${q.W}×${q.H} Zones · ${resumeObjectifs(q)}`+(t?` · ${t} tuile(s)`:"")));
+}
+/* Remplit le menu des missions. Masqué s'il n'y a pas de catalogue. */
+function renderMissions(){
+  const row=document.getElementById("missionRow");
+  const sel=document.getElementById("missionSel");
+  const list=missionsDispo();
+  row.style.display = list.length ? "" : "none";
+  if(!list.length) return;
+  sel.innerHTML="";
+  list.forEach((m,i)=>{
+    const o=document.createElement("option");
+    o.value=i; o.textContent=m.name || m.file || ("Mission "+(i+1));
+    sel.appendChild(o);
+  });
+  // la fiche suit le menu, sans attendre le chargement quand la quête est là
+  sel.onchange=()=>{
+    const e=list[+sel.value];
+    afficherInfoMission(e && e.quest ? e.quest : null, e);
+    document.getElementById("missionMsg").textContent="";
+  };
+  sel.onchange();
 }
 function renderSetup(){
   const box=document.getElementById("setupList"); box.innerHTML="";
@@ -2695,6 +3118,12 @@ function renderSetup(){
       document.getElementById("setupMsg").textContent="";
       renderSetup();
     };
+    // portrait du Survivant, s'il existe dans ./sprites/
+    if(SPRITE_OK[v.id]){
+      const dot=d.querySelector(".dot");
+      dot.classList.add("img");
+      dot.style.setProperty("--portrait", `url(${SPRITE_DIR+SPRITES[v.id]})`);
+    }
     /* Arme de départ, seulement pour les Survivants retenus. Le menu ne doit
        pas basculer la carte : d'où l'arrêt de propagation du clic. */
     if(on){
@@ -2868,12 +3297,17 @@ jeu dessine la pastille ou le jeton comme avant.</p>
 <code>surv_silas.png</code>.</p>
 <p><b>Zombies</b> : <code>z_walker.png</code>, <code>z_runner.png</code>, <code>z_fatty.png</code>,
 <code>z_abomination.png</code>, <code>z_necromancer.png</code>.</p>
+<p><b>Marqueurs de Zone</b> (60 % de la case, centrés, sous le reste) :
+<code>tok_cercle_magique.png</code>, <code>tok_feu.png</code>, <code>tok_bile.png</code>.</p>
+<p><b>Zones d'Invasion</b> : <code>tok_spawn_rouge.png</code>, <code>tok_spawn_bleu.png</code>,
+<code>tok_spawn_vert.png</code>, <code>tok_spawn_violet.png</code>.</p>
 <p><b>Jetons de Zone</b> : <code>tok_sortie.png</code>, <code>tok_objet.png</code>,
 <code>tok_bile.png</code>, <code>tok_bruit.png</code>, <code>tok_objectif_rouge.png</code>,
 <code>tok_objectif_vert.png</code>, <code>tok_objectif_bleu.png</code>,
 <code>tok_objectif_cache.png</code>. Le nombre de Bruit reste écrit par-dessus l'image.</p>
 <p><b>Zones de Crypte</b> : elles utilisent les jetons officiels déjà présents dans
-<code>./tuiles_zombicide/</code> — <code>Vault_Purple.jpg</code> et <code>Vault_Yellow.jpg</code>.</p>
+<code>./zombicide_fichiers/tuiles_zombicide/</code> — <code>Vault_Purple.jpg</code> et
+<code>Vault_Yellow.jpg</code>.</p>
 `;
 
 /* ---------- démarrage ---------- */
@@ -2922,6 +3356,28 @@ document.getElementById("setupCancel").onclick =
   ()=>{ document.getElementById("setup").style.display="none"; };
 document.getElementById("setupAll").onclick  = ()=>{ TEAM=SURVIVORS.map(v=>v.id); renderSetup(); };
 document.getElementById("setupNone").onclick = ()=>{ TEAM=[]; renderSetup(); };
+document.getElementById("missionLoad").onclick = async ()=>{
+  const msg=document.getElementById("missionMsg");
+  const i=+document.getElementById("missionSel").value;
+  const entree=missionsDispo()[i];
+  msg.style.color="#e0a060"; msg.textContent="Chargement…";
+  try{
+    const q=await chargerMission(entree);
+    const source=q.__source; delete q.__source;   // repère d'origine, hors quête
+    const err=validateQuest(q);
+    if(err) throw new Error("quête invalide : "+err);
+    QUEST=q;
+    try{ localStorage.setItem("zbp_quest", JSON.stringify(q)); }catch(e){}
+    afficherInfoMission(q, entree);
+    msg.style.color="#6bbf3f";
+    const nbT=Object.keys(q.tiles||{}).length;
+    msg.textContent=`« ${q.name||entree.name} » chargée (${source}`+
+      (nbT?`, ${nbT} tuile(s)`:", sans tuile")+`) — clique « Commencer ».`;
+  }catch(e){
+    msg.style.color="#e08080";
+    msg.textContent="Impossible de charger : "+e.message;
+  }
+};
 document.getElementById("setupStart").onclick = ()=>{
   if(!TEAM.length){ document.getElementById("setupMsg").textContent="Choisis au moins un Survivant."; return; }
   // le stock d'armes de départ doit être respecté (menus déjà bridés, mais un
@@ -2969,7 +3425,7 @@ document.getElementById("btnRules").onclick = ()=>{
 document.getElementById("modal").addEventListener("click",e=>{
   if(e.target.id==="modal") e.currentTarget.style.display="none";
 });
-preloadSprites(()=>{
+chargerFichiersMissions(()=>preloadSprites(()=>{
   let memo = null;
   try{ memo = parseFloat(localStorage.getItem("zbp_zoom")); }catch(e){}
   try{ const t=localStorage.getItem("zbp_tilebg"); if(t!==null) tileBg = t==="1"; }catch(e){}
@@ -2978,7 +3434,7 @@ preloadSprites(()=>{
   applyZoom(memo > 0 ? memo : ZOOM_DEF, false);
   if(tryRestore()){ if(!(memo > 0)) zoomFit(); }
   else showSetup();                   // pas de partie en cours : on choisit l'équipe
-});
+}));
 </script>
 </body>
 </html>

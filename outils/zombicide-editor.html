@@ -54,10 +54,33 @@ body.zsmall .c .lbl{display:none}
   font-size:clamp(7px,calc(var(--zs)*.13),12px)}
 .tok.exit{background:#2f6b4a;color:#fff}
 .tok.start{background:#c9c9c9;color:#222}
-.tok.obj{background:var(--oc);color:#fff}
+/* Objectif : jeton CARRÉ, comme dans la boîte. */
+.tok.obj{background:var(--oc);color:#fff;border-radius:3px}
 .tok.obj.hidden{border:2px dashed #fff8}
 .spw{position:absolute;background:var(--sc);border:1px solid #0009;z-index:3;
   pointer-events:none}
+/* Avec une image, le pion d'Invasion devient un jeton CARRÉ posé au milieu du
+   bord choisi, au lieu d'un bandeau étiré sur toute la longueur. */
+/* Le jeton garde le RATIO de son image : on fixe la hauteur, la largeur en
+   découle (--ratio = largeur/hauteur, relevé au préchargement).
+   Il s'oriente ensuite selon le bord, dans le sens horaire :
+   haut 0°, droite 90°, bas 180°, gauche 270°. Le jeton est centré sur le bord
+   et tourne autour de ce centre, ce qui garde le même point d'ancrage quel que
+   soit l'angle. */
+.spw.img{background-color:transparent;border:none;
+  background-size:contain;background-repeat:no-repeat;background-position:center}
+.spw.img.n,.spw.img.s,.spw.img.w,.spw.img.e{
+  height:calc(var(--zs)*.26);
+  width:calc(var(--zs)*.26*var(--ratio,1));
+  right:auto;bottom:auto}
+.spw.img.n{left:50%;top:calc(var(--zs)*.13);
+  transform:translate(-50%,-50%) rotate(0deg)}
+.spw.img.e{left:calc(100% - var(--zs)*.13);top:50%;
+  transform:translate(-50%,-50%) rotate(90deg)}
+.spw.img.s{left:50%;top:calc(100% - var(--zs)*.13);
+  transform:translate(-50%,-50%) rotate(180deg)}
+.spw.img.w{left:calc(var(--zs)*.13);top:50%;
+  transform:translate(-50%,-50%) rotate(270deg)}
 .spw.n{left:18%;top:2px;width:64%;height:calc(var(--zs)*.17)}
 .spw.s{left:18%;bottom:2px;width:64%;height:calc(var(--zs)*.17)}
 .spw.w{top:18%;left:2px;height:64%;width:calc(var(--zs)*.17)}
@@ -69,6 +92,15 @@ body.zsmall .c .lbl{display:none}
   background:#c9a227;color:#241c06;border:1px solid #0009;display:grid;place-items:center;
   font-weight:700;font-size:clamp(8px,calc(var(--zs)*.13),12px)}
 /* Grille carrée (2×2, 3×3…) plutôt qu'une ligne qui s'étire. */
+/* Marqueur de Zone : 60 % de la case, centré, sous les autres jetons. */
+.zmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:60%;height:60%;z-index:1;pointer-events:none;
+  background-size:contain;background-repeat:no-repeat;background-position:center}
+.zmark.vide{border:1px dashed #ffffff4d;border-radius:6px;display:grid;
+  place-items:center;font-size:9px;color:#ffffff8a;text-align:center;line-height:1.1}
+.spw.exitk{display:grid;place-items:center;color:#fff;font-weight:700;
+  font-size:clamp(7px,calc(var(--zs)*.12),13px)}
+.spw.exitk.img{color:transparent}
 .zpile{position:absolute;left:4px;bottom:4px;display:grid;
   grid-template-columns:repeat(var(--gc,2),1fr);gap:5px;z-index:4;pointer-events:none}
 .zp{position:relative;width:calc(var(--zs)*.30);height:calc(var(--zs)*.30);border-radius:50%;
@@ -77,6 +109,14 @@ body.zsmall .c .lbl{display:none}
 .zp.pile2{box-shadow:3px -3px 0 -2px var(--zc), 3px -3px 0 0 #000a}
 .zp.pile3{box-shadow:3px -3px 0 -2px var(--zc), 3px -3px 0 0 #000a,
           6px -6px 0 -3px var(--zc), 6px -6px 0 -1px #000a}
+/* Élément habillé d'un PNG : l'image porte le décor, on efface fond et bordure.
+   Les badges posés par-dessus (effectif, compte d'objets) restent lisibles. */
+.tok.img,.itk.img{background-color:transparent;border:none;
+  background-size:cover;background-position:center}
+.itk.img{color:#fff;text-shadow:0 0 3px #000,0 0 2px #000}
+.zp.img{background:none;border:none;color:transparent;
+  background-size:cover;background-position:center}
+.zp.img.pile2,.zp.img.pile3{box-shadow:none;filter:drop-shadow(3px -3px 0 #0006)}
 .zp .nb{position:absolute;bottom:-5px;right:-6px;background:#1a1714;color:#f0e2b8;
   border:1px solid #000a;border-radius:8px;min-width:15px;height:15px;padding:0 3px;
   font-size:10px;display:grid;place-items:center;line-height:1}
@@ -235,7 +275,6 @@ textarea{width:100%;height:150px;font-family:Consolas,monospace;font-size:11px;r
 #msg{padding:6px 12px;font-size:12px;min-height:30px;border-top:1px solid var(--line);background:#191614}
 #msg.err{color:#e08080}#msg.ok{color:#8fd08f}
 #foot{padding:8px 12px;border-top:1px solid var(--line);background:#1a1714;display:flex;gap:6px;flex-wrap:wrap}
-.sw{width:14px;height:14px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:-2px}
 button.col{border-color:var(--bc);color:var(--bc);font-weight:600}
 button.col.on{background:var(--bc);color:#1a1714;border-color:var(--bc)}
 .cond{display:grid;grid-template-columns:auto 1fr;gap:4px 6px;align-items:center;margin-top:5px}
@@ -276,6 +315,7 @@ button.col.on{background:var(--bc);color:#1a1714;border-color:var(--bc)}
   </div>
 </div>
 
+<script src="zombicide_fichiers/zombicide_missions/missions.js"></script>
 <script>
 "use strict";
 const DXY={n:[0,-1],s:[0,1],e:[1,0],w:[-1,0]}, OPP={n:"s",s:"n",e:"w",w:"e"};
@@ -298,15 +338,71 @@ const COLORS = {
 };
 const colF=c=>(COLORS[c]||{}).f||c, colM=c=>(COLORS[c]||{}).m||c;
 const colCss=c=>(COLORS[c]||{}).css||"#8a8a8a";
+/* --------------------------------------------------------------------------
+   IMAGES — mêmes fichiers que le jeu, même dossier
+   L'éditeur doit montrer la carte telle qu'elle sera jouée : il relit donc le
+   même ./sprites/. Chaque fichier est facultatif ; sans lui on garde la
+   pastille de couleur ou le jeton dessiné en CSS.
+   -------------------------------------------------------------------------- */
+const SPRITE_DIR = "zombicide_fichiers/sprites/";
+const SPRITES = {
+  walker:"z_walker.png", runner:"z_runner.png", brute:"z_fatty.png",
+  abomination:"z_abomination.png", necromancer:"z_necromancer.png",
+  tok_exit:"tok_sortie.png",
+  tok_start:"tok_depart.png",
+  tok_item:"tok_objet.png",
+  tok_obj_red:"tok_objectif_rouge.png",
+  tok_obj_green:"tok_objectif_vert.png",
+  tok_obj_blue:"tok_objectif_bleu.png",
+  tok_obj_hidden:"tok_objectif_cache.png",
+  tok_cercle_magique:"tok_cercle_magique.png",
+  tok_feu:"tok_feu.png",
+  tok_bile:"tok_bile.png",
+  tok_spawn_red:"tok_spawn_rouge.png",
+  tok_spawn_blue:"tok_spawn_bleu.png",
+  tok_spawn_green:"tok_spawn_vert.png",
+  tok_spawn_purple:"tok_spawn_violet.png",
+  tok_spawn_necro:"tok_spawn_necromancer.png"
+};
+const SPRITE_OK = {};
+const SPRITE_RATIO = {};                      // largeur/hauteur de chaque image
+/* Les images arrivent après le premier rendu : on redessine une fois qu'on
+   sait lesquelles existent, plutôt que de retarder l'affichage de la carte. */
+function preloadSprites(cb){
+  const keys=Object.keys(SPRITES); let left=keys.length;
+  if(!left) return cb();
+  keys.forEach(k=>{
+    const im=new Image();
+    im.onload =()=>{ SPRITE_OK[k]=true;
+      // le ratio réel sert à ne pas déformer les jetons (voir .spw.img)
+      if(im.naturalHeight) SPRITE_RATIO[k]=im.naturalWidth/im.naturalHeight;
+      if(!--left) cb(); };
+    im.onerror=()=>{ SPRITE_OK[k]=false; if(!--left) cb(); };
+    im.src=SPRITE_DIR+SPRITES[k];
+  });
+}
+/* Habille un élément d'une image si elle existe ; sinon laisse le CSS opérer. */
+function habille(e, cle){
+  if(!SPRITE_OK[cle]) return false;
+  e.classList.add("img");
+  e.style.setProperty("--ratio", SPRITE_RATIO[cle]||1);
+  e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[cle]})`;
+  e.textContent="";
+  return true;
+}
+
 /* Profils zombies, en écho à ceux du jeu : couleur, initiale, stock de figurines. */
 const ZT_ED = {
   walker:      {n:"Walker",       ini:"W", c:"#6f8f4e", pool:35},
   runner:      {n:"Runner",       ini:"R", c:"#c07a34", pool:14},
-  brute:       {n:"Fatty",        ini:"F", c:"#8b5a3c", pool:14},
+  /* `pl` : pluriel irrégulier. Sans lui on ajoute simplement un « s ». */
+  brute:       {n:"Fatty", pl:"Fatties", ini:"F", c:"#8b5a3c", pool:14},
   abomination: {n:"Abomination",  ini:"A", c:"#8e2b2b", pool:1},
   necromancer: {n:"Nécromancien", ini:"N", c:"#7a4bb5", pool:1}
 };
 const Z_ORDRE = ["walker","runner","brute","abomination","necromancer"];
+/* Nom d'un type de Zombie accordé en nombre. */
+const plurZ = (t,n) => n>1 ? (ZT_ED[t].pl || ZT_ED[t].n+"s") : ZT_ED[t].n;
 /* Catalogue d'Équipement, en écho à EQUIP dans le jeu. Sert à poser des objets
    sur la carte ou dans une crypte. Les Artefacts de crypte sont marqués `v`. */
 const EQUIP_ED = [
@@ -333,7 +429,75 @@ const eqNom = id => (EQ_ED[id]||{}).n || id;
 const K_NOM = {melee:"Mêlée",ranged:"Distance",spell:"Sort",ench:"Enchantement",
                armor:"Armure",shield:"Bouclier",item:"Objet"};
 const DOOR_COLORS  = ["grey","blue","green"];       // portes : grise, bleue, verte
+/* --------------------------------------------------------------------------
+   CATALOGUE DE MISSIONS
+   Un navigateur ne sait pas lister un dossier : la liste vient du fichier
+   zombicide_fichiers/zombicide_missions/missions.js, inclus par une balise de
+   script dans la page.
+   Une entrée porte soit la quête directement (`quest`), soit le nom d'un JSON
+   voisin (`file`). Le second cas passe par fetch(), que les navigateurs
+   REFUSENT quand la page est ouverte en file:// — d'où le message explicite.
+   -------------------------------------------------------------------------- */
+const MISSION_DIR = "zombicide_fichiers/zombicide_missions/";
+/* Chaque mission est un fichier .js qui s'annonce lui-même par ZBP_MISSION().
+   C'est la seule forme qui marche AUSSI en file:// : une balise de script est
+   autorisée là où fetch ne l'est pas. Surtout, la quête n'existe qu'à UN seul
+   endroit — une copie dans le catalogue finissait fatalement par dater. */
+window.ZBP_MISSIONS = window.ZBP_MISSIONS || [];
+window.ZBP_MISSION = e => { if(e) window.ZBP_MISSIONS.push(e); };
+const missionsDispo = () => Array.isArray(window.ZBP_MISSIONS) ? window.ZBP_MISSIONS : [];
+/* Charge les fichiers listés par missions.js, puis rend la main. Un fichier
+   absent est ignoré : le menu montre simplement les autres. */
+function chargerFichiersMissions(cb){
+  const liste = Array.isArray(window.ZBP_MISSION_FILES) ? window.ZBP_MISSION_FILES : [];
+  let reste = liste.length;
+  if(!reste) return cb();
+  liste.forEach(f=>{
+    const sc=document.createElement("script");
+    sc.src = MISSION_DIR + f;
+    sc.onload = sc.onerror = ()=>{ if(!--reste) cb(); };
+    document.head.appendChild(sc);
+  });
+}
+/* Quand une entrée porte les DEUX, le FICHIER fait foi : la copie `quest` du
+   catalogue n'est qu'un repli pour file://, où fetch est interdit. Sans cette
+   priorité, modifier le .json resterait sans effet — la copie l'emporterait en
+   silence. `chargerMission` rend aussi d'où vient la quête, pour le dire. */
+async function chargerMission(entree){
+  if(!entree) return null;
+  if(entree.file){
+    let r=null, lisible=true;
+    try{ r = await fetch(MISSION_DIR + entree.file); }
+    catch(e){ lisible=false; }
+    if(lisible && r && r.ok){
+      const q = await r.json();
+      q.__source = "fichier";
+      return q;
+    }
+    if(!entree.quest)
+      throw new Error(lisible
+        ? ("fichier introuvable : "+entree.file)
+        : "lecture impossible depuis file:// — sers le dossier en http, "+
+          "ou écris la quête dans missions.js (champ `quest`)");
+  }
+  if(entree.quest){
+    const q = JSON.parse(JSON.stringify(entree.quest));
+    q.__source = entree.file ? "copie du catalogue" : "catalogue";
+    return q;
+  }
+  throw new Error("entrée de mission sans `quest` ni `file`");
+}
 const SPAWN_COLORS = ["red","blue","green","purple"];
+/* Marqueurs de Zone : grande image au centre de la case. Seule la Bile a une
+   règle dans le moteur ; Feu et Cercle magique sont des repères de quête. */
+const MARQUEURS = {
+  cercle_magique:{n:"Cercle magique", regle:false},
+  feu:           {n:"Feu",            regle:false},
+  bile:          {n:"Bile de Dragon", regle:true}
+};
+const MARQ_ORDRE = ["cercle_magique","feu","bile"];
+let marqType="cercle_magique";
+let exitSide="n";                      // bord sur lequel se pose la Sortie
 const OBJ_COLORS   = ["red","green","blue"];
 
 let M = null;                 // modèle de carte
@@ -354,12 +518,16 @@ const estBat = c => c!==".";
 function blank(W,H){
   return {
     name:"Ma quête",
+    description:"",
     goal:"Récupérez tous les Objectifs, puis tous les Survivants doivent sortir.",
     W, H, cells:new Array(W*H).fill("."), doors:[], limites:{}, cryptDoors:[],
     spawns:[], objectives:[], start:null, exit:null, zombies:[],
-    items:[], cryptItems:{},
+    items:[], cryptItems:{}, cryptPool:[], markers:[],
     hiddenBacks:[], locks:{spawns:{}, doors:{}, spawnsOff:{}},
-    win:{need:"objectives:all", exit:"all"},
+    rules:{}, objEffects:{},
+    /* win.goals : les objectifs de mission, tous requis, chacun avec son
+       intitulé et une ou plusieurs conditions. */
+    win:{goals:[{label:"", need:["objectives:all"]}], exit:"all"},
     nodePos:{},                // positions du graphe : éditeur seulement, non exporté
     tiles:{}                   // "tx,ty" → {id, rot} : tuiles posées (décor + traçabilité)
   };
@@ -454,22 +622,70 @@ function findDoor(x,y,s){
 const findCrypt = (x,y) => M.cryptDoors.find(d=>d.x===x&&d.y===y);
 const cryptColorsUsed = () => [...new Set(M.cryptDoors.map(d=>d.color))];
 
+/* --------------------------------------------------------------------------
+   RÈGLES SPÉCIALES
+   Les règles GLOBALES modifient la mise en place ou la lecture des cartes.
+   Les EFFETS D'OBJECTIF se déclenchent quand un Survivant récupère un Objectif
+   de la couleur voulue — plusieurs effets par couleur sont possibles, résolus
+   dans l'ordre où ils sont listés.
+   -------------------------------------------------------------------------- */
+const REGLES_GLOBALES = {
+  necroAside:  "Mettre de côté les cartes Nécromancien",
+  abomAsFatty: "Les Abominations comptent comme des Fatties sur les cartes d'Invasion"
+};
+const EFFETS_OBJ = {
+  xp:    {n:"Gagner des XP",                     val:"nombre"},
+  necro: {n:"Faire apparaître un Nécromancien"},
+  equip: {n:"Recevoir un Équipement précis",     val:"equip"},
+  draw:  {n:"Tirer une carte au hasard dans une liste", val:"liste"}
+};
+const EFFETS_ORDRE = ["xp","necro","equip","draw"];
+function texteEffet(ef){
+  if(!ef || !EFFETS_OBJ[ef.t]) return "?";
+  if(ef.t==="xp")    return `+${ef.n|0} XP`;
+  if(ef.t==="equip") return "Équipement : "+eqNom(ef.id);
+  if(ef.t==="draw")  return "Tirage parmi : "+(ef.ids||[]).map(eqNom).join(", ");
+  return EFFETS_OBJ[ef.t].n;
+}
+/* Effet en cours de composition, par couleur (état d'interface seulement). */
+let efNouv = {};
+
 const CONDS = [["", "aucune condition"],
                ["objective:red",   "Objectif rouge récupéré"],
                ["objective:green", "Objectif vert récupéré"],
                ["objective:blue",  "Objectif bleu récupéré"],
                ["objectives:all",  "tous les Objectifs récupérés"],
+               ["vault:all",       "les deux Artefacts de crypte récupérés"],
+               ["kill:necromancer","au moins un Nécromancien tué"],
+               ["kill:abomination","au moins une Abomination tuée"],
                ["never",           "jamais"]];
-const condTexte = c => (CONDS.find(x=>x[0]===(c||""))||[,c])[1];
+/* Conditions offertes à la composition : le vocabulaire fixe, plus ce que la
+   carte contient réellement — un Objectif précis se désigne par sa case. */
+function condsDisponibles(){
+  const l = CONDS.filter(c=>c[0]);
+  M.objectives.forEach(o=>l.push([`objective:at:${o.x},${o.y}`,
+    `l'Objectif en (${o.x+1},${o.y+1}) récupéré`]));
+  [["yellow","Jaune"],["orange","Orange"],["red","Rouge"]].forEach(([k,n])=>
+    l.push([`danger:${k}`, `niveau ${n} atteint par un Survivant`]));
+  return l;
+}
+function condTexte(c){
+  const fixe = CONDS.find(x=>x[0]===(c||""));
+  if(fixe) return fixe[1];
+  const ma=/^objective:at:(\d+),(\d+)$/.exec(c||"");
+  if(ma) return `l'Objectif en (${+ma[1]+1},${+ma[2]+1}) récupéré`;
+  const md=/^danger:(\w+)$/.exec(c||"");
+  if(md) return `niveau ${({yellow:"Jaune",orange:"Orange",red:"Rouge",blue:"Bleu"})[md[1]]||md[1]} atteint par un Survivant`;
+  return c;
+}
 const EXIT_TXT  = {all:"tous les Survivants vivants doivent sortir",
                    any:"au moins un Survivant doit sortir",
                    none:"aucune sortie requise"};
+const texteBut = g => g.label || (g.need||[]).map(condTexte).join(" et ");
 function missionTexte(){
-  if(M.win.exit==="none") return M.win.need ? condTexte(M.win.need) : "aucune condition";
-  const b=[];
-  if(M.win.need) b.push(condTexte(M.win.need));
-  b.push(EXIT_TXT[M.win.exit]||EXIT_TXT.all);
-  return b.join(", puis ");
+  const b=(M.win.goals||[]).map(texteBut);
+  if(M.win.exit!=="none") b.push(EXIT_TXT[M.win.exit]||EXIT_TXT.all);
+  return b.length ? b.join(", puis ") : "aucune condition";
 }
 
 /* Une porte se pose sur un MUR. Chaque arête interne du plateau est le Nord ou
@@ -504,11 +720,21 @@ function render(){
       r.textContent=lab[I(x,y)]||"?"; r.title="Pièce "+(lab[I(x,y)]||"?")+" (déduite des murs)";
       d.appendChild(r); }
     const tk=document.createElement("div"); tk.className="tk";
-    const T=(cl,t)=>{const e=document.createElement("div");e.className="tok "+cl;e.textContent=t;tk.appendChild(e);return e;};
-    if(eqp(M.exit,{x,y})) T("exit","S");
-    if(eqp(M.start,{x,y})) T("start","D");
+    const T=(cl,t,sp)=>{const e=document.createElement("div");e.className="tok "+cl;
+      e.textContent=t; if(sp) habille(e,sp); tk.appendChild(e); return e;};
+    if(eqp(M.exit,{x,y})){
+      // la Sortie se pose sur un bord, comme un pion d'Invasion
+      const e=document.createElement("div");
+      e.className="spw exitk "+((M.exit.side)||"n");
+      e.style.setProperty("--sc","#2f6b4a");
+      e.textContent="S"; e.title="Zone de Sortie";
+      habille(e,"tok_exit");
+      d.appendChild(e);
+    }
+    if(eqp(M.start,{x,y})) T("start","D","tok_start");
     const o=M.objectives.find(p=>p.x===x&&p.y===y);
-    if(o){ const e=T("obj"+(o.hidden?" hidden":""), o.hidden?"?":"O");
+    if(o){ const e=T("obj"+(o.hidden?" hidden":""), o.hidden?"?":"O",
+                     o.hidden?"tok_obj_hidden":"tok_obj_"+(o.color||"red"));
            e.style.setProperty("--oc", colCss(o.hidden?"red":o.color)); }
     d.appendChild(tk);
     // Zones d'Invasion : un rectangle par pion, sur le bord choisi
@@ -516,13 +742,25 @@ function render(){
       const e=document.createElement("div");
       e.className="spw "+(p.side||"n");
       e.style.setProperty("--sc", colCss(p.color||"red"));
+      habille(e, "tok_spawn_"+(p.color||"red"));
       e.title=`Zone d'Invasion ${colF(p.color||"red")} (bord ${p.side||"n"})`;
       d.appendChild(e);
+    });
+    // marqueurs de Zone, sous les autres jetons
+    (M.markers||[]).filter(k=>k.x===x&&k.y===y).forEach(k=>{
+      const m=document.createElement("div");
+      if(SPRITE_OK["tok_"+k.t]){ m.className="zmark";
+        m.style.backgroundImage=`url(${SPRITE_DIR+SPRITES["tok_"+k.t]})`; }
+      else { m.className="zmark vide"; m.textContent=MARQUEURS[k.t].n; }
+      m.title=MARQUEURS[k.t].n;
+      d.appendChild(m);
     });
     // objets posés dans la Zone
     const its=M.items.filter(i=>i.x===x&&i.y===y);
     if(its.length){
       const e=el("div","itk", its.length>1?String(its.length):"◈");
+      // avec une image, le compte reste écrit par-dessus
+      if(habille(e,"tok_item") && its.length>1) e.textContent=String(its.length);
       e.title=its.map(i=>eqNom(i.id)).join(", ");
       d.appendChild(e);
     }
@@ -535,7 +773,8 @@ function render(){
         const pr=ZT_ED[z.t]||{n:z.t,ini:"?",c:"#888"};
         const e=el("div","zp"+(z.n>2?" pile3":(z.n>1?" pile2":"")), pr.ini);
         e.style.setProperty("--zc", pr.c);
-        e.title=`${z.n} ${pr.n}${z.n>1?"s":""}`;
+        habille(e, z.t);                       // l'effectif est rajouté plus bas
+        e.title=`${z.n} ${ZT_ED[z.t]?plurZ(z.t,z.n):pr.n}`;
         if(z.n>1){ const b=el("span","nb",z.n); e.appendChild(b); }
         zc.appendChild(e);
       });
@@ -671,7 +910,7 @@ function paint(x,y){
   if(tool==="room")        setCell(x,y,BAT);
   else if(tool==="street") setCell(x,y,".");
   else if(tool==="start")  M.start={x,y};
-  else if(tool==="exit")   M.exit={x,y};
+  else if(tool==="exit")   M.exit={x,y,side:exitSide};
   else if(tool==="spawn"){
     // un pion par clic ; même couleur ET même bord déjà présents ⇒ on le retire
     const k=M.spawns.findIndex(p=>p.x===x&&p.y===y&&p.color===spawnColor&&p.side===spawnSide);
@@ -686,8 +925,13 @@ function paint(x,y){
     const ex=M.zombies.find(z=>z.x===x&&z.y===y&&z.t===zombType);
     const total=M.zombies.filter(z=>z.t===zombType).reduce((a,z)=>a+z.n,0);
     if(total>=ZT_ED[zombType].pool)
-      return say(`La boîte ne contient que ${ZT_ED[zombType].pool} ${ZT_ED[zombType].n}(s).`,"err");
+      return say(`La boîte ne contient que ${ZT_ED[zombType].pool} ${plurZ(zombType,2)}.`,"err");
     if(ex) ex.n++; else M.zombies.push({x,y,t:zombType,n:1});
+    say("");
+  }
+  else if(tool==="marq"){
+    const k=M.markers.findIndex(m=>m.x===x&&m.y===y&&m.t===marqType);
+    if(k>=0) M.markers.splice(k,1); else M.markers.push({x,y,t:marqType});
     say("");
   }
   else if(tool==="obj"){
@@ -710,6 +954,7 @@ function erase(x,y){
     return render();
   }
   if(tool==="tile"){ retirerTuile(Math.floor(x/3), Math.floor(y/3)); say("Bloc vidé."); return render(); }
+  M.markers = M.markers.filter(p=>!(p.x===x&&p.y===y));
   M.cryptDoors = M.cryptDoors.filter(p=>!(p.x===x&&p.y===y));
   M.spawns = M.spawns.filter(p=>!(p.x===x&&p.y===y));
   M.objectives = M.objectives.filter(p=>!(p.x===x&&p.y===y));
@@ -800,11 +1045,17 @@ function problems(){
   verifCond("spawns","Les Zones d'Invasion");
   verifCond("doors","Les portes");
   // la condition de victoire doit être atteignable
-  const mw=/^objective:(\w+)$/.exec(M.win.need||"");
+  const toutesConds = (M.win.goals||[]).flatMap(g=>g.need||[]);
+  const mw=/^objective:(\w+)$/.exec(toutesConds.find(c=>/^objective:\w+$/.test(c))||"");
   if(mw && !couleursObj.has(mw[1]))
     p.push(`La mission exige un Objectif ${colM(mw[1])}, mais la carte n'en contient aucun.`);
-  if(M.win.need==="never") p.push("La mission est réglée sur « jamais » : elle ne peut pas être gagnée.");
-  if(M.win.exit==="none" && !M.win.need)
+  if(toutesConds.includes("never")) p.push("Un objectif de mission est réglé sur « jamais » : elle ne peut pas être gagnée.");
+  (M.win.goals||[]).forEach(g=>{ (g.need||[]).forEach(c=>{
+    const ma=/^objective:at:(\d+),(\d+)$/.exec(c);
+    if(ma && !M.objectives.some(o=>o.x===+ma[1] && o.y===+ma[2]))
+      p.push(`Un objectif de mission attend l'Objectif en (${+ma[1]+1},${+ma[2]+1}), absent de la carte.`);
+  }); });
+  if(M.win.exit==="none" && !toutesConds.length)
     p.push("Mission sans condition ni sortie : elle serait gagnée dès le premier instant.");
   // une porte grise ne peut pas être verrouillée
   if((M.locks.doors||{}).grey) p.push("Les portes grises ne peuvent pas être verrouillées.");
@@ -812,6 +1063,48 @@ function problems(){
   if(M.spawns.length && M.spawns.every(sp=>(M.locks.spawns||{})[sp.color]==="never"))
     p.push("Toutes les Zones d'Invasion sont verrouillées sur « jamais » : aucun zombie n'apparaîtra.");
   M.items.forEach(i=>{ if(!EQ_ED[i.id]) p.push(`Objet inconnu posé en (${i.x},${i.y}) : ${i.id}.`); });
+  // un effet ne sert à rien si aucun Objectif de cette couleur n'est récupérable
+  /* Une chasse au Nécromancien devient impossible si ses cartes sont mises de
+     côté ET qu'aucun Nécromancien n'est posé au départ. */
+  const conditions = toutesConds
+    .concat(Object.values(M.locks.spawns||{}), Object.values(M.locks.doors||{}),
+            Object.values(M.locks.spawnsOff||{}));
+  if(conditions.includes("kill:necromancer") && (M.rules||{}).necroAside
+     && !M.zombies.some(z=>z.t==="necromancer"))
+    p.push("Une condition exige de tuer un Nécromancien, mais ses cartes sont mises de côté et aucun n'est placé au départ.");
+  // une condition « Artefacts » suppose au moins une crypte sur la carte
+  const utiliseArtefacts = conditions.includes("vault:all");
+  if(utiliseArtefacts && !cryptColorsUsed().length)
+    p.push("Une condition attend les Artefacts de crypte, mais la carte n'a aucune crypte.");
+  Object.entries(M.objEffects||{}).forEach(([col,l])=>{
+    if(l && l.length && !couleursDisponibles().has(col))
+      p.push(`Des effets sont prévus pour l'Objectif ${colM(col)}, absent de la carte.`);
+    (l||[]).forEach(ef=>{
+      if(ef.t==="equip" && !EQ_ED[ef.id])
+        p.push(`Effet d'Objectif ${colM(col)} : équipement inconnu (${ef.id}).`);
+      if(ef.t==="draw"){
+        if(!(ef.ids||[]).length) p.push(`Effet d'Objectif ${colM(col)} : liste de tirage vide.`);
+        (ef.ids||[]).forEach(id=>{ if(!EQ_ED[id])
+          p.push(`Effet d'Objectif ${colM(col)} : carte inconnue dans le tirage (${id}).`); });
+      }
+    });
+  });
+  /* Façade de bâtiment ouverte sur la rue SANS limite : légitime si c'est
+     voulu, mais c'est le plus souvent l'oubli d'un mur — on le signale. */
+  const facades=[];
+  for(let y=0;y<M.H;y++) for(let x=0;x<M.W;x++) for(const s of toutesAretes(x,y)){
+    const nx=x+DXY[s][0], ny=y+DXY[s][1];
+    if(!IN(nx,ny) || estBat(ch(x,y))===estBat(ch(nx,ny))) continue;
+    if(!limiteDe(x,y,s)) facades.push(`(${x},${y})`);
+  }
+  if(facades.length)
+    p.push(`Façade sans limite entre bâtiment et rue en ${[...new Set(facades)].join(", ")} — mur oublié ?`);
+  (M.markers||[]).forEach(k=>{ if(!MARQUEURS[k.t])
+    p.push(`Marqueur inconnu en (${k.x},${k.y}) : ${k.t}.`); });
+  if((M.cryptPool||[]).length && !cryptColorsUsed().length)
+    p.push("Une réserve de crypte est prévue, mais la carte n'a aucune crypte.");
+  (M.cryptPool||[]).forEach(id=>{ if(!EQ_ED[id])
+    p.push(`Objet inconnu dans la réserve de crypte : ${id}.`); });
   Object.entries(M.cryptItems||{}).forEach(([col,l])=>{
     if(l.length && !cryptColorsUsed().includes(col))
       p.push(`Des objets sont prévus pour la crypte ${cryptNom(col)}, qui n'existe pas sur la carte.`);
@@ -819,11 +1112,11 @@ function problems(){
   Z_ORDRE.forEach(t=>{
     const n=M.zombies.filter(z=>z.t===t).reduce((a,z)=>a+z.n,0);
     if(n>ZT_ED[t].pool)
-      p.push(`${n} ${ZT_ED[t].n}(s) placés alors que la boîte n'en contient que ${ZT_ED[t].pool}.`);
+      p.push(`${n} ${plurZ(t,n)} placés alors que la boîte n'en contient que ${ZT_ED[t].pool}.`);
   });
   M.zombies.forEach(z=>{
     if(M.start && z.x===M.start.x && z.y===M.start.y)
-      p.push(`Des ${ZT_ED[z.t].n}s occupent la Zone de départ : les Survivants y commenceraient au contact.`);
+      p.push(`Des ${plurZ(z.t,2)} occupent la Zone de départ : les Survivants y commenceraient au contact.`);
   });
   cryptColorsUsed().forEach(col=>{
     if(M.cryptDoors.filter(d=>d.color===col).length<2)
@@ -898,12 +1191,13 @@ function toQuest(){
   const map=[];
   for(let y=0;y<M.H;y++){ let r=""; for(let x=0;x<M.W;x++) r+=(lab[I(x,y)]||"."); map.push(r); }
   const lim=limitesExplicites(lab);
-  const q = { name:M.name, goal:M.goal, W:M.W, H:M.H, map,
+  const q = { name:M.name, description:M.description||"", goal:M.goal, W:M.W, H:M.H, map,
     doors:M.doors.map(d=>{const o={x:d.x,y:d.y,s:d.s,color:d.color||"grey"};
                           if(d.open) o.open=true; return o;}),
     cryptDoors:M.cryptDoors.map(d=>({x:d.x,y:d.y,color:d.color})),
     spawns:M.spawns.map(p=>({x:p.x,y:p.y,color:p.color||"red",side:p.side||"n"})),
-    start:M.start, exit:M.exit,
+    start:M.start,
+    exit:M.exit ? {x:M.exit.x, y:M.exit.y, side:M.exit.side||"n"} : null,
     objectives:M.objectives.map(o=>o.hidden?{x:o.x,y:o.y,hidden:true}
                                            :{x:o.x,y:o.y,color:o.color||"red"}) };
   if(lim.length) q.limits=lim;
@@ -911,20 +1205,29 @@ function toQuest(){
   if(M.items.length) q.items=M.items.map(i=>({x:i.x,y:i.y,id:i.id}));
   const ci={}; Object.entries(M.cryptItems||{}).forEach(([c,l])=>{ if(l&&l.length) ci[c]=[...l]; });
   if(Object.keys(ci).length) q.cryptItems=ci;
+  if((M.cryptPool||[]).length) q.cryptPool=[...M.cryptPool];
+  if((M.markers||[]).length) q.markers=M.markers.map(k=>({x:k.x,y:k.y,t:k.t}));
   if(M.hiddenBacks.length) q.hiddenBacks=[...M.hiddenBacks];
   const L={};
   if(Object.keys(M.locks.spawns||{}).length)    L.spawns   ={...M.locks.spawns};
   if(Object.keys(M.locks.doors ||{}).length)    L.doors    ={...M.locks.doors};
   if(Object.keys(M.locks.spawnsOff||{}).length) L.spawnsOff={...M.locks.spawnsOff};
   if(Object.keys(L).length) q.locks=L;
+  const R={}; Object.entries(M.rules||{}).forEach(([k,v])=>{ if(v) R[k]=true; });
+  if(Object.keys(R).length) q.rules=R;
+  const E={}; Object.entries(M.objEffects||{}).forEach(([c,l])=>{
+    if(l && l.length) E[c]=l.map(e=>({...e})); });
+  if(Object.keys(E).length) q.objEffects=E;
   q.win={exit:M.win.exit};
-  if(M.win.need) q.win.need=M.win.need;
+  const buts=(M.win.goals||[]).filter(g=>g.need && g.need.length)
+    .map(g=>({label:g.label||"", need:[...g.need]}));
+  if(buts.length) q.win.goals=buts;
   if(Object.keys(M.tiles||{}).length) q.tiles={...M.tiles};
   return q;
 }
 function fromQuest(q){
   const m=blank(q.W,q.H);
-  m.name=q.name||"Quête"; m.goal=q.goal||"";
+  m.name=q.name||"Quête"; m.goal=q.goal||""; m.description=q.description||"";
   for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++)
     m.cells[y*q.W+x] = q.map[y][x]==="." ? "." : BAT;
   m.doors=(q.doors||[]).filter(d=>!d.crypt)
@@ -965,21 +1268,35 @@ function fromQuest(q){
   m.zombies=(q.zombies||[]).map(z=>({x:z.x,y:z.y,t:z.t,n:Math.max(1,z.n|0||1)}));
   m.items=(q.items||[]).map(i=>({x:i.x,y:i.y,id:i.id}));
   m.cryptItems={}; Object.entries(q.cryptItems||{}).forEach(([c,l])=>m.cryptItems[c]=[...l]);
+  m.cryptPool=[...(q.cryptPool||[])];
+  m.markers=(q.markers||[]).filter(k=>MARQUEURS[k.t]).map(k=>({x:k.x,y:k.y,t:k.t}));
   m.hiddenBacks=[...(q.hiddenBacks||[])];
   m.locks={spawns:{...((q.locks||{}).spawns||{})}, doors:{...((q.locks||{}).doors||{})},
            spawnsOff:{...((q.locks||{}).spawnsOff||{})}};
-  // un `win` fourni fait foi : absence de `need` = aucune condition préalable
-  m.win = q.win ? {need:q.win.need ?? null, exit:q.win.exit || "all"}
-                : {need:"objectives:all", exit:"all"};
+  m.rules={...(q.rules||{})};
+  m.objEffects={};
+  Object.entries(q.objEffects||{}).forEach(([c,l])=>m.objEffects[c]=(l||[]).map(e=>({...e})));
+  /* Un `win` fourni fait foi : sans objectif déclaré, la mission n'a aucune
+     condition préalable. L'ancienne forme `need` (une seule condition) est
+     relue comme un objectif unique. */
+  m.win = q.win
+    ? {exit: q.win.exit || "all",
+       goals: Array.isArray(q.win.goals)
+         ? q.win.goals.map(g=>({label:g.label||"",
+             need: Array.isArray(g.need) ? [...g.need] : (g.need?[g.need]:[])}))
+             .filter(g=>g.need.length)
+         : (q.win.need ? [{label:"", need:[q.win.need]}] : [])}
+    : {goals:[{label:"", need:["objectives:all"]}], exit:"all"};
   m.tiles = {...(q.tiles||{})};
   m.start=q.start?{x:q.start.x,y:q.start.y}:null;
-  m.exit=q.exit?{x:q.exit.x,y:q.exit.y}:null;
+  m.exit=q.exit?{x:q.exit.x,y:q.exit.y,side:q.exit.side||"n"}:null;
   return m;
 }
 function questSource(){
   const q=toQuest(), pt=p=>`{x:${p.x},y:${p.y}}`;
   const L=[];
   L.push(`  name:${JSON.stringify(q.name)},`);
+  L.push(`  description:${JSON.stringify(q.description||"")},`);
   L.push(`  goal:${JSON.stringify(q.goal)},`);
   L.push(`  W:${q.W}, H:${q.H},`);
   L.push(`  map:[`);
@@ -989,15 +1306,19 @@ function questSource(){
   L.push(`  cryptDoors:[ ${q.cryptDoors.map(d=>`{x:${d.x},y:${d.y},color:"${d.color}"}`).join(", ")} ],`);
   L.push(`  spawns:[ ${q.spawns.map(p=>`{x:${p.x},y:${p.y},color:"${p.color}",side:"${p.side}"}`).join(", ")} ],`);
   L.push(`  start:${pt(q.start||{x:0,y:0})},`);
-  L.push(`  exit:${pt(q.exit||{x:0,y:0})},`);
+  L.push(`  exit:${q.exit?`{x:${q.exit.x},y:${q.exit.y},side:"${q.exit.side||"n"}"}`:"null"},`);
   const fin=[];
   fin.push(`  objectives:[ ${q.objectives.map(o=>o.hidden?`{x:${o.x},y:${o.y},hidden:true}`:`{x:${o.x},y:${o.y},color:"${o.color}"}`).join(", ")} ]`);
   if(q.limits) fin.push(`  limits:${JSON.stringify(q.limits)}`);
   if(q.zombies) fin.push(`  zombies:${JSON.stringify(q.zombies)}`);
   if(q.items) fin.push(`  items:${JSON.stringify(q.items)}`);
   if(q.cryptItems) fin.push(`  cryptItems:${JSON.stringify(q.cryptItems)}`);
+  if(q.cryptPool)  fin.push(`  cryptPool:${JSON.stringify(q.cryptPool)}`);
+  if(q.markers)    fin.push(`  markers:${JSON.stringify(q.markers)}`);
   if(q.hiddenBacks) fin.push(`  hiddenBacks:${JSON.stringify(q.hiddenBacks)}`);
   if(q.locks)       fin.push(`  locks:${JSON.stringify(q.locks)}`);
+  if(q.rules)       fin.push(`  rules:${JSON.stringify(q.rules)}`);
+  if(q.objEffects)  fin.push(`  objEffects:${JSON.stringify(q.objEffects)}`);
   fin.push(`  win:${JSON.stringify(q.win)}`);
   // décor : quelles tuiles composent le plateau (ignoré par les règles)
   if(q.tiles) fin.push(`  tiles:${JSON.stringify(q.tiles)}`);
@@ -1027,7 +1348,7 @@ function cartesTuile(p){
   if(!tileSel){
     const c=el("div","card");
     c.appendChild(el("h3",null,"Bibliothèque de tuiles"));
-    c.appendChild(el("div","hint","Les 84 tuiles du dossier tuiles_zombicide (42 numéros, recto R et verso V). Configure-les une fois : elles serviront ensuite à composer les cartes."));
+    c.appendChild(el("div","hint","Les 84 tuiles du dossier zombicide_fichiers/tuiles_zombicide (42 numéros, recto R et verso V). Configure-les une fois : elles serviront ensuite à composer les cartes."));
     c.appendChild(el("div","hint","Choisis une tuile dans la galerie, sous le canevas."));
     c.appendChild(el("div","hint",`${faites()} / ${TILE_IDS.length} configurées.`));
     c.appendChild(rangeeTuilesIO());
@@ -1100,6 +1421,154 @@ function cartesTuile(p){
   p.appendChild(c3);
 }
 
+/* Objectifs de mission : une liste, tous requis, « dans l'ordre que vous
+   voulez ». Chacun porte un intitulé libre et une ou plusieurs conditions,
+   toutes nécessaires — de quoi écrire « Tuez au moins une Abomination ET un
+   Nécromancien » en un seul objectif. */
+function carteObjectifsMission(p){
+  const c=el("div","card"); c.appendChild(el("h3",null,"Objectifs de mission"));
+  M.win.goals = M.win.goals || [];
+  if(!M.win.goals.length)
+    c.appendChild(el("div","hint","Aucun objectif : la mission se gagne par la seule sortie."));
+
+  M.win.goals.forEach((g,i)=>{
+    const bloc=el("div"); bloc.style.cssText=
+      "margin-top:8px;padding:7px 8px;border:1px solid var(--line);border-radius:6px";
+    const r=el("div","row");
+    const inp=document.createElement("input"); inp.style.flex="1";
+    inp.placeholder="Intitulé — ex. « Terrasser la bête et son maître »";
+    inp.value=g.label||"";
+    inp.oninput=e=>{ g.label=e.target.value; };
+    r.appendChild(inp);
+    r.appendChild(btn("✕", ()=>{ M.win.goals.splice(i,1); render(); },"danger"));
+    bloc.appendChild(r);
+
+    (g.need||[]).forEach((cond,k)=>{
+      const rc=el("div","row"); rc.style.marginTop="3px";
+      rc.appendChild(el("span","hint","• "+condTexte(cond)));
+      rc.appendChild(btn("✕", ()=>{ g.need.splice(k,1);
+        if(!g.need.length) M.win.goals.splice(i,1); render(); },"danger"));
+      bloc.appendChild(rc);
+    });
+
+    const ra=el("div","row"); ra.style.marginTop="4px";
+    const sel=document.createElement("select"); sel.style.flex="1";
+    condsDisponibles().forEach(([v,t])=>{ const o=document.createElement("option");
+      o.value=v; o.textContent=t; sel.appendChild(o); });
+    ra.appendChild(sel);
+    ra.appendChild(btn("+ Condition", ()=>{
+      if(!g.need.includes(sel.value)) g.need.push(sel.value);
+      render(); }));
+    bloc.appendChild(ra);
+    if((g.need||[]).length>1)
+      bloc.appendChild(el("div","hint","Toutes ces conditions sont nécessaires."));
+    c.appendChild(bloc);
+  });
+
+  const rn=el("div","row"); rn.style.marginTop="8px";
+  rn.appendChild(btn("+ Ajouter un objectif", ()=>{
+    M.win.goals.push({label:"", need:["objectives:all"]}); render(); },"prim"));
+  c.appendChild(rn);
+
+  const re=el("div","row"); re.style.marginTop="8px";
+  re.appendChild(el("label",null,"Sortie :"));
+  [["all","Tous"],["any","Un seul"],["none","Aucune"]].forEach(([k,lab])=>
+    re.appendChild(btn(lab, ()=>{M.win.exit=k; render();}, M.win.exit===k?"on":"")));
+  c.appendChild(re);
+  c.appendChild(el("div","hint","Tous les objectifs doivent être accomplis, dans l'ordre que veulent les joueurs. La sortie s'ajoute par-dessus."));
+  c.appendChild(el("div","hint","Mission : "+missionTexte()));
+  p.appendChild(c);
+}
+
+/* Règles spéciales de la quête : globales, puis effets par couleur d'Objectif. */
+function carteReglesSpeciales(p){
+  const c=el("div","card"); c.appendChild(el("h3",null,"Règles spéciales"));
+  c.appendChild(el("div","hint","Ce que la fiche de quête ajoute aux règles de base."));
+
+  M.rules = M.rules || {};
+  Object.entries(REGLES_GLOBALES).forEach(([k,lib])=>{
+    const l=el("label","chk"); l.style.display="flex"; l.style.gap="6px";
+    l.style.alignItems="flex-start"; l.style.marginTop="6px"; l.style.cursor="pointer";
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!M.rules[k];
+    cb.onchange=e=>{ M.rules[k]=e.target.checked; render(); };
+    l.appendChild(cb); l.appendChild(el("span",null,lib));
+    c.appendChild(l);
+  });
+
+  c.appendChild(el("div","hint","— Effets déclenchés en récupérant un Objectif —"));
+  const cols=[...couleursDisponibles()];
+  if(!cols.length){
+    c.appendChild(el("div","hint","Aucune couleur d'Objectif sur la carte pour l'instant."));
+    p.appendChild(c); return;
+  }
+  M.objEffects = M.objEffects || {};
+  cols.forEach(col=>{
+    const liste = M.objEffects[col] = M.objEffects[col] || [];
+    const t=el("div","hint","Objectif "+colM(col)+" :");
+    t.style.color=colCss(col); t.style.marginTop="8px"; c.appendChild(t);
+
+    liste.forEach((ef,i)=>{
+      const r=el("div","row");
+      r.appendChild(el("span","hint","• "+texteEffet(ef)));
+      r.appendChild(btn("✕", ()=>{ liste.splice(i,1); render(); },"danger"));
+      c.appendChild(r);
+    });
+
+    // composition d'un nouvel effet
+    const etat = efNouv[col] = efNouv[col] || {t:"xp", n:5, id:"torch"};
+    const r=el("div","row"); r.style.marginTop="4px";
+    const sel=document.createElement("select"); sel.style.flex="1";
+    EFFETS_ORDRE.forEach(k=>{ const o=document.createElement("option");
+      o.value=k; o.textContent=EFFETS_OBJ[k].n; if(etat.t===k) o.selected=true; sel.appendChild(o); });
+    sel.onchange=e=>{ etat.t=e.target.value; render(); };
+    r.appendChild(sel);
+    if(EFFETS_OBJ[etat.t].val==="nombre"){
+      const nb=document.createElement("input"); nb.type="number"; nb.min=1; nb.max=99;
+      nb.value=etat.n; nb.style.width="58px";
+      nb.oninput=e=>{ etat.n=Math.max(1, parseInt(e.target.value)||1); };
+      r.appendChild(nb);
+    }
+    if(EFFETS_OBJ[etat.t].val==="liste"){
+      etat.ids = etat.ids || [];
+      const se=document.createElement("select"); se.style.flex="1";
+      EQUIP_ED.forEach(e2=>{ const o=document.createElement("option");
+        o.value=e2.id; o.textContent=e2.n; if(etat.id===e2.id) o.selected=true; se.appendChild(o); });
+      se.onchange=e=>{ etat.id=e.target.value; };
+      r.appendChild(se);
+      r.appendChild(btn("＋", ()=>{ etat.ids.push(etat.id||EQUIP_ED[0].id); render(); }));
+    }
+    if(EFFETS_OBJ[etat.t].val==="equip"){
+      const se=document.createElement("select"); se.style.flex="1";
+      EQUIP_ED.forEach(e2=>{ const o=document.createElement("option");
+        o.value=e2.id; o.textContent=e2.n; if(etat.id===e2.id) o.selected=true; se.appendChild(o); });
+      se.onchange=e=>{ etat.id=e.target.value; };
+      r.appendChild(se);
+    }
+    const bAdd=btn("Ajouter", ()=>{
+      const ef={t:etat.t};
+      if(ef.t==="xp") ef.n=Math.max(1, etat.n|0);
+      if(ef.t==="equip") ef.id=etat.id;
+      if(ef.t==="draw"){ ef.ids=[...(etat.ids||[])]; etat.ids=[]; }
+      liste.push(ef); render();
+    });
+    if(etat.t==="draw" && !(etat.ids||[]).length) bAdd.disabled=true;
+    r.appendChild(bAdd);
+    c.appendChild(r);
+    if(etat.t==="draw"){
+      c.appendChild(el("div","hint", (etat.ids||[]).length
+        ? "Liste en cours : "+etat.ids.map(eqNom).join(", ")
+        : "Compose la liste avec ＋, puis Ajouter. Une seule carte en sera tirée, au hasard, à chaque partie."));
+      if((etat.ids||[]).length){
+        const rv=el("div","row");
+        rv.appendChild(btn("Vider la liste", ()=>{ etat.ids=[]; render(); },"danger"));
+        c.appendChild(rv);
+      }
+    }
+  });
+  c.appendChild(el("div","hint","Les effets d'une couleur se résolvent dans l'ordre affiché, en plus des 5 XP habituels de l'Objectif."));
+  p.appendChild(c);
+}
+
 /* Sélecteur de type de limite, partagé par la vue Carte et la vue Tuiles. */
 function choixLimite(){
   const r=el("div","row"); r.style.marginTop="6px";
@@ -1132,7 +1601,7 @@ function renderPanel(){
     const r=el("div","row"); r.style.marginTop="6px";
     r.appendChild(btn("Ranger les nœuds", ()=>{ M.nodePos={}; render(); say("Disposition réinitialisée."); }));
     r.appendChild(btn("Tout délier", ()=>{
-      M.locks={spawns:{},doors:{},spawnsOff:{}}; M.win.need=null; render(); say("Tous les liens retirés."); },"danger"));
+      M.locks={spawns:{},doors:{},spawnsOff:{}}; M.win.goals=[]; render(); say("Tous les liens retirés."); },"danger"));
     cl.appendChild(r);
     cl.appendChild(el("div","hint","Mission : "+missionTexte()+"."));
     const bMaj=btn("Recopier dans le texte d'objectif", ()=>{
@@ -1140,6 +1609,8 @@ function renderPanel(){
       render(); say("Texte d'objectif mis à jour.","ok"); });
     cl.appendChild(bMaj);
     p.appendChild(cl);
+    carteObjectifsMission(p);
+    carteReglesSpeciales(p);
     ajouterCartesCommunes(p);
     return;
   }
@@ -1151,7 +1622,7 @@ function renderPanel(){
   T("door","Portes"); T("limites","Limites"); T("start","Départ");
   T("exit","Sortie");   T("spawn","Invasion");
   T("obj","Objectif"); T("crypt","Crypte"); T("tile","Tuile"); T("zomb","Zombies");
-  T("item","Objets");
+  T("item","Objets"); T("marq","Marqueurs");
   c1.appendChild(g);
 
   if(tool==="room"){
@@ -1181,6 +1652,25 @@ function renderPanel(){
     c1.appendChild(el("div","hint","Clique une arête pour y appliquer ce type ; reclique le même type pour l'enlever. Les arêtes déjà limitées sont surlignées en rouge, les libres en doré."));
     c1.appendChild(el("div","hint","AUCUNE limite entre deux cases de Bâtiment = une SEULE Zone (la lettre des cases fusionne). Une Ouverture = deux Zones qu'on franchit librement : une Invasion s'y résout donc deux fois."));
     c1.appendChild(el("div","hint","Une porte se pose sur un Mur ; changer ce mur en autre chose retire la porte."));
+  }
+  if(tool==="exit"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(el("label",null,"Bord :"));
+    [["n","Haut"],["e","Droite"],["s","Bas"],["w","Gauche"]].forEach(([k,lab])=>
+      r.appendChild(btn(lab, ()=>{exitSide=k; if(M.exit) M.exit.side=k; render();},
+                        exitSide===k?"on":"")));
+    c1.appendChild(r);
+    c1.appendChild(el("div","hint","La Sortie se pose sur un bord de la case, comme un pion d'Invasion : avec une image (tok_sortie.png) elle s'oriente selon ce bord."));
+  }
+  if(tool==="marq"){
+    const r=el("div","row"); r.style.marginTop="6px";
+    MARQ_ORDRE.forEach(k=>r.appendChild(btn(MARQUEURS[k].n,
+      ()=>{marqType=k; render();}, marqType===k?"on":"")));
+    c1.appendChild(r);
+    c1.appendChild(el("div","hint","Clique une case pour y poser le marqueur choisi ; reclique le même pour l'enlever. Il s'affiche au centre, à 60 % de la case, sous les autres jetons."));
+    c1.appendChild(el("div","hint", MARQUEURS[marqType].regle
+      ? "La Bile de Dragon est une vraie règle : le jeu la pose sur le plateau dès le départ."
+      : "Repère visuel seulement — ses règles ne sont pas encore écrites dans le moteur."));
   }
   if(tool==="spawn"){
     const r=el("div","row"); r.style.marginTop="6px";
@@ -1262,6 +1752,16 @@ function renderPanel(){
     const cols=cryptColorsUsed();
     if(cols.length){
       c1.appendChild(el("div","hint","— Contenu des cryptes —"));
+      // réserve commune : répartie AU HASARD entre les cryptes
+      const res=M.cryptPool=M.cryptPool||[];
+      const rr0=el("div","row"); rr0.style.marginTop="4px";
+      rr0.appendChild(el("label",null,"Réserve commune :"));
+      rr0.appendChild(btn("+ "+eqNom(itemId), ()=>{ res.push(itemId); render(); }));
+      if(res.length) rr0.appendChild(btn("Vider", ()=>{ M.cryptPool=[]; render(); },"danger"));
+      c1.appendChild(rr0);
+      c1.appendChild(el("div","hint", res.length
+        ? res.map(eqNom).join(", ")+" — réparties au hasard entre les cryptes à chaque partie."
+        : "vide — ajoute ici les cartes à répartir au hasard plutôt que de les fixer crypte par crypte."));
       cols.forEach(col=>{
         const liste=(M.cryptItems||{})[col]||[];
         const rr=el("div","row"); rr.style.marginTop="4px";
@@ -1273,8 +1773,8 @@ function renderPanel(){
         if(liste.length) rr.appendChild(btn("Vider", ()=>{ M.cryptItems[col]=[]; render(); },"danger"));
         c1.appendChild(rr);
         c1.appendChild(el("div","hint", liste.length
-          ? liste.map(eqNom).join(", ")
-          : "vide — par défaut le jeu y répartit les Artefacts de crypte (Enfer, Arbalète orque)."));
+          ? liste.map(eqNom).join(", ")+" — contenu imposé."
+          : "vide — sans contenu imposé ni réserve, le jeu y répartit au hasard les deux Artefacts de crypte."));
       });
     }
   }
@@ -1347,37 +1847,54 @@ function renderPanel(){
   n.oninput=e=>M.name=e.target.value;
   const gl=document.createElement("textarea"); gl.value=M.goal; gl.style.height="54px";
   gl.oninput=e=>M.goal=e.target.value;
+  const de=document.createElement("textarea"); de.value=M.description||""; de.style.height="66px";
+  de.oninput=e=>M.description=e.target.value;
   c3.appendChild(el("label",null,"Nom")); c3.appendChild(n);
+  c3.appendChild(el("label",null,"Description")); c3.appendChild(de);
+  c3.appendChild(el("div","hint","Le texte d'ambiance, montré au moment de choisir la mission."));
   c3.appendChild(el("label",null,"Objectif de mission")); c3.appendChild(gl);
   p.appendChild(c3);
-
-  const c4=el("div","card"); c4.appendChild(el("h3",null,"Légende"));
-  [["#c9c9c9","D — Départ des Survivants"],["#2f6b4a","S — Sortie"],
-   ["#b5462d","Rectangle sur un bord = Zone d'Invasion (couleur au choix)"],
-   ["#6f8f4e","Pastille en bas à gauche = zombies présents au départ"],
-   [null,"Lettre sur une case = Zone DÉDUITE des limites (non saisie)"],
-   ["#c9a227","Trait doré en pointillé = Ouverture (on passe, mais 2 Zones)"],
-   ["#c9a227","Pastille ◈ en bas à droite = objets posés dans la Zone"],
-   ["#c9a227","O — Objectif ; « ? » sur fond rouge = face cachée"],
-   ["#8a8a8a","Porte grise (jamais verrouillée)"],
-   ["#3d6fb5","Porte bleue"],["#4f9d5a","Porte verte"],
-   ["#a06bd8","Trappe de crypte violette"],["#c9a227","Trappe de crypte jaune"]]
-  .forEach(([col,txt])=>{ const d=el("div"); d.style.fontSize="12px";
-    const s=el("span","sw"); s.style.background=col; d.appendChild(s);
-    d.appendChild(document.createTextNode(txt)); c4.appendChild(d); });
-  c4.appendChild(el("div","hint","Les Artefacts de crypte (Inferno, Arbalète orque) sont placés automatiquement dans les cryptes au début de la partie."));
-  p.appendChild(c4);
 
   ajouterCartesCommunes(p);
 }
 
 /* Cartes présentes dans les deux vues : nom de quête, vérification, export. */
+/* Nom de fichier tiré du nom de la quête : minuscules, sans accent, tirets. */
+function nomFichierMission(nom, ext){
+  const base=(nom||"").toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g,"")
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  return (base||"ma-mission")+"."+(ext||"js");
+}
 function ajouterCartesCommunes(p){
   const probs=problems();
   const c5=el("div","card"); c5.appendChild(el("h3",null,"Vérification"));
   if(!probs.length) c5.appendChild(el("div",null,"✓ Carte jouable."));
   else probs.forEach(x=>{ const d=el("div",null,"• "+x); d.style.color="#e08080"; d.style.fontSize="12px"; c5.appendChild(d); });
   p.appendChild(c5);
+
+  // catalogue de missions : charger une carte existante pour la retoucher
+  if(missionsDispo().length){
+    const cm=el("div","card"); cm.appendChild(el("h3",null,"Missions"));
+    const rm=el("div","row");
+    const sel=document.createElement("select"); sel.style.flex="1";
+    missionsDispo().forEach((m,i)=>{ const o=document.createElement("option");
+      o.value=i; o.textContent=m.name || m.file || ("Mission "+(i+1)); sel.appendChild(o); });
+    rm.appendChild(sel);
+    rm.appendChild(btn("Ouvrir", async ()=>{
+      try{
+        const q=await chargerMission(missionsDispo()[+sel.value]);
+        const source=q.__source; delete q.__source;
+        const nbT=Object.keys(q.tiles||{}).length;
+        M=fromQuest(q); render();
+        say(`« ${q.name||"mission"} » ouverte (${source}`+
+            (nbT?`, ${nbT} tuile(s)`:", sans tuile")+`).`,"ok");
+      }catch(e){ say("Impossible d'ouvrir : "+e.message,"err"); }
+    }));
+    cm.appendChild(rm);
+    cm.appendChild(el("div","hint","Charge une mission du dossier zombicide_missions pour la modifier. Le travail en cours est remplacé."));
+    p.appendChild(cm);
+  }
 
   const c6=el("div","card"); c6.appendChild(el("h3",null,"Code source / JSON"));
   const ta=document.createElement("textarea"); ta.id="io"; ta.value=questSource();
@@ -1392,13 +1909,50 @@ function ajouterCartesCommunes(p){
     try{ M=fromQuest(JSON.parse(document.getElementById("io").value)); render(); say("Carte importée.","ok"); }
     catch(e){ say("JSON illisible : "+e.message,"err"); } }));
   c6.appendChild(r6);
+
+  /* Enregistrement du fichier de mission. Le nom est déduit du nom de la quête,
+     pour qu'il soit prêt à déposer dans zombicide_missions/. */
+  const r7=el("div","row"); r7.style.marginTop="6px";
+  const enregistrer=(ext)=>{
+    const q=toQuest();
+    const nom=nomFichierMission(q.name,ext);
+    /* En .js la quête s'annonce elle-même : une seule source de vérité, et le
+       menu la voit même sans serveur. Le .json reste utile comme échange. */
+    const corps = JSON.stringify(q,null,1).split("\n").join("\n  ");
+    const contenu = ext==="js"
+      ? [`/* Mission Zombicide — déposer dans zombicide_fichiers/zombicide_missions/`,
+         `   puis ajouter ${JSON.stringify(nom)} à ZBP_MISSION_FILES dans missions.js */`,
+         `ZBP_MISSION({name:${JSON.stringify(q.name||"Ma mission")},`,
+         `  quest:${corps}});`, ""].join("\n")
+      : JSON.stringify(q,null,1);
+    const blob=new Blob([contenu],{type: ext==="js"?"text/javascript":"application/json"});
+    const u=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=u; a.download=nom; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),2000);
+    say(`« ${nom} » enregistré — dépose-le dans zombicide_fichiers/zombicide_missions/.`,"ok");
+    render();
+  };
+  r7.appendChild(btn("Enregistrer la mission (.js)", ()=>enregistrer("js"), "prim"));
+  r7.appendChild(btn("… en .json", ()=>enregistrer("json")));
+  c6.appendChild(r7);
+  /* La ligne à recopier dans le catalogue : sans elle, le fichier déposé
+     resterait invisible, le navigateur ne sachant pas lister un dossier. */
+  const decl=el("textarea"); decl.readOnly=true; decl.style.height="40px";
+  decl.value=`window.ZBP_MISSION_FILES = [${JSON.stringify(nomFichierMission(M.name,"js"))}];`;
+  c6.appendChild(el("div","hint","À déclarer dans missions.js pour que la mission apparaisse au menu (ajoute le nom à la liste existante) :"));
+  c6.appendChild(decl);
+  c6.appendChild(el("div","hint","Le .js est le format recommandé : il fonctionne même en ouvrant la page d'un double-clic, et la quête n'existe qu'à un seul endroit. Le .json ne se charge que si la page est servie en http."));
   c6.appendChild(el("div","hint","« Code JS » produit le bloc à coller dans zombicide.html à la place de DEFAULT_QUEST. « JSON » sert à sauvegarder / réimporter ici."));
   p.appendChild(c6);
 }
 function resize(W,H){
   W=Math.max(3,Math.min(20,W)); H=Math.max(3,Math.min(20,H));
-  const n=blank(W,H); n.name=M.name; n.goal=M.goal;
-  n.hiddenBacks=[...M.hiddenBacks]; n.locks=M.locks; n.win={...M.win};
+  const n=blank(W,H); n.name=M.name; n.goal=M.goal; n.description=M.description;
+  n.hiddenBacks=[...M.hiddenBacks]; n.locks=M.locks;
+  n.win={exit:M.win.exit,
+         goals:(M.win.goals||[]).map(g=>({label:g.label, need:[...g.need]}))};
+  n.rules={...(M.rules||{})};
+  n.objEffects={}; Object.entries(M.objEffects||{}).forEach(([c,l])=>n.objEffects[c]=l.map(e=>({...e})));
   n.tiles={}; Object.entries(M.tiles||{}).forEach(([k,v])=>{
     const [tx,ty]=k.split(",").map(Number);
     if(tx*3<W && ty*3<H) n.tiles[k]=v; });
@@ -1421,6 +1975,8 @@ function resize(W,H){
   n.zombies=M.zombies.filter(p=>p.x<W&&p.y<H);
   n.items=M.items.filter(p=>p.x<W&&p.y<H);
   n.cryptItems=JSON.parse(JSON.stringify(M.cryptItems||{}));
+  n.cryptPool=[...(M.cryptPool||[])];
+  n.markers=(M.markers||[]).filter(k=>k.x<W&&k.y<H);
   n.start=keep(M.start); n.exit=keep(M.exit);
   M=n; render();
 }
@@ -1454,7 +2010,7 @@ const SAMPLE = {
    carte. Les lettres de bâtiment sont locales à la tuile et renumérotées à la
    pose, pour que deux tuiles voisines ne fusionnent pas leurs bâtiments.
    ========================================================================== */
-const TILE_DIR="tuiles_zombicide/";
+const TILE_DIR="zombicide_fichiers/tuiles_zombicide/";
 const TILE_IDS=["1R_BP","1V_BP","2R_BP","2V_BP","3R_BP","3V_BP","4R_BP","4V_BP","5R_BP","5V_BP",
 "6R_BP","6V_BP","7R_BP","7V_BP","8R_BP","8V_BP","9R_BP","9V_BP","10R_WB","10V_WB","11R_WB","11V_WB",
 "12R_GH","12V_GH","13R_GH","13V_GH","14R_GH","14V_GH","15R_GH","15V_GH","16R_GH","16V_GH","17R_GH",
@@ -1594,6 +2150,17 @@ function graphNodes(){
     })()}));
   src.push({id:"objectives:all", color:"grey", titre:"Tous les Objectifs",
             detail:M.objectives.length+" au total"});
+  /* Récupérer les deux Artefacts est un but atteignable seulement si la carte
+     comporte des cryptes : sans crypte, ils n'entrent jamais en jeu. */
+  if(cryptColorsUsed().length)
+    src.push({id:"vault:all", color:"grey", titre:"Artefacts de crypte",
+              detail:"les deux récupérés"});
+  /* Chasse : ces deux-là peuvent toujours entrer en jeu par une carte
+     d'Invasion, on les propose donc sans condition de carte. */
+  src.push({id:"kill:necromancer", color:"grey", titre:"Nécromancien tué",
+            detail:"au moins un"});
+  src.push({id:"kill:abomination", color:"grey", titre:"Abomination tuée",
+            detail:"au moins une"});
   // cibles : seulement ce qui existe sur la carte
   const tgt = [];
   DOOR_COLORS.filter(c=>c!=="grey").forEach(c=>{
@@ -1615,7 +2182,9 @@ function graphLinks(){
   Object.entries(M.locks.doors||{}).forEach(([c,v])=>{ if(v) L.push({from:v,to:"door:"+c,kind:"on"}); });
   Object.entries(M.locks.spawns||{}).forEach(([c,v])=>{ if(v) L.push({from:v,to:"spawn:"+c,kind:"on"}); });
   Object.entries(M.locks.spawnsOff||{}).forEach(([c,v])=>{ if(v) L.push({from:v,to:"spawn:"+c,kind:"off"}); });
-  if(M.win.need) L.push({from:M.win.need, to:"mission", kind:"on"});
+  // un lien par condition citée dans un objectif de mission
+  (M.win.goals||[]).forEach(g=>(g.need||[]).forEach(c=>
+    L.push({from:c, to:"mission", kind:"on"})));
   return L;
 }
 function bucketOf(to, kind){
@@ -1624,17 +2193,30 @@ function bucketOf(to, kind){
   return t==="door" ? "doors" : (kind==="off" ? "spawnsOff" : "spawns");
 }
 function setLink(from, to, kind){
-  if(to==="mission"){ M.win.need = from; return; }
+  if(to==="mission"){
+    // chaque condition branchée sur MISSION devient un objectif à part entière
+    M.win.goals = M.win.goals || [];
+    if(!M.win.goals.some(g=>(g.need||[]).includes(from)))
+      M.win.goals.push({label:"", need:[from]});
+    return;
+  }
   const c = to.split(":")[1], b = bucketOf(to,kind);
   M.locks[b] = M.locks[b]||{}; M.locks[b][c] = from;
 }
 function clearLink(to, kind){
-  if(to==="mission"){ M.win.need = null; return; }
+  /* Le graphe ne connaît que la cible, pas la condition à retirer : sur la
+     MISSION il efface donc TOUS les objectifs. Le détail (retirer une seule
+     condition, renommer un objectif) se règle dans la carte dédiée. */
+  if(to==="mission"){ M.win.goals = []; return; }
   const c = to.split(":")[1], b = bucketOf(to,kind);
   if(M.locks[b]) delete M.locks[b][c];
 }
 function linkOn(to, kind){
-  if(to==="mission") return M.win.need||null;
+  // « rempli » dès qu'un objectif existe ; on rend sa première condition
+  if(to==="mission"){
+    const g=(M.win.goals||[]).find(x=>(x.need||[]).length);
+    return g ? g.need[0] : null;
+  }
   const c = to.split(":")[1], b = bucketOf(to,kind);
   return (M.locks[b]||{})[c] || null;
 }
@@ -1827,9 +2409,18 @@ function limiteComposee(X,Y,s){
   const a=limiteTuileEn(X,Y,s);
   const b=IN(nx,ny) ? limiteTuileEn(nx,ny,OPP[s]) : null;
   if(a==="mur"||b==="mur") return "mur";
-  if(a&&b===null) return a;
-  if(b&&a===null) return b;
   if(a==="ouverture"||b==="ouverture") return "ouverture";
+  if(a||b) return a||b;
+  /* Silence des deux côtés. Entre un bâtiment et la rue, ça ne peut pas vouloir
+     dire « rien » : une façade est murée par défaut, et une tuile de rue n'a
+     rien à déclarer. Sans cette règle, la façade s'ouvrait toute seule à la
+     jointure — c'est le prolongement du cas réglé pour un mur d'un seul côté.
+     Deux Rues ou deux cases d'un même bâtiment restent, elles, sans limite. */
+  const dedans = IN(nx,ny);
+  const ici = estBat(ch(X,Y));
+  const la  = dedans ? estBat(ch(nx,ny)) : false;
+  if(!dedans) return ici ? "mur" : null;        // bord de plateau : façade murée
+  if(ici!==la) return "mur";
   return null;
 }
 /* Réécrit les limites d'un bloc 3×3 d'après les tuiles réellement posées —
@@ -2052,6 +2643,9 @@ chargerVueTuile();
   if(!(memo>0)) zoomFit();
 })();
 render();
+// les images et les missions arrivent après coup : on redessine à leur arrivée
+preloadSprites(()=>{ if(Object.values(SPRITE_OK).some(Boolean)) render(); });
+chargerFichiersMissions(()=>{ if(missionsDispo().length) render(); });
 say("Peins les bâtiments, place les portes, puis « Jouer cette carte ».");
 </script>
 </body>
