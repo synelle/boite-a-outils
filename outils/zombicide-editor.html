@@ -1351,6 +1351,7 @@ function cartesTuile(p){
     c.appendChild(el("div","hint","Les 84 tuiles du dossier zombicide_fichiers/tuiles_zombicide (42 numéros, recto R et verso V). Configure-les une fois : elles serviront ensuite à composer les cartes."));
     c.appendChild(el("div","hint","Choisis une tuile dans la galerie, sous le canevas."));
     c.appendChild(el("div","hint",`${faites()} / ${TILE_IDS.length} configurées.`));
+    infosBibliotheque(c);
     c.appendChild(rangeeTuilesIO());
     p.appendChild(c);
     return;
@@ -1417,6 +1418,7 @@ function cartesTuile(p){
   }));
   c3.appendChild(r3);
   c3.appendChild(el("div","hint",`${faites()} / ${TILE_IDS.length} tuiles configurées. Enregistrement automatique dans le navigateur.`));
+  infosBibliotheque(c3);
   c3.appendChild(rangeeTuilesIO());
   p.appendChild(c3);
 }
@@ -2079,6 +2081,57 @@ function chargerTuiles(){
   });
   Object.keys(TILES).forEach(k=>{ TILES[k]=migrerTuile(TILES[k]); });
 }
+/* --------------------------------------------------------------------------
+   BIBLIOTHÈQUE VERSIONNÉE
+   Pour qu'un dépôt cloné parte avec des tuiles déjà décrites, la bibliothèque
+   peut vivre dans un fichier : zombicide_fichiers/tuiles_zombicide/zombicide-tuiles.json
+   — celui que produit « Exporter ». Il n'est lisible qu'en http:// ; un
+   navigateur refuse de lire un fichier voisin depuis une page file://.
+
+   Arbitrage : le fichier ne s'installe QUE si ce navigateur n'a pas déjà sa
+   propre bibliothèque, pour ne jamais écraser un travail en cours. Un bouton
+   permet de le charger explicitement. */
+const TUILES_FICHIER = TILE_DIR + "zombicide-tuiles.json";
+let tuilesDuFichier = null;              // contenu lu, en attente d'adoption
+let tuilesOrigine = "navigateur";        // d'où vient la bibliothèque affichée
+function adopterTuiles(src){
+  TILES = {};
+  Object.entries(src).forEach(([k,v])=>{ TILES[k]=migrerTuile(v); });
+  enregistrerTuiles();
+}
+async function chargerTuilesFichier(cb){
+  try{
+    const r = await fetch(TUILES_FICHIER);
+    if(r.ok){
+      const j = await r.json();
+      if(j && typeof j==="object"){
+        tuilesDuFichier = j;
+        if(!Object.keys(TILES).filter(k=>tuileDefinie(k)).length){
+          adopterTuiles(j); tuilesOrigine = "fichier";
+        }
+      }
+    }
+  }catch(e){ /* file:// ou fichier absent : la bibliothèque locale reste */ }
+  cb && cb();
+}
+/* Provenance de la bibliothèque + reprise explicite de celle du dépôt. */
+function infosBibliotheque(c){
+  c.appendChild(el("div","hint","Chargée depuis : "+
+    (tuilesOrigine==="fichier" ? "le fichier du dépôt" : "ce navigateur")+"."));
+  if(tuilesDuFichier){
+    if(tuilesOrigine!=="fichier"){
+      const nbF=Object.values(tuilesDuFichier).filter(t=>t&&t.cells).length;
+      const rf=el("div","row");
+      rf.appendChild(btn(`Charger le fichier du dépôt (${nbF})`, ()=>{
+        adopterTuiles(tuilesDuFichier); tuilesOrigine="fichier";
+        render(); say("Bibliothèque du dépôt chargée.","ok"); },"danger"));
+      c.appendChild(rf);
+      c.appendChild(el("div","hint","Remplace la bibliothèque de ce navigateur."));
+    }
+  } else {
+    c.appendChild(el("div","hint","Aucun fichier de dépôt lu — attendu en ouvrant la page d'un double-clic, sa lecture exigeant http. Pour la versionner : « Exporter », puis dépose le fichier dans zombicide_fichiers/tuiles_zombicide/ sous le nom zombicide-tuiles.json."));
+  }
+}
 function enregistrerTuiles(){
   try{ localStorage.setItem("zbp_tiles", JSON.stringify(TILES)); }catch(e){}
 }
@@ -2636,6 +2689,8 @@ document.getElementById("btnPlay").onclick = ()=>{
 })();
 chargerTuiles();
 chargerVueTuile();
+// la bibliothèque du dépôt arrive après coup : un seul redessin à son arrivée
+chargerTuilesFichier(()=>{ if(tuilesDuFichier) render(); });
 (function initZoom(){
   let memo=null;
   try{ memo=parseFloat(localStorage.getItem("zbp_zoom_ed")); }catch(e){}

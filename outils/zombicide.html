@@ -299,6 +299,10 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 .pick .ck{margin-left:auto;font-size:15px;color:var(--gold);opacity:0}
 .pick.on .ck{opacity:1}
 #setupMsg{min-height:18px;color:#e08080}
+/* Lien vers le livret, dans la fenêtre des règles */
+a.lienpdf{display:inline-block;padding:6px 12px;border:1px solid var(--gold);border-radius:6px;
+  color:var(--gold);text-decoration:none;font-weight:600;font-size:13px}
+a.lienpdf:hover{background:#4a3a1c}
 #missionInfo{display:none;margin:0 0 10px;padding:9px 11px;border:1px solid var(--line);
   border-radius:7px;background:#221d19}
 #missionInfo .ti{font-weight:600;color:var(--gold);font-size:13px}
@@ -3183,9 +3187,12 @@ function zoomFit(){
 }
 
 /* ---------- règles ---------- */
+/* Livret officiel, à côté des pages. Un seul endroit à changer s'il déménage. */
+const PDF_REGLES = "zombicide-black-plague-vf_compress.pdf";
 const RULES_TXT = `
 <h3>Règles appliquées — Zombicide : Black Plague</h3>
 <p style="color:#8fa8c8">Conformes au livret de règles VF officiel ; les numéros de page y renvoient.</p>
+<p><a class="lienpdf" href="${PDF_REGLES}" target="_blank" rel="noopener">📖 Ouvrir le livret de règles (PDF)</a></p>
 <p><b>Tour de Survivant</b> (p.18) — 3 Actions, +1 au niveau Jaune. Déplacement d'1 Zone ;
 quitter une Zone occupée coûte 1 Action supplémentaire <i>par Zombie</i>. Entrer dans une Zone
 occupée termine le Déplacement.</p>
