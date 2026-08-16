@@ -259,17 +259,20 @@ body.zsmall .zone .lbl{display:none}
   font-size:clamp(7px,calc(var(--zs)*.12),13px);
   background-size:cover;background-position:center;position:relative;flex:0 0 auto}
 .pastille.sv{border-color:#f0e2b8;width:calc(var(--zs)*.33);height:calc(var(--zs)*.33)}
-.pastille.sv.act{box-shadow:0 0 0 2px var(--gold),0 0 10px #c9a22788}
+/* Figurine au premier plan : halo vert franc, large, pour la repérer d'un coup
+   d'œil même dans une Zone bondée. --halo sert aussi aux états de survol. */
+:root{--halo:#00ff00}
+.pastille.sv.act{box-shadow:0 0 0 3px var(--halo),0 0 18px 3px #00ff0099}
 /* Figurine sélectionnable : le curseur et un léger halo l'annoncent. */
 .pastille.sv.cliquable{cursor:pointer}
 .pastille.sv.cliquable:hover{box-shadow:0 0 0 2px #f0e2b8}
-.pastille.sv.cliquable.act:hover{box-shadow:0 0 0 2px var(--gold),0 0 12px #c9a227cc}
+.pastille.sv.cliquable.act:hover{box-shadow:0 0 0 3px var(--halo),0 0 22px 4px #00ff00cc}
 /* Pendant un mode au clic, la figurine ne capte plus le geste : il revient à
    la Zone, qu'il s'agisse de la viser ou de s'y rendre. */
 body.modeclic .pastille.sv.cliquable{cursor:inherit}
 body.modeclic .pastille.sv.cliquable:hover{box-shadow:none}
 body.modeclic .pastille.sv.cliquable.act:hover{
-  box-shadow:0 0 0 2px var(--gold),0 0 10px #c9a22788}
+  box-shadow:0 0 0 3px var(--halo),0 0 18px 3px #00ff0099}
 .pastille.dead{filter:grayscale(1) brightness(.5)}
 .pastille .wnd{position:absolute;bottom:-3px;right:-3px;background:var(--blood);
   color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;display:grid;place-items:center}
@@ -1726,6 +1729,7 @@ function passerLaMain(){
     const i = (UI.tab + k) % n;
     if(peutAgir(G.survivors[i])){
       UI.tab = i;
+      UI.centrer = G.survivors[i];        // on amène le nouveau venu à l'écran
       logLine(`${s.n} n'a plus d'Action — au tour de ${G.survivors[i].n}.`,"l-sys");
       return;
     }
@@ -3418,7 +3422,7 @@ function renderPanel(){
   G.survivors.forEach((s,k)=>{
     const a=actionState(s);
     const b=btn((s.dead?"†":s.escaped?"✓":"")+s.n,
-                ()=>{UI.tab=k; UI.mode=null; render();},
+                ()=>{UI.tab=k; UI.mode=null; UI.centrer=s; render();},
                 a.cls+(k===UI.tab?" on":""));
     b.title = `${s.n} — ${a.txt}`;
     if(a.n) b.appendChild(el("span","na",a.n));      // Actions restantes
@@ -3737,12 +3741,34 @@ function choose(title, opts){
     m.style.display="grid";
   });
 }
+/* Amener un Survivant au centre de la fenêtre. Demandé quand la main passe
+   toute seule ou qu'on choisit un onglet — pas en cliquant une figurine, qui
+   est déjà sous les yeux. Le recentrage attend la fin du rendu : les Zones
+   n'existent pas avant. */
+function centrerSur(s){
+  if(!s || s.dead || s.escaped) return;
+  const wrap = document.getElementById("boardWrap");
+  if(!wrap) return;
+  const zone = Z(s.z);
+  const cible = zone && zone.crypt
+    ? [...document.querySelectorAll("#crypts .cryptZone")]
+        .find(d=>d.textContent.includes(cryptNom(zone.crypt).toUpperCase()))
+    : [...document.querySelectorAll("#board .zone")].find(d=>+d.dataset.i===ref(s.z));
+  if(!cible) return;
+  const w = wrap.getBoundingClientRect(), c = cible.getBoundingClientRect();
+  wrap.scrollTo({
+    left: wrap.scrollLeft + (c.left + c.width/2)  - (w.left + w.width/2),
+    top:  wrap.scrollTop  + (c.top  + c.height/2) - (w.top  + w.height/2),
+    behavior: "smooth"
+  });
+}
 function render(){ if(!G) return;
   passerLaMain();
   /* Un mode au clic est en cours : les figurines rendent la main à la Zone. */
   document.body.classList.toggle("modeclic", !!UI.mode);
   renderBoard(); renderPanel(); majBoutonTuiles();
   document.getElementById("btnEnd").disabled = G.over || G.phase!=="players";
+  if(UI.centrer){ const s=UI.centrer; UI.centrer=null; centrerSur(s); }
   autoSave(); }
 
 /* --------------------------------------------------------------------------
