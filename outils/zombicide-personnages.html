@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zombicide — Éditeur de personnages</title>
+<style>
+:root{--bg:#151311;--panel:#1f1b18;--line:#3a332c;--ink:#e8e0d2;--dim:#9a9081;
+  --gold:#c9a227;--blood:#8e2b2b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;display:flex;height:100vh;overflow:hidden}
+button{background:#2b2521;color:var(--ink);border:1px solid var(--line);border-radius:5px;
+  padding:4px 9px;font-size:12px;cursor:pointer;font-family:inherit}
+button:hover{border-color:var(--gold)}
+button.on{background:#4a3a1c;border-color:var(--gold);font-weight:600}
+button.prim{background:#2f4a2c;border-color:#4f9d5a}
+button.danger{background:#4a1f1f;border-color:#8e2b2b}
+button:disabled{opacity:.4;cursor:default}
+input,select,textarea{background:#151311;color:var(--ink);border:1px solid var(--line);
+  border-radius:5px;padding:4px 6px;font-family:inherit;font-size:13px}
+textarea{width:100%;font-family:ui-monospace,Consolas,monospace;font-size:11px;resize:vertical}
+label{font-size:11px;color:var(--dim)}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+h1{font-size:15px;color:var(--gold);letter-spacing:.5px;margin:0}
+h3{margin:0 0 6px;font-size:12px;color:var(--gold);letter-spacing:.4px}
+.hint{font-size:11px;color:var(--dim);line-height:1.4;margin-top:4px}
+
+#liste{width:250px;flex:0 0 auto;background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column}
+#liste header{padding:12px;border-bottom:1px solid var(--line)}
+#gens{flex:1;overflow:auto;padding:8px}
+.perso{display:flex;gap:9px;align-items:center;padding:7px 9px;margin-bottom:6px;
+  border:1px solid var(--line);border-radius:7px;background:#241f1b;cursor:pointer}
+.perso:hover{border-color:var(--gold)}
+.perso.on{background:#33291a;border-color:var(--gold)}
+.perso .dot{width:34px;height:34px;border-radius:50%;flex:0 0 auto;border:2px solid #0009;
+  background:var(--pc);display:grid;place-items:center;font-weight:700;font-size:13px;color:#1a1714;
+  background-size:cover;background-position:center}
+.perso .dot.img{color:transparent}
+.perso .nm{font-weight:600;font-size:13px}
+.perso .sub{font-size:11px;color:var(--dim)}
+
+#zone{flex:1;overflow:auto;padding:16px 18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:11px 12px;margin-bottom:12px;max-width:820px}
+.comp{display:flex;gap:6px;align-items:center;padding:3px 0}
+.comp .txt{flex:1;font-size:12px}
+.comp .pastille{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid var(--line)}
+.ok{color:#8fd08f;border-color:#3f6b3f}
+.ko{color:#e0a060;border-color:#7a5a2a}
+.niv{border-left:3px solid var(--nc);padding-left:9px;margin-top:9px}
+#msg{min-height:18px;font-size:12px;margin-top:6px}
+#msg.err{color:#e08080} #msg.ok{color:#8fd08f}
+</style>
+</head>
+<body>
+
+<!-- roster existant : une balise de script passe même en file:// -->
+<script src="zombicide_fichiers/survivants/survivants.js"></script>
+
+<div id="liste">
+  <header>
+    <h1>Personnages</h1>
+    <div class="hint">Survivants ajoutés au jeu, en plus des six de la boîte.</div>
+    <div class="row" style="margin-top:8px">
+      <button id="btnNouveau" class="prim">+ Nouveau</button>
+      <button id="btnDupliquer">Dupliquer</button>
+    </div>
+  </header>
+  <div id="gens"></div>
+</div>
+
+<div id="zone"></div>
+<!-- suggestions du champ « Boîte de jeu » ; la saisie reste libre -->
+<datalist id="listeBoites"></datalist>
+
+<script>
+/* ==========================================================================
+   ÉDITEUR DE PERSONNAGES — Zombicide : Black Plague
+   Produit le fichier zombicide_fichiers/survivants/survivants.js que le jeu
+   lit au démarrage. Page autonome : aucune dépendance, aucun serveur.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. VOCABULAIRE DES COMPÉTENCES
+   `ok:true`  → le moteur applique réellement la compétence.
+   `ok:false` → elle figure au livret mais n'est pas encore codée :
+                le personnage jouerait SANS. On le montre plutôt que de le taire.
+   `n` est le nom interne attendu par le jeu ; `en` celui des cartes.
+   -------------------------------------------------------------------------- */
+const COMPETENCES = [
+  /* --- appliquées par le moteur --- */
+  {n:"+1 Action de Combat gratuite", en:"+1 free Combat Action", ok:1},
+  {n:"+1 Action de Mêlée gratuite", en:"+1 free Melee Action", ok:1},
+  {n:"+1 Action À distance gratuite", en:"+1 free Ranged Action", ok:1},
+  {n:"+1 Action de Magie gratuite", en:"+1 free Magic Action", ok:1},
+  {n:"+1 Action de Déplacement gratuite", en:"+1 free Move Action", ok:1},
+  {n:"+1 dé : Combat", en:"+1 die : Combat", ok:1},
+  {n:"+1 dé : Mêlée", en:"+1 die : Melee", ok:1},
+  {n:"+1 dé : À distance", en:"+1 die : Ranged", ok:1},
+  {n:"+1 dé : Magie", en:"+1 die : Magic", ok:1},
+  {n:"+1 au résultat du dé : Combat", en:"+1 to dice roll : Combat", ok:1},
+  {n:"+1 au résultat du dé : Mêlée", en:"+1 to dice roll : Melee", ok:1},
+  {n:"+1 au résultat du dé : À distance", en:"+1 to dice roll : Ranged", ok:1},
+  {n:"+1 au résultat du dé : Magie", en:"+1 to dice roll : Magic", ok:1},
+  {n:"+1 Dégât : Mêlée", en:"+1 Damage : Melee", ok:1},
+  {n:"+1 Portée max", en:"+1 max Range", ok:1},
+  {n:"Sur un 6 : +1 dé Combat", en:"Roll 6 : +1 die Combat", ok:1},
+  {n:"Soif de sang : Mêlée", en:"Bloodlust : Melee", ok:1},
+  {n:"Soif de sang : Combat", en:"Bloodlust : Combat", ok:1},
+  {n:"À bout portant", en:"Point blank", ok:1},
+  {n:"Barbare", en:"Barbarian", ok:1},
+  {n:"Charge", en:"Charge", ok:1},
+  {n:"Corps de fer", en:"Ironhide", ok:1},
+  {n:"Faucheur : Combat", en:"Reaper : Combat", ok:1},
+  {n:"Fuite", en:"Hit & Run", ok:1},
+  {n:"Grimoire", en:"Spellbook", ok:1},
+  {n:"Insaisissable", en:"Slippery", ok:1},
+  {n:"Lanceur de sorts", en:"Spellcaster", ok:1},
+  {n:"Maître d'Armes", en:"Swordmaster", ok:1},
+  {n:"Pluie de fer", en:"Iron rain", ok:1},
+  {n:"Saut", en:"Jump", ok:1},
+  {n:"Sprint", en:"Sprint", ok:1},
+  {n:"Tireur d'élite", en:"Marksman", ok:1},
+  /* --- au livret, pas encore appliquées : le Survivant jouerait sans --- */
+  {n:"+1 Action d'Enchantement gratuite", en:"+1 free Enchantment Action", ok:0},
+  {n:"+1 Action de Fouille gratuite", en:"+1 free Search Action", ok:0},
+  {n:"+1 Dégât avec [Équipement]", ok:0},
+  {n:"+1 Zone par Déplacement", en:"+1 Zone per Move", ok:0},
+  {n:"2 Zones par Action de Déplacement", ok:0},
+  {n:"Ambidextre", en:"Ambidextrous", ok:0},
+  {n:"Ange gardien", en:"Lifesaver", ok:0},
+  {n:"Blitz", en:"Blitz", ok:0},
+  {n:"C'est tout ce que t'as ?", en:"Is that all you have got ?", ok:0},
+  {n:"Chanceux", en:"Lucky", ok:0},
+  {n:"Charognard", en:"Scavenger", ok:0},
+  {n:"Chef né", en:"Born leader", ok:0},
+  {n:"Collectionneur [type de Zombie]", en:"Collector", ok:0},
+  {n:"Coriace", en:"Tough", ok:0},
+  {n:"Cuirassé [type de Zombie]", en:"Ironclad", ok:0},
+  {n:"Destinée", en:"Destiny", ok:0},
+  {n:"Double Enchantement", ok:0},
+  {n:"Effraction", en:"Break-in", ok:0},
+  {n:"Faucheur : À distance", en:"Reaper : Ranged", ok:0},
+  {n:"Faucheur : Magie", en:"Reaper : Magic", ok:0},
+  {n:"Faucheur : Mêlée", en:"Reaper : Melee", ok:0},
+  {n:"Fouille : +1 carte", en:"Search : +1 card", ok:0},
+  {n:"Frénésie : À distance", en:"Frenzy : Ranged", ok:0},
+  {n:"Frénésie : Combat", en:"Frenzy : Combat", ok:0},
+  {n:"Frénésie : Magie", en:"Frenzy : Magic", ok:0},
+  {n:"Frénésie : Mêlée", en:"Frenzy : Melee", ok:0},
+  {n:"Frère d'armes [effet de jeu]", ok:0},
+  {n:"Fureur Guerrière", ok:0},
+  {n:"Les deux font la paire", en:"Matching set !", ok:0},
+  {n:"Lien Zombie", en:"Zombie link", ok:0},
+  {n:"Pillard", ok:0},
+  {n:"Pluie de mana", en:"Mana rain", ok:0},
+  {n:"Possède [Équipement]", en:"Start with a [Equipment]", ok:0},
+  {n:"Poussée", en:"Shove", ok:0},
+  {n:"Précision chirurgicale", en:"Steady hand", ok:0},
+  {n:"Profil bas", en:"Low profile", ok:0},
+  {n:"Provocation", en:"Taunt", ok:0},
+  {n:"Putréfié", en:"Rotten", ok:0},
+  {n:"Rechargement gratuit", en:"Free reload", ok:0},
+  {n:"Régénération", en:"Regeneration", ok:0},
+  {n:"Soif de sang : À distance", en:"Bloodlust : Ranged", ok:0},
+  {n:"Soif de sang : Magie", en:"Bloodlust : Magic", ok:0},
+  {n:"Sur un 6 : +1 dé À distance", en:"Roll 6 : +1 die Ranged", ok:0},
+  {n:"Sur un 6 : +1 dé Magie", en:"Roll 6 : +1 die Magic", ok:0},
+  {n:"Sur un 6 : +1 dé Mêlée", en:"Roll 6 : +1 die Melee", ok:0},
+  {n:"Super force", en:"Super strength", ok:0},
+  {n:"Tacticien", en:"Tactician", ok:0},
+  {n:"Tir instinctif", en:"Trick shot", ok:0},
+  {n:"Transmutation", ok:0}
+];
+const compParNom = Object.fromEntries(COMPETENCES.map(c=>[c.n,c]));
+
+/* Emplacement Corps : la carte nommée sur la fiche, en écho à EQUIP du jeu. */
+const OBJETS_CORPS = [
+  ["","(aucun)"],
+  /* Melee */
+  ["shortsword","Épée courte"],
+  ["hammer","Marteau"],
+  ["axe","Hache"],
+  ["dagger","Dague"],
+  ["sword","Épée"],
+  ["greatsword","Épée à deux mains"],
+  /* Distance */
+  ["shortbow","Arc court"],
+  ["crossbow","Arbalète"],
+  ["handxbow","Arbalète de poing"],
+  ["repxbow","Arbalète à répétition"],
+  ["longbow","Arc long"],
+  ["orcxbow","Arbalète orque"],
+  /* Magie */
+  ["manablast","Décharge de mana"],
+  ["deathstrike","Frappe mortelle"],
+  ["fireball","Boule de feu"],
+  ["lightning","Éclair"],
+  ["inferno","Enfer"],
+  /* Armure */
+  ["leather","Armure de cuir"],
+  ["chainmail","Cotte de mailles"],
+  ["plate","Armure de plates"],
+  /* Bouclier */
+  ["shield","Bouclier"],
+  /* Divers */
+  ["apples","Pommes"],
+  ["meat","Viande salée"],
+  ["water","Eau"],
+  ["arrows","Provision de flèches"],
+  ["bolts","Provision de carreaux"],
+  ["torch","Torche"],
+  ["bile","Bile de dragon"],
+  /* Enchantement */
+  ["healing","Soins"],
+  ["invisibility","Invisibilité"],
+  ["repulse","Repousser"],
+  ["speed","Vitesse"]
+];
+const corpsConnu = v => !v || OBJETS_CORPS.some(([k])=>k===v);
+
+/* Boîtes proposées en suggestion — le champ reste libre : rien n'oblige à s'y
+   tenir, un Survivant d'un Kickstarter ou d'une création maison a sa place. */
+const BOITES = ["Black Plague","Wulfsburg","Green Horde","No Rest for the Wicked",
+                "Friends & Foes","Special Guest","Création maison"];
+
+const COULEURS = ["#c25b7c","#5b7cc2","#c2a35b","#8ac25b","#a05b2c","#4fb0a0",
+                  "#b06bc2","#5bc2a3","#c26b5b","#7a8fc2"];
+
+/* --------------------------------------------------------------------------
+   2. MODÈLE
+   -------------------------------------------------------------------------- */
+const SPRITE_DIR = "zombicide_fichiers/sprites/";
+let GENS = [];            // les personnages édités
+let sel = 0;              // index courant
+const SPRITE_OK = {};     // portraits réellement présents
+
+/* Un navigateur n'écrit pas où il veut. Là où l'API File System Access existe
+   (Chrome, Edge), on désigne survivants.js une fois et l'enregistrement le
+   réécrit sur place ; ailleurs, il ne reste que le téléchargement. */
+const FSA = typeof window.showOpenFilePicker === "function";
+let fichier = null;       // poignée du fichier lié, s'il y en a une
+let origine = "";         // d'où viennent les personnages affichés
+
+/* Les six Survivants de la boîte, recopiés de zombicide.html. Ils servent de
+   référence et de point de départ : le jeu les connaît déjà, les réécrire dans
+   survivants.js ferait un identifiant en double et l'entrée serait rejetée.
+   Ils sont donc affichés en lecture seule et JAMAIS exportés. */
+const BASE = [
+ {id:"ann", boite:"Black Plague",     n:"Ann",     c:"#c25b7c", bodyItem:"dagger", blue:["Soif de sang : Mêlée"],
+    orange:["+1 Action de Magie gratuite","+1 Action de Mêlée gratuite"],
+    red:["+1 Action de Combat gratuite","+1 au résultat du dé : Combat","Sur un 6 : +1 dé Combat"]},
+ {id:"baldric", boite:"Black Plague", n:"Baldric", c:"#5b7cc2", bodyItem:"sword", blue:["Lanceur de sorts"],
+    orange:["+1 Action de Magie gratuite","Grimoire"],
+    red:["+1 dé : Magie","+1 Action de Combat gratuite","+1 au résultat du dé : Mêlée"]},
+ {id:"clovis", boite:"Black Plague",  n:"Clovis",  c:"#c2a35b", bodyItem:"shield", blue:["+1 dé : Mêlée"],
+    orange:["+1 Action de Mêlée gratuite","Maître d'Armes"],
+    red:["+1 Action de Combat gratuite","+1 au résultat du dé : Combat","Fuite"]},
+ {id:"nelly", boite:"Black Plague",   n:"Nelly",   c:"#8ac25b", bodyItem:"dagger", blue:["+1 Action de Déplacement gratuite"],
+    orange:["Soif de sang : Mêlée","Insaisissable"],
+    red:["+1 Action de Combat gratuite","+1 au résultat du dé : Combat","Fuite"]},
+ {id:"samson", boite:"Black Plague",  n:"Samson",  c:"#a05b2c", bodyItem:"shield", blue:["Corps de fer"],
+    orange:["+1 dé : Combat","+1 au résultat du dé : Mêlée"],
+    red:["+1 Dégât : Mêlée","+1 Action de Combat gratuite","Barbare"]},
+ {id:"silas", boite:"Black Plague",   n:"Silas",   c:"#4fb0a0", bodyItem:"sword", blue:["+1 au résultat du dé : À distance"],
+    orange:["+1 Action À distance gratuite","À bout portant"],
+    red:["+1 dé : À distance","+1 Action de Combat gratuite","Pluie de fer"]}
+];
+const fichesBase = () => BASE.map(v=>({...v, base:true,
+  blue:[...v.blue], orange:[...v.orange], red:[...v.red]}));
+
+function neuf(){
+  // première teinte encore libre : deux pastilles de même couleur seraient
+  // indistinguables sur le plateau
+  const prises = new Set(GENS.map(g=>g.c));
+  const c = COULEURS.find(x=>!prises.has(x)) || COULEURS[ajoutes().length%COULEURS.length];
+  return {id:"", n:"Nouveau Survivant", c, bodyItem:"", boite:"", bio:"",
+          blue:[], orange:[], red:[]};
+}
+/* Identifiant proposé d'après le nom : minuscules, sans accent. */
+function idDepuisNom(nom){
+  return (nom||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"")
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+}
+function chargerRoster(){
+  const l = Array.isArray(window.ZBP_SURVIVANTS) ? window.ZBP_SURVIVANTS : [];
+  GENS = [...fichesBase(), ...l.map(v=>({id:v.id||"", n:v.n||"Sans nom", c:v.c||COULEURS[0],
+                    bodyItem:v.bodyItem||"", boite:v.boite||"", bio:v.bio||"",
+                    blue:[...(v.blue||[])], orange:[...(v.orange||[])], red:[...(v.red||[])]}))];
+}
+const ajoutes = () => GENS.filter(g=>!g.base);
+/* Les portraits arrivent après coup : un seul redessin à leur arrivée. */
+function precharger(){
+  const ids = GENS.map(g=>g.id).filter(Boolean);
+  let reste = ids.length; if(!reste) return;
+  ids.forEach(id=>{
+    const im=new Image();
+    im.onload =()=>{ SPRITE_OK[id]=true;  if(!--reste) rendre(); };
+    im.onerror=()=>{ SPRITE_OK[id]=false; if(!--reste) rendre(); };
+    im.src = SPRITE_DIR+"surv_"+id+".png";
+  });
+}
+
+/* --------------------------------------------------------------------------
+   3. VÉRIFICATIONS
+   Une compétence non appliquée n'est pas une faute : c'est une limite du
+   moteur, qu'il vaut mieux montrer que découvrir en jouant.
+   -------------------------------------------------------------------------- */
+function problemes(g){
+  const p=[];
+  if(g.base) return p;                 // fiches de la boîte : valides par construction
+  if(!g.id) p.push("Identifiant vide.");
+  else if(GENS.filter(x=>x.id===g.id).length>1) p.push(`Identifiant « ${g.id} » en double.`);
+  if(!g.n) p.push("Nom vide.");
+  if(!g.blue.length) p.push("Aucune compétence de départ (niveau Bleu).");
+  ["blue","orange","red"].forEach(k=>g[k].forEach(c=>{
+    if(!compParNom[c]) p.push(`Compétence hors vocabulaire : « ${c} ».`);
+  }));
+  if(!corpsConnu(g.bodyItem)) p.push(`Objet de Corps inconnu du jeu : « ${g.bodyItem} ».`);
+  return p;
+}
+function nonAppliquees(g){
+  return [...g.blue,...g.orange,...g.red]
+    .filter(c=>compParNom[c] && !compParNom[c].ok);
+}
+
+/* --------------------------------------------------------------------------
+   4. RENDU
+   -------------------------------------------------------------------------- */
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function btn(l,f,c){const b=el("button",c,l);b.onclick=f;return b;}
+function dire(t,c){const m=document.getElementById("msg"); if(m){m.className=c||"";m.textContent=t;}}
+
+function rendre(){ rendreListe(); rendreFiche(); }
+
+function rendreListe(){
+  const box=document.getElementById("gens"); box.innerHTML="";
+  if(!GENS.length) box.appendChild(el("div","hint","Aucun personnage. « + Nouveau » pour commencer."));
+  GENS.forEach((g,i)=>{
+    const d=el("div","perso"+(i===sel?" on":"")); d.style.setProperty("--pc",g.c);
+    const dot=el("div","dot", (g.n||"?")[0].toUpperCase());
+    if(g.id && SPRITE_OK[g.id]){
+      dot.classList.add("img");
+      dot.style.backgroundImage=`url(${SPRITE_DIR}surv_${g.id}.png)`;
+    }
+    d.appendChild(dot);
+    const c=el("div"); c.appendChild(el("div","nm",g.n||"Sans nom"));
+    const pb=problemes(g).length, na=nonAppliquees(g).length;
+    c.appendChild(el("div","sub", (g.base ? "boîte de base · " : "") +
+                                  (g.id ? g.id : "sans identifiant")));
+    if(pb) c.appendChild(el("div","sub","⚠ "+pb+" à corriger"));
+    else if(na) c.appendChild(el("div","sub",na+" compétence(s) non appliquée(s)"));
+    d.appendChild(c);
+    d.onclick=()=>{ sel=i; rendre(); };
+    box.appendChild(d);
+  });
+}
+
+/* Une colonne de compétences pour un niveau donné. */
+function carteNiveau(g, cle, titre, couleur){
+  const c=el("div","niv"); c.style.setProperty("--nc",couleur);
+  c.appendChild(el("h3",null,titre));
+  if(!g[cle].length) c.appendChild(el("div","hint","Aucune."));
+  g[cle].forEach((nom,k)=>{
+    const r=el("div","comp");
+    const meta=compParNom[nom];
+    r.appendChild(el("span","txt", nom + (meta&&meta.en&&meta.en!==nom ? ` — ${meta.en}` : "")));
+    r.appendChild(el("span","pastille "+(meta ? (meta.ok?"ok":"ko") : "ko"),
+      meta ? (meta.ok ? "appliquée" : "non appliquée") : "inconnue"));
+    if(!g.base) r.appendChild(btn("✕", ()=>{ g[cle].splice(k,1); rendre(); },"danger"));
+    c.appendChild(r);
+  });
+  if(g.base) return c;                 // pas d'ajout sur une fiche de la boîte
+  const ra=el("div","row"); ra.style.marginTop="5px";
+  const s=document.createElement("select"); s.style.flex="1";
+  COMPETENCES.forEach(x=>{
+    const o=document.createElement("option"); o.value=x.n;
+    o.textContent = x.n + (x.en&&x.en!==x.n ? ` — ${x.en}` : "") + (x.ok?"":"  (non appliquée)");
+    s.appendChild(o);
+  });
+  ra.appendChild(s);
+  ra.appendChild(btn("Ajouter", ()=>{
+    if(!g[cle].includes(s.value)) g[cle].push(s.value);
+    rendre(); }));
+  c.appendChild(ra);
+  return c;
+}
+
+function rendreFiche(){
+  const z=document.getElementById("zone"); z.innerHTML="";
+  const g=GENS[sel];
+  if(!g){ z.appendChild(el("div","hint","Choisis un personnage à gauche.")); return; }
+
+  if(g.base){ ficheBase(g, z); return; }
+
+  // --- identité ---
+  const c1=el("div","card"); c1.appendChild(el("h3",null,"Identité"));
+  const r1=el("div","row");
+  const nom=document.createElement("input"); nom.value=g.n; nom.style.flex="1";
+  nom.oninput=e=>{ const auto = !g.id || g.id===idDepuisNom(g.n);
+                   g.n=e.target.value; if(auto) g.id=idDepuisNom(g.n);
+                   rendreListe(); majId(); };
+  r1.appendChild(el("label",null,"Nom")); r1.appendChild(nom);
+  c1.appendChild(r1);
+
+  const r2=el("div","row"); r2.style.marginTop="5px";
+  const id=document.createElement("input"); id.value=g.id; id.style.flex="1"; id.id="champId";
+  id.oninput=e=>{ g.id=idDepuisNom(e.target.value); rendreListe(); };
+  r2.appendChild(el("label",null,"Identifiant")); r2.appendChild(id);
+  c1.appendChild(r2);
+  c1.appendChild(el("div","hint","Sert au portrait : "+SPRITE_DIR+"surv_"+(g.id||"…")+".png"
+    + (g.id ? (SPRITE_OK[g.id] ? " — trouvé." : " — absent pour l'instant.") : "")));
+
+  const r3=el("div","row"); r3.style.marginTop="5px";
+  r3.appendChild(el("label",null,"Couleur"));
+  COULEURS.forEach(col=>{
+    const b=btn("", ()=>{ g.c=col; rendre(); }, g.c===col?"on":"");
+    b.style.cssText="width:22px;height:22px;padding:0;background:"+col; r3.appendChild(b);
+  });
+  c1.appendChild(r3);
+
+  const r4=el("div","row"); r4.style.marginTop="5px";
+  r4.appendChild(el("label",null,"Emplacement Corps"));
+  const se=document.createElement("select");
+  // une valeur venue d'un fichier et inconnue du menu ne doit pas disparaître en silence
+  const choix = corpsConnu(g.bodyItem) ? OBJETS_CORPS
+              : [...OBJETS_CORPS, [g.bodyItem, g.bodyItem+"  (inconnu)"]];
+  choix.forEach(([v,t])=>{ const o=document.createElement("option");
+    o.value=v; o.textContent=t; if(g.bodyItem===v) o.selected=true; se.appendChild(o); });
+  se.onchange=e=>{ g.bodyItem=e.target.value; };
+  r4.appendChild(se);
+  c1.appendChild(r4);
+  c1.appendChild(el("div","hint","La carte nommée sur la fiche du Survivant, qu'il peut porter sur l'emplacement Corps ; elle compte alors comme tenue en main."));
+
+  const r6=el("div","row"); r6.style.marginTop="5px";
+  r6.appendChild(el("label",null,"Boîte de jeu"));
+  const bo=document.createElement("input");
+  bo.value=g.boite||""; bo.style.flex="1"; bo.setAttribute("list","listeBoites");
+  bo.placeholder="Black Plague, Wulfsburg…";
+  bo.oninput=e=>{ g.boite=e.target.value; majSortie(); };
+  r6.appendChild(bo);
+  c1.appendChild(r6);
+
+  c1.appendChild(el("label",null,"Bio"));
+  const bi=document.createElement("textarea");
+  bi.rows=3; bi.value=g.bio||""; bi.style.marginTop="3px";
+  bi.placeholder="Quelques lignes affichées à l'écran de choix des Survivants.";
+  bi.oninput=e=>{ g.bio=e.target.value; majSortie(); };
+  c1.appendChild(bi);
+  z.appendChild(c1);
+
+  // --- compétences ---
+  const c2=el("div","card"); c2.appendChild(el("h3",null,"Compétences"));
+  c2.appendChild(el("div","hint","Le niveau JAUNE est toujours « +1 Action » : il n'y a rien à saisir. Aux niveaux Orange et Rouge, le joueur choisira une compétence parmi celles listées."));
+  c2.appendChild(carteNiveau(g,"blue","Bleu — de départ","#3d6fb5"));
+  c2.appendChild(carteNiveau(g,"orange","Orange — au choix","#c07a34"));
+  c2.appendChild(carteNiveau(g,"red","Rouge — au choix","#8e2b2b"));
+  z.appendChild(c2);
+
+  // --- vérification ---
+  const c3=el("div","card"); c3.appendChild(el("h3",null,"Vérification"));
+  const pb=problemes(g), na=nonAppliquees(g);
+  if(!pb.length) c3.appendChild(el("div",null,"✓ Fiche utilisable."));
+  pb.forEach(t=>{ const d=el("div",null,"• "+t); d.style.color="#e08080"; d.style.fontSize="12px";
+                  c3.appendChild(d); });
+  if(na.length){
+    c3.appendChild(el("div","hint","Ces compétences existent au livret mais ne sont pas encore appliquées par le moteur — le personnage jouera sans :"));
+    na.forEach(t=>{ const d=el("div",null,"• "+t); d.style.color="#e0a060"; d.style.fontSize="12px";
+                    c3.appendChild(d); });
+  }
+  z.appendChild(c3);
+
+  // --- sortie ---
+  const c4=el("div","card"); c4.appendChild(el("h3",null,"Fichier"));
+  const r5=el("div","row");
+  r5.appendChild(btn(fichier ? `Mettre à jour ${fichier.name}` : "Enregistrer survivants.js",
+                     enregistrer, "prim"));
+  r5.appendChild(btn(FSA ? "Lier un fichier…" : "Ouvrir un fichier…", FSA ? lier : importer));
+  if(fichier) r5.appendChild(btn("Délier", delier));
+  r5.appendChild(btn("Copier", async ()=>{
+    try{ await navigator.clipboard.writeText(source()); dire("Copié.","ok"); }
+    catch(e){ dire("Copie impossible : "+e.message,"err"); } }));
+  r5.appendChild(btn("Supprimer ce personnage", ()=>{
+    if(!confirm(`Supprimer « ${g.n} » ?`)) return;
+    GENS.splice(sel,1); sel=Math.max(0,sel-1); rendre(); },"danger"));
+  c4.appendChild(r5);
+  c4.appendChild(el("div","hint", fichier
+    ? `Lié à « ${fichier.name} » : le bouton réécrit ce fichier directement, le lien est retenu d'une visite à l'autre.`
+    : (FSA
+      ? "Lie zombicide_fichiers/survivants/survivants.js une bonne fois : ensuite l'enregistrement le réécrit sur place, sans passer par les téléchargements."
+      : "Ce navigateur ne sait pas réécrire un fichier : l'enregistrement le télécharge, à déposer dans zombicide_fichiers/survivants/.")));
+  c4.appendChild(el("div","hint","Personnages chargés depuis : "+(origine||"aucune source")));
+  const ta=document.createElement("textarea"); ta.id="sortie";
+  ta.rows=12; ta.readOnly=true; ta.value=source();
+  ta.style.marginTop="6px";
+  c4.appendChild(ta);
+  c4.appendChild(el("div","hint")).id="msg";
+  z.appendChild(c4);
+}
+function majId(){ const i=document.getElementById("champId"); if(i) i.value=GENS[sel].id; }
+/* Rafraîchir le fichier affiché sans reconstruire la fiche : un rendre() complet
+   remplacerait la zone de saisie en cours de frappe et ferait perdre le curseur. */
+function majSortie(){
+  const t=document.getElementById("sortie"); if(t) t.value=source();
+}
+
+/* Fiche de la boîte : consultable, jamais modifiable — sa place est dans le
+   moteur, pas dans survivants.js. « Dupliquer » en fait un point de départ. */
+function ficheBase(g, z){
+  const c1=el("div","card"); c1.appendChild(el("h3",null,"Identité"));
+  const t=el("div","row");
+  const pas=el("div","dot"); pas.style.cssText=
+    "width:44px;height:44px;border-radius:50%;border:2px solid #0009;background:"+g.c+
+    ";background-size:cover;background-position:center";
+  if(SPRITE_OK[g.id]) pas.style.backgroundImage=`url(${SPRITE_DIR}surv_${g.id}.png)`;
+  t.appendChild(pas);
+  const nom=el("div"); nom.appendChild(el("div","nm",g.n));
+  nom.appendChild(el("div","sub",g.id));
+  t.appendChild(nom);
+  c1.appendChild(t);
+  const oc=(OBJETS_CORPS.find(([k])=>k===g.bodyItem)||["","(aucun)"])[1];
+  c1.appendChild(el("div","hint","Emplacement Corps : "+oc));
+  if(g.boite) c1.appendChild(el("div","hint","Boîte de jeu : "+g.boite));
+  if(g.bio)   c1.appendChild(el("div","hint",g.bio));
+  c1.appendChild(el("div","hint","Survivant de la boîte de base : le jeu le connaît déjà. "+
+    "Le réécrire dans survivants.js ferait un identifiant en double, et l'entrée serait rejetée — "+
+    "cette fiche est donc en lecture seule et n'est pas exportée."));
+  z.appendChild(c1);
+
+  const c2=el("div","card"); c2.appendChild(el("h3",null,"Compétences"));
+  c2.appendChild(carteNiveau(g,"blue","Bleu — de départ","#3d6fb5"));
+  c2.appendChild(carteNiveau(g,"orange","Orange — au choix","#c07a34"));
+  c2.appendChild(carteNiveau(g,"red","Rouge — au choix","#8e2b2b"));
+  z.appendChild(c2);
+
+  const c3=el("div","card"); c3.appendChild(el("h3",null,"Partir de cette fiche"));
+  const r=el("div","row");
+  r.appendChild(btn("Dupliquer pour modifier", dupliquer, "prim"));
+  c3.appendChild(r);
+  c3.appendChild(el("div","hint","La copie reçoit un nouvel identifiant et devient un Survivant "+
+    "supplémentaire, écrit dans survivants.js."));
+  c3.appendChild(el("div","hint")).id="msg";
+  z.appendChild(c3);
+}
+
+/* --------------------------------------------------------------------------
+   5. SORTIE
+   -------------------------------------------------------------------------- */
+function source(){
+  const corps = ajoutes().map(g=>{
+    const l=[`  {id:${JSON.stringify(g.id)}, n:${JSON.stringify(g.n)}, c:${JSON.stringify(g.c)}`];
+    if(g.boite)    l.push(`   boite:${JSON.stringify(g.boite)}`);
+    if(g.bodyItem) l.push(`   bodyItem:${JSON.stringify(g.bodyItem)}`);
+    if(g.bio)      l.push(`   bio:${JSON.stringify(g.bio)}`);
+    l.push(`   blue:${JSON.stringify(g.blue)}`);
+    l.push(`   orange:${JSON.stringify(g.orange)}`);
+    l.push(`   red:${JSON.stringify(g.red)}}`);
+    return l.join(",\n");
+  }).join(",\n");
+  return ["/* Survivants supplémentaires — produit par zombicide-personnages.html",
+          "   Déposer dans zombicide_fichiers/survivants/survivants.js */",
+          "window.ZBP_SURVIVANTS = [", corps, "];", ""].join("\n");
+}
+
+/* Le lien vers le fichier est mémorisé entre deux visites : la permission, elle,
+   ne l'est pas toujours — le navigateur peut la redemander à la première
+   écriture. On stocke donc la poignée, jamais le contenu. */
+function idb(op, val){
+  return new Promise(res=>{
+    let rq; try{ rq=indexedDB.open("zbp-perso",1); }catch(e){ return res(null); }
+    rq.onupgradeneeded = ()=>rq.result.createObjectStore("h");
+    rq.onerror = ()=>res(null);
+    rq.onsuccess = ()=>{
+      let st; try{ st=rq.result.transaction("h", op==="get"?"readonly":"readwrite").objectStore("h"); }
+      catch(e){ return res(null); }
+      const r = op==="get" ? st.get("f") : (val ? st.put(val,"f") : st.delete("f"));
+      r.onsuccess=()=>res(op==="get"?r.result:true);
+      r.onerror=()=>res(null);
+    };
+  });
+}
+
+/* Relire un survivants.js déjà écrit. On n'exécute pas le fichier entier : on
+   isole la liste et on évalue cette seule expression, ce qui accepte au passage
+   les commentaires et les apostrophes qu'un JSON strict refuserait. */
+function adopter(txt, nom){
+  const i=txt.indexOf("["), j=txt.lastIndexOf("]");
+  if(i<0 || j<i) return dire("Fichier illisible : aucune liste trouvée.","err"), false;
+  let l;
+  try{ l = Function("return ("+txt.slice(i,j+1)+")")(); }
+  catch(e){ return dire("Fichier illisible : "+e.message,"err"), false; }
+  if(!Array.isArray(l)) return dire("Fichier illisible : ce n'est pas une liste.","err"), false;
+  window.ZBP_SURVIVANTS = l;
+  chargerRoster();
+  sel = GENS.findIndex(g=>!g.base); if(sel<0) sel=0;
+  origine=nom; rendre(); precharger();
+  dire(`${l.length} personnage(s) relus depuis « ${nom} ».`,"ok");
+  return true;
+}
+
+async function lier(){
+  try{
+    const [h] = await window.showOpenFilePicker({
+      types:[{description:"Survivants", accept:{"text/javascript":[".js"]}}]});
+    fichier=h; await idb("put",h);
+    await relire();
+  }catch(e){
+    if(e.name==="AbortError") return;
+    dire("Liaison impossible : "+e.message+" — passe par « Ouvrir un fichier ».","err");
+  }
+}
+async function relire(){
+  const f = await fichier.getFile();
+  if(!adopter(await f.text(), fichier.name)) rendre();
+}
+async function delier(){ fichier=null; await idb("put",null); origine=""; rendre();
+  dire("Lien retiré : l'enregistrement repassera par le téléchargement.","ok"); }
+
+function importer(){
+  const i=document.createElement("input");
+  i.type="file"; i.accept=".js,.json,text/javascript";
+  i.onchange=()=>{ const f=i.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>adopter(r.result, f.name); r.readAsText(f); };
+  i.click();
+}
+
+async function enregistrer(){
+  // on n'écarte rien en silence : on prévient et on laisse décider
+  const mauvais = ajoutes().filter(g=>problemes(g).length);
+  if(mauvais.length && !confirm(
+      `${mauvais.length} fiche(s) incomplète(s) : ${mauvais.map(g=>g.n||"sans nom").join(", ")}.\n`+
+      `Elles seront écrites telles quelles et le jeu les signalera au démarrage.\n\nEnregistrer quand même ?`))
+    { dire("Enregistrement annulé.","err"); return; }
+
+  if(fichier){
+    try{
+      const ok = await fichier.queryPermission({mode:"readwrite"}) === "granted"
+              || await fichier.requestPermission({mode:"readwrite"}) === "granted";
+      if(!ok) throw new Error("écriture refusée");
+      const w = await fichier.createWritable();
+      await w.write(source()); await w.close();
+      origine = fichier.name; rendre();
+      dire(`« ${fichier.name} » mis à jour — recharge le jeu pour voir le changement.`,"ok");
+      return;
+    }catch(e){ dire("Écriture impossible ("+e.message+") — repli sur le téléchargement.","err"); }
+  }
+  const blob=new Blob([source()],{type:"text/javascript"});
+  const u=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=u; a.download="survivants.js"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),2000);
+  if(!fichier) dire("« survivants.js » téléchargé — dépose-le dans zombicide_fichiers/survivants/.","ok");
+}
+
+/* --------------------------------------------------------------------------
+   6. AMORÇAGE
+   -------------------------------------------------------------------------- */
+document.getElementById("btnNouveau").onclick = ()=>{
+  GENS.push(neuf()); sel=GENS.length-1; rendre(); };
+function dupliquer(){
+  const g=GENS[sel]; if(!g) return;
+  const c=JSON.parse(JSON.stringify(g));
+  delete c.base;
+  c.n=g.n+" (copie)"; c.id=idDepuisNom(c.n);
+  GENS.push(c); sel=GENS.length-1; rendre();
+}
+document.getElementById("btnDupliquer").onclick = dupliquer;
+
+chargerRoster();
+/* Les boîtes déjà citées par le roster rejoignent les suggestions — d'où
+   l'appel APRÈS le chargement. */
+(()=>{
+  const dl=document.getElementById("listeBoites"); dl.innerHTML="";
+  new Set([...BOITES, ...GENS.map(g=>g.boite).filter(Boolean)])
+    .forEach(b=>{ const o=document.createElement("option"); o.value=b; dl.appendChild(o); });
+})();
+if(ajoutes().length){
+  origine = "zombicide_fichiers/survivants/survivants.js (balise de script)";
+  sel = GENS.findIndex(g=>!g.base);
+}
+rendre();
+precharger();
+
+/* Retrouver le fichier lié lors d'une visite précédente. Sans permission encore
+   accordée, on garde la poignée : le navigateur demandera à la première écriture. */
+(async ()=>{
+  if(!FSA) return;
+  const h = await idb("get"); if(!h) return;
+  fichier = h;
+  try{
+    if(await h.queryPermission({mode:"read"}) === "granted") await relire();
+    else { origine = `« ${h.name} » — lien retrouvé, à confirmer à l'enregistrement`; rendre(); }
+  }catch(e){ fichier=null; rendre(); }
+})();
+</script>
+</body>
+</html>

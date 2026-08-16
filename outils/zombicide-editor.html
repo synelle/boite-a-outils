@@ -519,6 +519,8 @@ function blank(W,H){
   return {
     name:"Ma quête",
     description:"",
+    /* En-tête de la fiche de quête : « FACILE / 4+ SURVIVANTS / 45 MINUTES ». */
+    minSurvivors:1, difficulty:"", duration:"",
     goal:"Récupérez tous les Objectifs, puis tous les Survivants doivent sortir.",
     W, H, cells:new Array(W*H).fill("."), doors:[], limites:{}, cryptDoors:[],
     spawns:[], objectives:[], start:null, exit:null, zombies:[],
@@ -1192,6 +1194,8 @@ function toQuest(){
   for(let y=0;y<M.H;y++){ let r=""; for(let x=0;x<M.W;x++) r+=(lab[I(x,y)]||"."); map.push(r); }
   const lim=limitesExplicites(lab);
   const q = { name:M.name, description:M.description||"", goal:M.goal, W:M.W, H:M.H, map,
+    minSurvivors:Math.max(1, M.minSurvivors|0 || 1),
+    difficulty:M.difficulty||"", duration:M.duration||"",
     doors:M.doors.map(d=>{const o={x:d.x,y:d.y,s:d.s,color:d.color||"grey"};
                           if(d.open) o.open=true; return o;}),
     cryptDoors:M.cryptDoors.map(d=>({x:d.x,y:d.y,color:d.color})),
@@ -1228,6 +1232,8 @@ function toQuest(){
 function fromQuest(q){
   const m=blank(q.W,q.H);
   m.name=q.name||"Quête"; m.goal=q.goal||""; m.description=q.description||"";
+  m.minSurvivors = Math.max(1, q.minSurvivors|0 || 1);
+  m.difficulty = q.difficulty||""; m.duration = q.duration||"";
   for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++)
     m.cells[y*q.W+x] = q.map[y][x]==="." ? "." : BAT;
   m.doors=(q.doors||[]).filter(d=>!d.crypt)
@@ -1855,6 +1861,35 @@ function renderPanel(){
   c3.appendChild(el("label",null,"Description")); c3.appendChild(de);
   c3.appendChild(el("div","hint","Le texte d'ambiance, montré au moment de choisir la mission."));
   c3.appendChild(el("label",null,"Objectif de mission")); c3.appendChild(gl);
+
+  /* En-tête de la fiche de quête : « FACILE / 4+ SURVIVANTS / 45 MINUTES ». */
+  const rmin=el("div","row"); rmin.style.marginTop="6px";
+
+  rmin.appendChild(el("label",null,"Difficulté"));
+  const df=document.createElement("input");
+  df.style.width="110px"; df.setAttribute("list","listeDifficultes");
+  df.placeholder="Facile…"; df.value=M.difficulty||"";
+  df.oninput=e=>{ M.difficulty=e.target.value; };
+  rmin.appendChild(df);
+
+  rmin.appendChild(el("label",null,"Temps estimé"));
+  const du=document.createElement("input");
+  du.style.width="110px"; du.setAttribute("list","listeDurees");
+  du.placeholder="45 minutes"; du.value=M.duration||"";
+  du.oninput=e=>{ M.duration=e.target.value; };
+  rmin.appendChild(du);
+
+  rmin.appendChild(el("label",null,"Survivants minimum"));
+  const mn=document.createElement("input");
+  mn.type="number"; mn.min="1"; mn.max="12"; mn.style.width="66px";
+  mn.value=Math.max(1, M.minSurvivors|0 || 1);
+  mn.oninput=e=>{ M.minSurvivors = Math.max(1, Math.min(12, parseInt(e.target.value,10)||1)); };
+  mn.onblur=()=>{ mn.value=M.minSurvivors; };
+  rmin.appendChild(mn);
+  c3.appendChild(rmin);
+  c3.appendChild(el("div","hint","L'en-tête de la fiche de quête. Les trois sont libres et "+
+    "facultatifs ; 1 Survivant = aucun effectif conseillé. En dessous du minimum, le jeu "+
+    "avertit mais laisse jouer."));
   p.appendChild(c3);
 
   ajouterCartesCommunes(p);
@@ -2703,5 +2738,16 @@ preloadSprites(()=>{ if(Object.values(SPRITE_OK).some(Boolean)) render(); });
 chargerFichiersMissions(()=>{ if(missionsDispo().length) render(); });
 say("Peins les bâtiments, place les portes, puis « Jouer cette carte ».");
 </script>
+
+<!-- suggestions des deux champs ; la saisie reste libre -->
+<datalist id="listeDifficultes">
+  <option value="Facile"></option><option value="Moyen"></option>
+  <option value="Difficile"></option><option value="Très difficile"></option>
+</datalist>
+<datalist id="listeDurees">
+  <option value="30 minutes"></option><option value="45 minutes"></option>
+  <option value="60 minutes"></option><option value="90 minutes"></option>
+  <option value="2 heures"></option>
+</datalist>
 </body>
 </html>

@@ -3,7 +3,7 @@
 ZBP_MISSION({name:"Q00-Danse macabre",
   quest:{
    "name": "Q00-Danse macabre",
-   "description": "FACILE / 4+ SURVIVANTS / 45 MINUTES\nLa guerre ne nous est pas étrangère. Nos comtes\net nos ducs passent leur temps à se battre\nentre eux. Pour les paysans, cela se résume\ngénéralement à une modification des impôts et des fermages,\nà condition de survivre. Mais cette fois, le duc et son armée\nsont partis pour ne plus jamais réapparaître.\nEnfin, pas avant l'arrivée des hordes. Je suis prêt à parier\nque bon nombre des plus redoutables d'entre elles\nsont issues de ses troupes. Aujourd'hui, tout n'est que\nchaos et brutalité. Nous sommes tous égaux face à la\ndanse macabre. Inutile de faire preuve de snobisme\nsocial quand les hordes frappent à votre porte.\nNous faisons front commun et renvoyons la mort\nà la figure de nos ennemis. Le magicien parmi nous\nen est le parfait exemple. Il était autrefois immensément\nriche, puissant et influent. Aujourd'hui, il est l'un des\nnôtres et s'accroche à la vie de toutes ses forces.\nIl maîtrise un cercle magique capable de nous\nexfiltrer. Mieux vaut fuir pour contre-attaquer\nque de rester ici et se faire submerger. Mais il reste\npeut-être quelques âmes à sauver, et nous ne serions\npas contre une ou deux armes plus efficaces.\nIl maintiendra le sort jusqu'à la dernière seconde.\nUn homme bien, qui ne prend pas les autres de haut.",
+   "description": "La guerre ne nous est pas étrangère. Nos comtes et nos ducs passent leur temps à se battre entre eux. Pour les paysans, cela se résume généralement à une modification des impôts et des fermages, à condition de survivre. Mais cette fois, le duc et son armée sont partis pour ne plus jamais réapparaître.\nEnfin, pas avant l'arrivée des hordes. Je suis prêt à parier que bon nombre des plus redoutables d'entre elles sont issues de ses troupes. Aujourd'hui, tout n'est que chaos et brutalité. Nous sommes tous égaux face à la danse macabre. Inutile de faire preuve de snobisme social quand les hordes frappent à votre porte.\nNous faisons front commun et renvoyons la mort à la figure de nos ennemis. Le magicien parmi nous en est le parfait exemple. Il était autrefois immensément riche, puissant et influent. Aujourd'hui, il est l'un des nôtres et s'accroche à la vie de toutes ses forces.\nIl maîtrise un cercle magique capable de nous exfiltrer. Mieux vaut fuir pour contre-attaquer que de rester ici et se faire submerger. Mais il reste peut-être quelques âmes à sauver, et nous ne serions pas contre une ou deux armes plus efficaces. Il maintiendra le sort jusqu'à la dernière seconde.\nUn homme bien, qui ne prend pas les autres de haut.",
    "goal": "Utilisez le cercle magique pour vous téléporter en lieu sûr.\nRejoignez la zone de sortie avec tous les survivants. Tout survivant peut s'échapper par cette zone à la fin de son tour, à condition qu'aucun zombie ne s'y trouve.",
    "W": 6,
    "H": 3,
@@ -12,6 +12,9 @@ ZBP_MISSION({name:"Q00-Danse macabre",
     "..B...",
     "E.FG.H"
    ],
+   "minSurvivors": 4,
+   "difficulty": "Facile",
+   "duration": "45 minutes",
    "doors": [
     {
      "x": 1,

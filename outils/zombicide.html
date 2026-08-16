@@ -28,7 +28,11 @@ h1,h2,h3{margin:0;font-weight:600}
 .hr{height:1px;background:var(--line);margin:8px 0}
 
 /* ---------- plateau ---------- */
-#boardPane{flex:1;min-width:0;position:relative;display:flex}
+/* Le panneau de droite garde toute la hauteur : le plateau et le journal se
+   partagent la colonne restante. `min-height:0` est indispensable, sans quoi
+   un enfant défilant refuse de se comprimer dans un conteneur flex. */
+#main{flex:1;min-width:0;display:flex;flex-direction:column}
+#boardPane{flex:1;min-width:0;min-height:0;position:relative;display:flex}
 #boardWrap{flex:1;overflow:auto;padding:18px;display:flex}
 /* `margin:auto` centre sur les deux axes ET, contrairement à justify-content,
    ne rogne pas le bord gauche/haut quand le plateau dépasse la fenêtre. */
@@ -187,16 +191,46 @@ body.zsmall .zone .lbl{display:none}
 
 /* Grille carrée (2×2, 3×3, 4×4…) plutôt qu'un flux libre : évite qu'une Zone
    bondée de figurines s'étire sur une seule ligne. Le nombre de colonnes
-   (--gc) est calculé en JS d'après l'effectif réel. */
-.actors{position:absolute;inset:6px 24px 6px 6px;display:grid;
-  grid-template-columns:repeat(var(--gc,2),1fr);grid-auto-rows:min-content;
-  align-content:end;justify-items:center;gap:2px;z-index:2}
+   (--gc) est calculé en JS d'après l'effectif réel.
+   En flux plutôt qu'en grille CSS : une dernière rangée incomplète se centre
+   alors d'elle-même, au lieu de se tasser à gauche.
+   --ps borne le diamètre à ce qu'une rangée de --gc peut contenir : sans cela,
+   dix figurines débordaient largement de la case. */
+.actors{position:absolute;inset:6px 6px 6px 6px;
+  --ps:calc((100% - (var(--gc,2) - 1)*2px - 1px) / var(--gc,2));
+  display:flex;flex-wrap:wrap;justify-content:center;
+  align-content:flex-end;align-items:flex-end;gap:2px;z-index:2}
+.zone.avecjetons .actors{right:24px}
+/* La figurine garde sa taille tant qu'il y a la place, et rétrécit ensuite.
+   Les Survivants restent un peu plus gros que les Zombies. */
+.actors .pastille{width:min(calc(var(--zs)*.28), var(--ps));
+                  height:min(calc(var(--zs)*.28), var(--ps))}
+.actors .pastille.sv{width:min(calc(var(--zs)*.33), var(--ps));
+                     height:min(calc(var(--zs)*.33), var(--ps))}
+/* Les pastilles de Blessure et d'effectif suivent, sinon elles finiraient
+   plus grandes que la figurine qu'elles annotent. */
+.actors .pastille .wnd{width:min(14px, calc(var(--ps)*.5));
+                       height:min(14px, calc(var(--ps)*.5));
+                       font-size:min(9px, calc(var(--ps)*.34))}
+.actors .pastille .nb{min-width:min(15px, calc(var(--ps)*.55));
+                      height:min(15px, calc(var(--ps)*.55));
+                      font-size:min(10px, calc(var(--ps)*.38))}
 .pastille{width:calc(var(--zs)*.28);height:calc(var(--zs)*.28);border-radius:50%;
   border:2px solid #0009;display:grid;place-items:center;font-weight:700;
   font-size:clamp(7px,calc(var(--zs)*.12),13px);
   background-size:cover;background-position:center;position:relative;flex:0 0 auto}
 .pastille.sv{border-color:#f0e2b8;width:calc(var(--zs)*.33);height:calc(var(--zs)*.33)}
 .pastille.sv.act{box-shadow:0 0 0 2px var(--gold),0 0 10px #c9a22788}
+/* Figurine sélectionnable : le curseur et un léger halo l'annoncent. */
+.pastille.sv.cliquable{cursor:pointer}
+.pastille.sv.cliquable:hover{box-shadow:0 0 0 2px #f0e2b8}
+.pastille.sv.cliquable.act:hover{box-shadow:0 0 0 2px var(--gold),0 0 12px #c9a227cc}
+/* Pendant un mode au clic, la figurine ne capte plus le geste : il revient à
+   la Zone, qu'il s'agisse de la viser ou de s'y rendre. */
+body.modeclic .pastille.sv.cliquable{cursor:inherit}
+body.modeclic .pastille.sv.cliquable:hover{box-shadow:none}
+body.modeclic .pastille.sv.cliquable.act:hover{
+  box-shadow:0 0 0 2px var(--gold),0 0 10px #c9a22788}
 .pastille.dead{filter:grayscale(1) brightness(.5)}
 .pastille .wnd{position:absolute;bottom:-3px;right:-3px;background:var(--blood);
   color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;display:grid;place-items:center}
@@ -261,8 +295,27 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 .slot.wound{border-color:var(--blood);background:#3a1f1f}
 .slot.pick{cursor:pointer;outline:1px dashed var(--gold)}
 
-#log{height:190px;overflow-y:auto;border-top:1px solid var(--line);background:#191614;
-  padding:6px 10px;font-size:12px;line-height:1.4}
+#logPane{height:172px;flex:0 0 auto;display:flex;flex-direction:column;
+  background:#191614}
+/* Poignée de redimensionnement : une lisière fine qui remplace le filet du
+   haut, assez large pour être attrapée sans gêner le plateau au-dessus. */
+#logGrip{height:6px;flex:0 0 auto;cursor:ns-resize;background:var(--line);
+  border-top:1px solid #0006}
+#logGrip:hover,body.logdrag #logGrip{background:var(--gold)}
+/* Pendant le glisser : pas de sélection de texte ni de curseur qui saute. */
+body.logdrag{cursor:ns-resize;user-select:none}
+body.logclos #logGrip{cursor:default}
+body.logclos #logGrip:hover{background:var(--line)}
+#logBar{display:flex;align-items:center;justify-content:space-between;
+  padding:2px 10px;background:#1a1714;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.4px;color:var(--gold);text-transform:uppercase}
+#logBar button{padding:0 7px;font-size:12px;line-height:1.5;background:transparent;border:none;
+  color:var(--dim)}
+#logBar button:hover:not(:disabled){background:transparent;color:var(--gold)}
+#log{flex:1;min-height:0;overflow-y:auto;padding:6px 10px;font-size:12px;line-height:1.4}
+/* Replié : il ne reste que la barre de titre, le plateau récupère la place. */
+body.logclos #logPane{height:auto}
+body.logclos #log{display:none}
 #log div{margin-bottom:2px;white-space:pre-line}
 .l-dice{color:#e8d48a}.l-kill{color:#8fd08f}.l-bad{color:#e08080}
 .l-sys{color:#8fa8c8}.l-round{color:var(--gold);font-weight:700;margin-top:6px}
@@ -280,7 +333,7 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
   padding:20px 24px;width:min(720px,92vw);max-height:88vh;overflow:auto}
 #setup h2{color:var(--gold);font-size:18px;letter-spacing:.5px}
 #setup .sub{font-size:12px;color:var(--dim);margin:6px 0 14px}
-#setupList{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+#setupList{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:8px}
 .pick{display:flex;gap:9px;align-items:flex-start;text-align:left;padding:8px 10px;
   border:1px solid var(--line);border-radius:7px;background:#241f1b;cursor:pointer}
 .pick:hover{border-color:var(--gold)}
@@ -293,7 +346,34 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
   background-position:center;color:transparent}
 .pick .nm{font-weight:600;font-size:13px}
 .pick .sk{font-size:11px;color:var(--dim);line-height:1.3}
+/* Provenance et biographie : la bio peut être longue, on la borne à trois
+   lignes et le texte entier reste accessible en infobulle. */
+.pick .boite{display:inline-block;margin-top:3px;font-size:10px;color:var(--gold);
+  border:1px solid #5c4a1c;border-radius:9px;padding:0 6px}
+.pick .bio{font-size:11px;color:var(--dim);font-style:italic;line-height:1.3;margin-top:3px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .pick .nfo{min-width:0;flex:1}
+/* Arbre de compétences : une ligne par niveau, chaque compétence en pastille
+   survolable. La couleur de la puce rappelle le niveau de la fiche. */
+.pick .niv{display:flex;gap:4px;align-items:baseline;margin-top:3px;flex-wrap:wrap}
+.pick .niv .lv{font-size:9px;font-weight:700;letter-spacing:.5px;padding:0 4px;
+  border-radius:3px;color:#1a1714;flex:0 0 auto}
+.pick .niv.b .lv{background:#3d6fb5;color:#e8e0d2}
+.pick .niv.o .lv{background:#c07a34}
+.pick .niv.r .lv{background:#8e2b2b;color:#e8e0d2}
+.pick .cmp{font-size:10.5px;line-height:1.35;padding:0 5px;border-radius:8px;
+  border:1px solid var(--line);background:#1d1a17;color:var(--dim);cursor:help}
+.pick .cmp:hover{border-color:var(--gold);color:var(--ink)}
+/* Compétence du livret que le moteur n'applique pas : le dire ici évite de
+   croire à un bonus qui n'existe pas en jeu. */
+.pick .cmp.ko{border-color:#7a5a2a;color:#e0a060}
+
+/* Infobulle : au-dessus de l'écran de choix, jamais hors de la fenêtre. */
+#bulle{position:fixed;z-index:9999;max-width:330px;display:none;pointer-events:none;
+  background:#14110f;border:1px solid var(--gold);border-radius:6px;padding:7px 9px;
+  font-size:12px;line-height:1.45;color:var(--ink);box-shadow:0 6px 20px #000a}
+#bulle .bt{font-weight:600;color:var(--gold);margin-bottom:3px}
+#bulle .bk{margin-top:4px;color:#e0a060;font-size:11px}
 .pick .gear{margin-top:5px;width:100%;font-size:11px;padding:2px 4px;
   background:#1a1714;color:var(--ink);border:1px solid var(--line);border-radius:4px}
 .pick .ck{margin-left:auto;font-size:15px;color:var(--gold);opacity:0}
@@ -306,6 +386,9 @@ a.lienpdf:hover{background:#4a3a1c}
 #missionInfo{display:none;margin:0 0 10px;padding:9px 11px;border:1px solid var(--line);
   border-radius:7px;background:#221d19}
 #missionInfo .ti{font-weight:600;color:var(--gold);font-size:13px}
+/* En-tête de fiche : difficulté · effectif · durée, en petites capitales. */
+#missionInfo .fq{font-size:11px;color:#c9a227b8;margin-top:3px;letter-spacing:.6px;
+  text-transform:uppercase}
 #missionInfo .de{font-size:12px;color:var(--ink);margin-top:4px;line-height:1.45;white-space:pre-line}
 #missionInfo .ob{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.45;white-space:pre-line}
 #missionInfo .rs{font-size:11px;color:var(--dim);margin-top:6px}
@@ -323,6 +406,7 @@ a.lienpdf:hover{background:#4a3a1c}
 </head>
 <body>
 
+<div id="main">
 <div id="boardPane">
   <div id="zoomBar">
     <button id="zOut" title="Dézoomer (Ctrl + molette, ou -)">−</button>
@@ -335,6 +419,15 @@ a.lienpdf:hover{background:#4a3a1c}
   </div>
   <div id="boardWrap"><div class="stage"><div id="board"></div><div id="crypts"></div></div></div>
 </div>
+<div id="logPane">
+  <div id="logGrip" title="Glisser pour régler la hauteur · double-clic pour revenir à la taille d'origine"></div>
+  <div id="logBar">
+    <span>Journal</span>
+    <button id="logToggle" title="Replier ou déplier le journal">▾</button>
+  </div>
+  <div id="log"></div>
+</div>
+</div>
 
 <div id="side">
   <header>
@@ -342,7 +435,6 @@ a.lienpdf:hover{background:#4a3a1c}
     <div class="sub" id="questLine"></div>
   </header>
   <div id="scroll"></div>
-  <div id="log"></div>
   <div id="foot">
     <button id="btnEnd" class="prim">Fin de tour → Phase Zombie</button>
     <button id="btnRules">Règles</button>
@@ -356,6 +448,7 @@ a.lienpdf:hover{background:#4a3a1c}
 </div>
 
 <!-- catalogue des missions : une balise de script passe partout, file:// compris -->
+<script src="zombicide_fichiers/survivants/survivants.js"></script>
 <script src="zombicide_fichiers/zombicide_missions/missions.js"></script>
 
 <div id="setup"><div class="bx">
@@ -367,7 +460,11 @@ a.lienpdf:hover{background:#4a3a1c}
     <select id="missionSel" style="flex:1"></select>
     <button id="missionLoad">Charger</button>
   </div>
+  <div id="setupAvert" style="display:none;margin-bottom:10px;padding:8px 10px;
+       border:1px solid #7a5a2a;border-radius:6px;background:#2a2015;
+       color:#e0a060;font-size:12px;line-height:1.4"></div>
   <div id="missionInfo"></div>
+  <div id="effectif" style="display:none;margin:8px 0 0;font-size:12px"></div>
   <div id="missionMsg" style="min-height:16px;font-size:12px;color:#e0a060;margin-bottom:8px"></div>
   <div id="setupList"></div>
   <div class="row" style="margin-top:12px;justify-content:space-between">
@@ -543,7 +640,7 @@ const EQUIP = [
  {id:"healing",   n:"Soins",             kind:"ench",   deck:1, ench:"heal",
     txt:"1×/Tour. La cible récupère 1 Blessure."},
  {id:"invisibility",n:"Invisibilité",    kind:"ench",   deck:1, ench:"invis",
-    txt:"1×/Tour. La cible bénéficie de Putride jusqu'à la fin du Round."},
+    txt:"1×/Tour. La cible bénéficie de Putréfié jusqu'à la fin du Round."},
  {id:"repulse",   n:"Repousser",         kind:"ench",   deck:1, ench:"repulse",
     txt:"1×/Tour. Repousse les zombies d'une Zone vue, 1 Zone plus loin."},
  {id:"speed",     n:"Vitesse",           kind:"ench",   deck:1, ench:"speed",
@@ -563,38 +660,109 @@ const EQ = {}; EQUIP.forEach(e=>EQ[e.id]=e);
    Survivant (champ `bodyItem`), qui compte alors comme tenue en main (p.15).
    -------------------------------------------------------------------------- */
 const SURVIVORS = [
- {id:"ann",     n:"Ann",     c:"#c25b7c", bodyItem:"dagger", blue:["Soif de sang : Mêlée"],
-    orange:["+1 Action Magie gratuite","+1 Action Mêlée gratuite"],
-    red:["+1 Action Combat gratuite","+1 au jet de dé : Combat","Résultat 6 : +1 dé Combat"]},
- {id:"baldric", n:"Baldric", c:"#5b7cc2", bodyItem:"sword", blue:["Lanceur de sorts"],
-    orange:["+1 Action Magie gratuite","Grimoire"],
-    red:["+1 dé : Magie","+1 Action Combat gratuite","+1 au jet de dé : Mêlée"]},
- {id:"clovis",  n:"Clovis",  c:"#c2a35b", bodyItem:"shield", blue:["+1 dé : Mêlée"],
-    orange:["+1 Action Mêlée gratuite","Maître d'armes"],
-    red:["+1 Action Combat gratuite","+1 au jet de dé : Combat","Frappe et esquive"]},
- {id:"nelly",   n:"Nelly",   c:"#8ac25b", bodyItem:"dagger", blue:["+1 Action Déplacement gratuite"],
-    orange:["Soif de sang : Mêlée","Anguille"],
-    red:["+1 Action Combat gratuite","+1 au jet de dé : Combat","Frappe et esquive"]},
- {id:"samson",  n:"Samson",  c:"#a05b2c", bodyItem:"shield", blue:["Peau de fer"],
-    orange:["+1 dé : Combat","+1 au jet de dé : Mêlée"],
-    red:["+1 Dégât : Mêlée","+1 Action Combat gratuite","Barbare"]},
- {id:"silas",   n:"Silas",   c:"#4fb0a0", bodyItem:"sword", blue:["+1 au jet de dé : Distance"],
-    orange:["+1 Action Distance gratuite","À bout portant"],
-    red:["+1 dé : Distance","+1 Action Combat gratuite","Pluie de fer"]}
+ {id:"ann", boite:"Black Plague",     n:"Ann",     c:"#c25b7c", bodyItem:"dagger", blue:["Soif de sang : Mêlée"],
+    orange:["+1 Action de Magie gratuite","+1 Action de Mêlée gratuite"],
+    red:["+1 Action de Combat gratuite","+1 au résultat du dé : Combat","Sur un 6 : +1 dé Combat"]},
+ {id:"baldric", boite:"Black Plague", n:"Baldric", c:"#5b7cc2", bodyItem:"sword", blue:["Lanceur de sorts"],
+    orange:["+1 Action de Magie gratuite","Grimoire"],
+    red:["+1 dé : Magie","+1 Action de Combat gratuite","+1 au résultat du dé : Mêlée"]},
+ {id:"clovis", boite:"Black Plague",  n:"Clovis",  c:"#c2a35b", bodyItem:"shield", blue:["+1 dé : Mêlée"],
+    orange:["+1 Action de Mêlée gratuite","Maître d'Armes"],
+    red:["+1 Action de Combat gratuite","+1 au résultat du dé : Combat","Fuite"]},
+ {id:"nelly", boite:"Black Plague",   n:"Nelly",   c:"#8ac25b", bodyItem:"dagger", blue:["+1 Action de Déplacement gratuite"],
+    orange:["Soif de sang : Mêlée","Insaisissable"],
+    red:["+1 Action de Combat gratuite","+1 au résultat du dé : Combat","Fuite"]},
+ {id:"samson", boite:"Black Plague",  n:"Samson",  c:"#a05b2c", bodyItem:"shield", blue:["Corps de fer"],
+    orange:["+1 dé : Combat","+1 au résultat du dé : Mêlée"],
+    red:["+1 Dégât : Mêlée","+1 Action de Combat gratuite","Barbare"]},
+ {id:"silas", boite:"Black Plague",   n:"Silas",   c:"#4fb0a0", bodyItem:"sword", blue:["+1 au résultat du dé : À distance"],
+    orange:["+1 Action À distance gratuite","À bout portant"],
+    red:["+1 dé : À distance","+1 Action de Combat gratuite","Pluie de fer"]}
 ];
 const SKILL_TXT = {
  "+1 Action":"Le Survivant dispose d'une Action supplémentaire par Tour.",
  "Soif de sang : Mêlée":"Dépensez 1 Action : déplacez-vous jusqu'à 2 Zones vers une Zone contenant au moins 1 Zombie, puis gagnez 1 Action de Mêlée gratuite. (Sans limite en Black Plague.)",
  "Lanceur de sorts":"1 Action gratuite supplémentaire, utilisable uniquement pour une Action de Magie ou d'Enchantement.",
  "Grimoire":"Tous les Sorts de Combat et Enchantements du sac à dos sont considérés comme équipés en main.",
- "Maître d'armes":"Toutes les armes de Mêlée sont considérées comme ayant le symbole Ambidextre.",
- "Anguille":"Ne dépense pas d'Action supplémentaire pour quitter une Zone contenant des Zombies.",
- "Frappe et esquive":"Gratuit, juste après une Action de Combat ayant tué au moins 1 Zombie : Action de Déplacement gratuite (avec l'effet d'Anguille).",
- "Peau de fer":"Jets d'Armure à 5+ même sans armure. Avec une armure, +1 au résultat de chaque dé d'Armure (max 6).",
+ "Maître d'Armes":"Toutes les armes de Mêlée sont considérées comme ayant le symbole Ambidextre.",
+ "Insaisissable":"Ne dépense pas d'Action supplémentaire pour quitter une Zone contenant des Zombies.",
+ "Fureur Guerrière":"Gagne 1 dé supplémentaire pour ses Actions de Mêlée suivantes dès qu'il tue au moins 1 Zombie en Mêlée. Le bonus se cumule et dure jusqu'à la fin de son Activation.",
+ "Fuite":"Gratuit, juste après une Action de Combat ayant tué au moins 1 Zombie : Action de Déplacement gratuite (avec l'effet d'Insaisissable).",
+ "Corps de fer":"Jets d'Armure à 5+ même sans armure. Avec une armure, +1 au résultat de chaque dé d'Armure (max 6).",
  "Barbare":"Lors d'une Action de Mêlée, remplace le nombre de dés de l'arme par le nombre de Zombies dans la Zone ciblée.",
  "Pluie de fer":"Lors d'une Action à Distance, remplace le nombre de dés de l'arme par le nombre de Zombies dans la Zone ciblée.",
  "À bout portant":"Actions à Distance et de Magie possibles dans sa propre Zone quelle que soit la Portée minimale. À Portée 0, choisit librement ses cibles et peut tuer n'importe quel type de Zombie. Les échecs ne touchent pas les Survivants.",
- "Putride":"Ignoré par les Zombies tant qu'il ne fait pas de bruit et n'attaque pas."
+ "+1 Action de Combat gratuite":"1 Action de Combat supplémentaire gratuite, utilisable uniquement pour une Action de Magie, de Mêlée ou À distance.",
+ "+1 Action de Mêlée gratuite":"1 Action de Mêlée supplémentaire gratuite, utilisable uniquement pour une Action de Mêlée.",
+ "+1 Action À distance gratuite":"1 Action À distance supplémentaire gratuite, utilisable uniquement pour une Action À distance.",
+ "+1 Action de Magie gratuite":"1 Action de Magie supplémentaire gratuite, utilisable uniquement pour une Action de Magie.",
+ "+1 Action de Déplacement gratuite":"1 Action de Déplacement supplémentaire gratuite, utilisable uniquement pour se déplacer.",
+ "+1 dé : Combat":"1 dé supplémentaire lors des Actions de Combat, avec chacune de ses armes et chacun de ses sorts de Combat. Les armes Dual gagnent chacune +1 dé.",
+ "+1 dé : Mêlée":"1 dé supplémentaire lors des Actions de Mêlée, avec chacune de ses armes de Mêlée. Les armes Dual gagnent chacune +1 dé.",
+ "+1 dé : À distance":"1 dé supplémentaire lors des Actions À distance, avec chacune de ses armes À distance. Les armes Dual gagnent chacune +1 dé.",
+ "+1 dé : Magie":"1 dé supplémentaire lors des Actions de Magie, avec chacun de ses sorts de Combat. Les sorts Dual gagnent chacun +1 dé.",
+ "+1 au résultat du dé : Combat":"Ajoute 1 au résultat de chaque dé lancé pour ses Actions de Combat (Magie, Mêlée ou À distance). Le résultat maximum reste 6.",
+ "+1 au résultat du dé : Mêlée":"Ajoute 1 au résultat de chaque dé lancé pour ses Actions de Mêlée. Le résultat maximum reste 6.",
+ "+1 au résultat du dé : À distance":"Ajoute 1 au résultat de chaque dé lancé pour ses Actions À distance. Le résultat maximum reste 6.",
+ "+1 au résultat du dé : Magie":"Ajoute 1 au résultat de chaque dé lancé pour ses Actions de Magie. Le résultat maximum reste 6.",
+ "+1 Dégât : Mêlée":"Bonus de +1 Dégât lors d'une Action de Mêlée.",
+ "Sur un 6 : +1 dé Combat":"1 dé supplémentaire pour chaque 6 obtenu sur une Action de Combat, et ainsi de suite tant que des 6 sortent. Les relances doivent être faites avant.",
+ "+1 Action d'Enchantement gratuite":"1 Action d'Enchantement supplémentaire gratuite, utilisable uniquement pour un Enchantement.",
+ "+1 Action de Fouille gratuite":"1 Action de Fouille supplémentaire gratuite. On ne Fouille toujours qu'une fois par Tour.",
+ "+1 Dégât avec [Équipement]":"Bonus de +1 Dégât avec l'Équipement indiqué.",
+ "+1 Portée max":"La Portée maximale des armes À distance et des sorts de Combat est augmentée de 1.",
+ "+1 Zone par Déplacement":"Franchit 1 Zone supplémentaire à chaque Action de Déplacement. Entrer dans une Zone occupée met fin au Déplacement.",
+ "2 Zones par Action de Déplacement":"Franchit 1 ou 2 Zones à chaque Action de Déplacement. Entrer dans une Zone occupée met fin au Déplacement.",
+ "Ambidextre":"Tous les sorts de Combat et toutes les armes de Mêlée et À distance sont considérés comme dotés du symbole Dual.",
+ "Ange gardien":"1×/Tour, gratuit : une Zone à Portée 1 contenant au moins 1 Zombie ; les Survivants qui s'y trouvent sont attirés sans pénalité dans sa Zone. Ce n'est pas un Déplacement.",
+ "Blitz":"Chaque fois qu'il tue le dernier Zombie d'une Zone, il gagne 1 Action de Déplacement gratuite immédiate.",
+ "C'est tout ce que t'as ?":"Quand il s'apprête à recevoir des Blessures : défaussez 1 carte Équipement de son inventaire pour annuler 1 Blessure.",
+ "Chanceux":"Peut relancer une fois tous les dés de chaque Action (ou Sauvegarde d'armure). Les nouveaux résultats remplacent les précédents.",
+ "Charognard":"1×/Tour : 1 Action de Fouille gratuite dans une Zone — rue ou Crypte comprises — où il a éliminé un Zombie ce Round.",
+ "Chef né":"Pendant son Tour, donne gratuitement 1 Action supplémentaire à un autre Survivant, à dépenser lors de son prochain Tour.",
+ "Collectionneur [type de Zombie]":"Reçoit le double d'expérience à chaque Zombie tué du type indiqué.",
+ "Coriace":"À chaque Phase des Zombies, ignore la première Blessure qu'un Zombie lui inflige.",
+ "Cuirassé [type de Zombie]":"Ignore toutes les Blessures infligées par les Zombies du type indiqué.",
+ "Destinée":"1×/Tour, à la révélation d'une carte Équipement piochée : ignorer et défausser la carte pour en piocher une autre.",
+ "Double Enchantement":"À chaque Action d'Enchantement, choisit gratuitement une seconde cible. Désignez les deux cibles, puis résolvez sur chacune.",
+ "Effraction":"Ouvre les portes sans Équipement ni jet de dé (1 Action quand même) et sans faire de Bruit. Dispose en plus de 1 Action gratuite réservée à l'ouverture des portes.",
+ "Faucheur : À distance":"À l'attribution des touches d'une Action À distance : une touche tue gratuitement 1 Zombie identique de plus dans la Zone. Un seul par Action, expérience comprise.",
+ "Faucheur : Magie":"À l'attribution des touches d'une Action de Magie : une touche tue gratuitement 1 Zombie identique de plus dans la Zone. Un seul par Action, expérience comprise.",
+ "Faucheur : Mêlée":"À l'attribution des touches d'une Action de Mêlée : une touche tue gratuitement 1 Zombie identique de plus dans la Zone. Un seul par Action, expérience comprise.",
+ "Fouille : +1 carte":"Pioche 1 carte supplémentaire lors d'une Action de Fouille.",
+ "Frénésie : À distance":"Ses armes À distance gagnent +1 dé par Blessure subie.",
+ "Frénésie : Combat":"Ses armes et sorts de Combat gagnent +1 dé par Blessure subie.",
+ "Frénésie : Magie":"Ses sorts de Combat gagnent +1 dé par Blessure subie.",
+ "Frénésie : Mêlée":"Ses armes de Mêlée gagnent +1 dé par Blessure subie.",
+ "Frère d'armes [effet de jeu]":"Utilisable quand il partage sa Zone avec au moins 1 autre Survivant : tous les Survivants de la Zone bénéficient de la Compétence ou de l'effet indiqué.",
+ "Les deux font la paire":"En piochant une carte dotée du symbole Dual lors d'une Fouille, cherche immédiatement une carte identique dans la pioche Équipement, puis mélange.",
+ "Lien Zombie":"Gagne un Tour gratuit chaque fois qu'une carte d'Activation supplémentaire est tirée. Il joue avant les Zombies réactivés.",
+ "Pillard":"Peut Fouiller n'importe quelle Zone, y compris les Zones de rue et les Zones immergées.",
+ "Pluie de mana":"Lors d'une Action de Magie, remplace la valeur de Dés de chacun de ses sorts de Combat par le nombre de Zombies de la Zone ciblée.",
+ "Possède [Équipement]":"Commence la partie avec l'Équipement indiqué, reçu automatiquement à la Mise en place.",
+ "Poussée":"1×/Tour, gratuit : tous les Zombies de sa Zone sont repoussés dans une Zone à Portée 1 partageant un chemin ouvert. Ce n'est pas un Déplacement.",
+ "Précision chirurgicale":"Peut ignorer les Survivants de son choix quand il obtient des échecs en Magie ou À distance. Sans effet sur ce qui détruit toute une Zone.",
+ "Profil bas":"Ne peut pas être touché par les attaques de Magie ou À distance des autres Survivants. Reste vulnérable à ce qui détruit toute une Zone.",
+ "Provocation":"1×/Tour, gratuit : tous les Zombies d'une Zone qu'il voit gagnent une Activation supplémentaire et ne cherchent que lui, ignorant les autres Survivants.",
+ "Rechargement gratuit":"Recharge gratuitement les armes rechargeables.",
+ "Régénération":"À la fin de chaque Round, toutes ses Blessures sont soignées. Sans effet s'il a été éliminé.",
+ "Soif de sang : À distance":"Dépensez 1 Action : déplacez-vous de 1 ou 2 Zones vers une Zone contenant au moins 1 Zombie, puis gagnez 1 Action À distance gratuite immédiate.",
+ "Soif de sang : Magie":"Dépensez 1 Action : déplacez-vous de 1 ou 2 Zones vers une Zone contenant au moins 1 Zombie, puis gagnez 1 Action de Magie gratuite immédiate.",
+ "Sur un 6 : +1 dé À distance":"1 dé supplémentaire pour chaque 6 obtenu sur une Action À distance, et ainsi de suite tant que des 6 sortent.",
+ "Sur un 6 : +1 dé Magie":"1 dé supplémentaire pour chaque 6 obtenu sur une Action de Magie, et ainsi de suite tant que des 6 sortent.",
+ "Sur un 6 : +1 dé Mêlée":"1 dé supplémentaire pour chaque 6 obtenu sur une Action de Mêlée, et ainsi de suite tant que des 6 sortent.",
+ "Super force":"Ses armes de Mêlée sont considérées comme ayant une valeur de Dégâts de 3.",
+ "Tacticien":"Joue son Tour quand il veut pendant la Phase des joueurs, avant ou après le Tour de n'importe quel autre Survivant.",
+ "Tir instinctif":"Avec des armes À distance ou des sorts de Combat Dual, peut viser des Zones différentes avec chacun lors de la même Action.",
+ "Transmutation":"Autant de fois qu'il veut pendant son Tour : 1 Action, défaussez 1 carte Équipement et piochez-en une autre. Réorganisation gratuite ; ce n'est pas une Fouille.",
+ "Putréfié":"Ignoré par les Zombies tant qu'il ne fait pas de bruit et n'attaque pas.",
+ "Saut":"1×/Tour. 1 Action : se déplace de 2 Zones vers une Zone en ligne de vue. Les acteurs de la Zone traversée sont ignorés.",
+ "Sprint":"1×/Tour. Une Action de Déplacement permet de parcourir jusqu'à 3 Zones. Entrer dans une Zone occupée met fin à la course.",
+ "Charge":"Gratuit, autant de fois qu'on veut : se déplace de 2 Zones vers une Zone contenant au moins 1 Zombie.",
+ "Tireur d'élite":"Choisit librement ses cibles à Distance et en Magie. Les échecs ne touchent pas les Survivants.",
+ "+1 Portée max":"Portée maximale des armes à Distance et des Sorts de Combat augmentée de 1.",
+ "Faucheur : Combat":"Un succès de n'importe quelle attaque tue gratuitement un second Zombie identique de la Zone. Une fois par Action.",
+ "Soif de sang : Combat":"Dépensez 1 Action : déplacez-vous jusqu'à 2 Zones vers une Zone contenant au moins 1 Zombie, puis gagnez 1 Action de Combat gratuite (Mêlée, Distance ou Magie)."
 };
 
 /* --------------------------------------------------------------------------
@@ -631,6 +799,8 @@ const LTR = {W:"walker", R:"runner", B:"brute", A:"abomination"};
    -------------------------------------------------------------------------- */
 const DEFAULT_QUEST = {
   name:"Q00-Danse macabre",
+  /* En-tête de la fiche : « FACILE / 4+ SURVIVANTS / 45 MINUTES ». */
+  minSurvivors:4, difficulty:"Facile", duration:"45 minutes",
   goal:"Utilisez le cercle magique pour vous téléporter en lieu sûr.\nRejoignez la zone de sortie avec tous les survivants. Tout survivant peut s'échapper par cette zone à la fin de son tour, à condition qu'aucun zombie ne s'y trouve.",
   W:6, H:3,
   map:[
@@ -1264,7 +1434,8 @@ function newGame(ids){
       back: new Array(RULES.backSlots).fill(null),
       body:null,
       skills:[], pending:[], actions:0, free:[], searched:false,
-      reorgFree:true, invisible:false, ench:{}, hitRun:false
+      reorgFree:true, invisible:false, ench:{}, hitRun:false,
+      jumped:false, sprinted:false
     });
     /* Arme de départ : celle choisie sur l'écran de sélection si elle est
        encore disponible, sinon une carte prise au hasard dans ce qui reste. */
@@ -1355,13 +1526,14 @@ function startPlayersPhase(){
     s.actions = RULES.actionsPerTurn + (hasSkill(s,"+1 Action") ? 1 : 0);
     s.free = [];
     const add=(types,label)=>s.free.push({types, label});
-    if(hasSkill(s,"+1 Action Déplacement gratuite")) add(["move"],"Déplacement");
-    if(hasSkill(s,"+1 Action Mêlée gratuite"))       add(["melee"],"Mêlée");
-    if(hasSkill(s,"+1 Action Distance gratuite"))    add(["ranged"],"Distance");
-    if(hasSkill(s,"+1 Action Magie gratuite"))       add(["magic","ench"],"Magie");
+    if(hasSkill(s,"+1 Action de Déplacement gratuite")) add(["move"],"Déplacement");
+    if(hasSkill(s,"+1 Action de Mêlée gratuite"))       add(["melee"],"Mêlée");
+    if(hasSkill(s,"+1 Action À distance gratuite"))    add(["ranged"],"Distance");
+    if(hasSkill(s,"+1 Action de Magie gratuite"))       add(["magic","ench"],"Magie");
     if(hasSkill(s,"Lanceur de sorts"))               add(["magic","ench"],"Sorts");
-    if(hasSkill(s,"+1 Action Combat gratuite"))      add(["melee","ranged","magic"],"Combat");
+    if(hasSkill(s,"+1 Action de Combat gratuite"))      add(["melee","ranged","magic"],"Combat");
     s.searched=false; s.reorgFree=true; s.hitRun=false;
+    s.jumped=false; s.sprinted=false;
     Object.keys(s.ench).forEach(k=>s.ench[k]=false);
   });
   UI.tab = onBoard().length ? G.survivors.indexOf(onBoard()[0]) : 0;
@@ -1382,10 +1554,39 @@ function refund(s,type){ s.actions++; }
 
 /* ---------- déplacement ---------- */
 function moveCost(s){
-  if(hasSkill(s,"Anguille")) return 1;
+  if(hasSkill(s,"Insaisissable")) return 1;
   return RULES.extraActionPerZombie ? 1 + zombiesIn(s.z).length : 1;
 }
 function legalMoves(s){ return neighbours(s.z); }
+
+/* --- compétences de déplacement (livret Green Horde p.54-58) ---------------------------
+   Saut : 1×/Tour, une Action — deux Zones vers une Zone en LIGNE DE VUE. Les
+   acteurs de la Zone traversée sont ignorés, mais un obstacle la rend
+   infranchissable : on exige donc un vrai chemin en deux pas. */
+function jumpCibles(s){
+  const vue = los(s.z), out = new Set();
+  neighbours(s.z).forEach(n=>neighbours(n).forEach(j=>{ if(j!==s.z && vue.has(j)) out.add(j); }));
+  return [...out];
+}
+/* Charge : gratuit et répétable — deux Zones vers une Zone contenant au moins
+   un Zombie. On ne propose que les pas qui y mènent vraiment, sinon la gratuité
+   en ferait un déplacement libre illimité. */
+function chargeCibles(s, left){
+  return neighbours(s.z).filter(n=>
+    zombiesIn(n).length || (left>1 && neighbours(n).some(j=>zombiesIn(j).length)));
+}
+/* Modes pilotés au clic sur la carte, et Zones qu'ils autorisent — source
+   unique, utilisée par la surbrillance ET par le clic. */
+const MODES_DEPL = ["move","speed","bloodlust","hitrun","sprint","charge","jump"];
+const NOM_MODE = {speed:"Vitesse", bloodlust:"Soif de sang", hitrun:"Fuite",
+                  sprint:"Sprint", charge:"Charge", jump:"Saut", move:"Déplacement"};
+function zonesMode(m, act){
+  if(!m || !MODES_DEPL.includes(m.t)) return [];
+  const s = m.s || act; if(!s) return [];
+  if(m.t==="jump")   return jumpCibles(s);
+  if(m.t==="charge") return chargeCibles(s, m.left);
+  return legalMoves(s);
+}
 
 function doMove(s, target, freeMove){
   const cost = freeMove ? 0 : moveCost(s);
@@ -1712,7 +1913,7 @@ function weaponProfile(s, c, useAlt){
   const act  = kind==="spell" ? "magic" : kind;         // type d'Action
   let dice = e.dice, acc = e.acc, dmg = e.dmg;
   // Ambidextrie : 2 exemplaires identiques en main avec le symbole Ambidextre
-  const dualable = e.dual || (kind==="melee" && hasSkill(s,"Maître d'armes"));
+  const dualable = e.dual || (kind==="melee" && hasSkill(s,"Maître d'Armes"));
   const twin = dualable && handCards(s).filter(x=>x && x.id===c.id).length>=2;
   if(twin) dice *= 2;
   // Dague : +1 dé à l'autre arme de Mêlée équipée
@@ -1725,21 +1926,23 @@ function weaponProfile(s, c, useAlt){
   const per = twin ? 2 : 1;
   if(kind==="melee"){
     if(hasSkill(s,"+1 dé : Mêlée"))          dice += per;
-    if(hasSkill(s,"+1 au jet de dé : Mêlée"))acc--;
+    if(hasSkill(s,"+1 au résultat du dé : Mêlée"))acc--;
     if(hasSkill(s,"+1 Dégât : Mêlée"))       dmg++;
   }
   if(kind==="ranged"){
-    if(hasSkill(s,"+1 dé : Distance"))          dice += per;
-    if(hasSkill(s,"+1 au jet de dé : Distance"))acc--;
+    if(hasSkill(s,"+1 dé : À distance"))          dice += per;
+    if(hasSkill(s,"+1 au résultat du dé : À distance"))acc--;
   }
   if(kind==="spell"){
-    if(hasSkill(s,"+1 dé : Magie")) dice += per;
+    if(hasSkill(s,"+1 dé : Magie"))          dice += per;
+    if(hasSkill(s,"+1 au résultat du dé : Magie"))acc--;
   }
   if(hasSkill(s,"+1 dé : Combat")) dice += per;
-  if(hasSkill(s,"+1 au jet de dé : Combat")) acc--;
+  if(hasSkill(s,"+1 au résultat du dé : Combat")) acc--;
   acc = Math.max(2, acc);
   let rmin = e.rmin, rmax = e.rmax;
   if(kind!=="melee" && hasSkill(s,"À bout portant")) rmin = 0;
+  if(kind!=="melee" && hasSkill(s,"+1 Portée max"))  rmax += 1;
   return {e, kind, act, dice, acc, dmg, rmin, rmax, twin, noise:!!e.noise, keyw:e.keyw};
 }
 function targetZones(s, p){
@@ -1782,8 +1985,8 @@ async function doAttack(s, c, targetZ, useAlt){
     }
   }
   let hits = countHits(rolls, p.acc);
-  // « Résultat 6 : +1 dé Combat »
-  if(hasSkill(s,"Résultat 6 : +1 dé Combat")){
+  // « Sur un 6 : +1 dé Combat »
+  if(hasSkill(s,"Sur un 6 : +1 dé Combat")){
     let sixes = rolls.filter(r=>r===6).length;
     while(sixes>0){
       const extra = rollDice(sixes);
@@ -1797,9 +2000,12 @@ async function doAttack(s, c, targetZ, useAlt){
   logLine(`${s.n} — Action de ${ATK[p.kind].n} · ${p.e.n}${p.twin?" ×2":""} sur ${zn(targetZ)} : `+
           `${dice} dé(s), ${p.acc}+ → [${rolls.join(" ")}] = ${hits} succès, ${misses} échec(s).`,"l-dice");
 
-  const pointBlank = p.kind!=="melee" && hasSkill(s,"À bout portant") && targetZ===s.z;
-  resolveHits(s, targetZ, hits, p.dmg, p.kind, pointBlank);
-  if(p.kind!=="melee") await friendlyFire(s, targetZ, misses, p.dmg, pointBlank);
+  /* Choix libre des cibles, et échecs sans tir ami : « À bout portant » l'offre
+     à Portée 0, « Tireur d'élite » pour toute attaque à Distance ou de Magie. */
+  const libre = p.kind!=="melee" &&
+    (hasSkill(s,"Tireur d'élite") || (hasSkill(s,"À bout portant") && targetZ===s.z));
+  resolveHits(s, targetZ, hits, p.dmg, p.kind, libre);
+  if(p.kind!=="melee") await friendlyFire(s, targetZ, misses, p.dmg, libre);
   UI.mode=null; render(); checkEnd();
 }
 function rollDice(n){ const r=[]; for(let k=0;k<n;k++) r.push(d6()); return r; }
@@ -1811,7 +2017,7 @@ function countHits(rolls, acc){ return rolls.filter(r=> r===6 || (r!==1 && r>=ac
    priorité inférieure. « À bout portant » à Portée 0 lève cette contrainte :
    le Survivant choisit librement ses cibles. */
 function resolveHits(s, zi, hits, dmg, kind, pointBlank){
-  let killed=0, wasted=0;
+  let killed=0, wasted=0, moisson=false;
   while(hits>0){
     const here = zombiesIn(zi);
     if(!here.length){ wasted+=hits; break; }
@@ -1829,14 +2035,25 @@ function resolveHits(s, zi, hits, dmg, kind, pointBlank){
       target = tied.find(zz=>ZT[zz.t].lethal<=dmg) || tied[0];
     }
     hits--;
-    if(ZT[target.t].lethal<=dmg){ killZombie(target, s); killed++; }
+    if(ZT[target.t].lethal<=dmg){
+      killZombie(target, s); killed++;
+      /* Reaper : un succès tue gratuitement un second Zombie IDENTIQUE de la
+         Zone. Une seule fois par Action ; l'XP du bonus revient au Survivant. */
+      if(!moisson && hasSkill(s,"Faucheur : Combat")){
+        const jumeau = zombiesIn(zi).find(zz=>zz.t===target.t);
+        if(jumeau){
+          killZombie(jumeau, s); killed++; moisson=true;
+          logLine(`→ Moisson : un ${ZT[target.t].n} supplémentaire est tué.`,"l-kill");
+        }
+      }
+    }
     else { wasted++; logLine(`→ Succès perdu sur ${ZT[target.t].n} (Dégâts ${dmg} < ${ZT[target.t].lethal}).`,"l-bad"); }
   }
   if(killed) logLine(`→ ${killed} Zombie(s) éliminé(s).`,"l-kill");
   if(wasted && !killed) logLine(`→ ${wasted} succès perdu(s).`,"l-bad");
-  if(killed && hasSkill(s,"Frappe et esquive") && !s.hitRun){
+  if(killed && hasSkill(s,"Fuite") && !s.hitRun){
     s.hitRun=true;
-    logLine(`${s.n} peut utiliser « Frappe et esquive » (Déplacement gratuit).`,"l-obj");
+    logLine(`${s.n} peut utiliser « Fuite » (Déplacement gratuit).`,"l-obj");
   }
 }
 /* Tir ami (p.27) — uniquement à Distance et en Magie. Ce sont les ÉCHECS du jet
@@ -1888,7 +2105,7 @@ function armorValue(s){
   if(s.body && s.body.e.armor) v = s.body.e.armor;
   const sh = s.hands.filter(c=>c && c.e.kind==="shield").length;
   if(sh) v = Math.min(v, 4);
-  if(hasSkill(s,"Peau de fer")) v = Math.min(v, 5);
+  if(hasSkill(s,"Corps de fer")) v = Math.min(v, 5);
   return v;
 }
 /* Une Blessure avance la barre de Blessures du tableau de bord — elle n'occupe
@@ -1897,7 +2114,7 @@ function wound(s, noArmor){
   if(s.dead) return;
   const av = armorValue(s);
   if(!noArmor && av<99){
-    const bonus = (hasSkill(s,"Peau de fer") && s.body && s.body.e.armor) ? 1 : 0;
+    const bonus = (hasSkill(s,"Corps de fer") && s.body && s.body.e.armor) ? 1 : 0;
     let r = d6(), eff = Math.min(6, r+bonus), ok = eff>=av;
     // Bouclier : relance possible seulement si une armure est portée sur le Corps
     const canReroll = !ok && s.hands.some(c=>c && c.e.kind==="shield") && s.body && s.body.e.armor;
@@ -1983,7 +2200,7 @@ function applyEnch(s, c, target){
     } else logLine("Aucune Blessure à soigner.","l-sys");
   }
   if(kind==="invis"){ target.invisible=true;
-    logLine(`${target.n} devient Invisible (effet Putride jusqu'à la fin du Round).`,"l-obj"); }
+    logLine(`${target.n} devient Invisible (effet Putréfié jusqu'à la fin du Round).`,"l-obj"); }
   if(kind==="speed"){
     if(zombiesIn(target.z).length) logLine("Vitesse : la Zone contient des Zombies.","l-bad");
     else { UI.mode={t:"speed", s:target, left:2}; logLine(`${target.n} peut se déplacer de 2 Zones.`,"l-obj"); }
@@ -2080,7 +2297,7 @@ async function resolveZombieAttacks(zi, list){
       const r = await choose(`${ZT[zz.t].n} attaque en ${zn(zi)} — qui encaisse la Blessure ?`,
         victims.map((o,k)=>({label:`${o.n} — ${o.wounds}/${RULES.survivorWounds} Blessures`+
           (o.body&&o.body.e.armor?`, Armure ${o.body.e.armor}+`:"")+
-          (hasSkill(o,"Peau de fer")?", Peau de fer":""), v:k})));
+          (hasSkill(o,"Corps de fer")?", Corps de fer":""), v:k})));
       v = victims[r ?? 0];
     }
     logLine(`${ZT[zz.t].n} attaque ${v.n} en ${zn(zi)}.`,"l-bad");
@@ -2305,12 +2522,12 @@ function serialize(){
       buildingOpened:z.buildingOpened, vaultCards:(z.vaultCards||[]).map(cardOut)
     })),
     survivors:G.survivors.map(s=>({
-      idx:s.idx, z:s.z, xp:s.xp, wounds:s.wounds, dead:s.dead, escaped:s.escaped,
+      id:s.id, idx:s.idx, z:s.z, xp:s.xp, wounds:s.wounds, dead:s.dead, escaped:s.escaped,
       hands:s.hands.map(cardOut), back:s.back.map(cardOut), body:cardOut(s.body),
       skills:[...s.skills], pending:s.pending.map(p=>({choice:[...p.choice], lv:p.lv})),
       actions:s.actions, free:s.free.map(f=>({types:[...f.types], label:f.label})),
       searched:s.searched, reorgFree:s.reorgFree, invisible:s.invisible,
-      ench:{...s.ench}, hitRun:s.hitRun
+      ench:{...s.ench}, hitRun:s.hitRun, jumped:s.jumped, sprinted:s.sprinted
     })),
     zombies:G.zombies.map(z=>({id:z.id, t:z.t, z:z.z, entry:z.entry})),
     equipDeck:G.equipDeck.map(cardOut), equipDiscard:G.equipDiscard.map(cardOut),
@@ -2346,17 +2563,25 @@ function loadState(d){
   });
 
   const survivors = d.survivors.map((ss,k)=>{
-    const base = SURVIVORS[ss.idx] || SURVIVORS[k];
+    /* L'identifiant prime sur le rang : ajouter ou réordonner des Survivants
+       supplémentaires ne doit pas faire relire une sauvegarde de travers. */
+    const base = (ss.id && SURVIVORS.find(x=>x.id===ss.id))
+              || SURVIVORS[ss.idx] || SURVIVORS[k];
     return {
       ...base, idx: ss.idx, z: ss.z, xp: ss.xp|0, wounds: ss.wounds|0,
       dead: !!ss.dead, escaped: !!ss.escaped,
       hands: padTo((ss.hands||[]).map(cardIn), RULES.handSlots),
       back:  padTo((ss.back ||[]).map(cardIn), RULES.backSlots),
       body:  cardIn(ss.body),
-      skills: ss.skills||[], pending: ss.pending||[],
+      /* Une partie sauvegardée avant l'adoption des intitulés officiels garde
+         les anciens noms : on les traduit, sinon les compétences cesseraient
+         d'agir sans rien dire. Les choix de niveau en attente aussi. */
+      skills: (ss.skills||[]).map(nomActuel),
+      pending: (ss.pending||[]).map(p=>({...p, choice:(p.choice||[]).map(nomActuel)})),
       actions: ss.actions|0, free: ss.free||[],
       searched: !!ss.searched, reorgFree: ss.reorgFree!==false,
-      invisible: !!ss.invisible, ench: ss.ench||{}, hitRun: !!ss.hitRun
+      invisible: !!ss.invisible, ench: ss.ench||{}, hitRun: !!ss.hitRun,
+      jumped: !!ss.jumped, sprinted: !!ss.sprinted
     };
   });
 
@@ -2439,6 +2664,20 @@ function toast(t){ logLine("⚠ "+t,"l-bad"); }
    et un effet de pile — plutôt qu'une pastille par figurine. */
 /* Fixe la grille (--gc) sur une pastillothèque : côté = racine carrée
    arrondie au-dessus (1→1, 2..4→2, 5..9→3, 10..16→4, …). */
+/* Cliquer une figurine de Survivant le met au premier plan du panneau.
+   Quand un mode au clic est en cours (déplacement, ciblage…), on laisse au
+   contraire passer le clic vers la Zone : sans quoi on ne pourrait plus viser
+   ni rejoindre une Zone occupée par un allié. */
+function rendreSelectionnable(p, s){
+  p.classList.add("cliquable");
+  p.onclick = ev=>{
+    if(UI.mode) return;                       // le clic appartient à la Zone
+    ev.stopPropagation();
+    const k = G.survivors.indexOf(s);
+    if(k<0 || k===UI.tab) return;
+    UI.tab = k; render();
+  };
+}
 function calerGrille(container){
   const n=container.children.length;
   container.style.setProperty("--gc", Math.max(1, Math.ceil(Math.sqrt(n))));
@@ -2471,9 +2710,7 @@ function renderBoard(){
   const act = G.survivors[UI.tab];
   const legal = new Set(), legalAtk = new Set();
   if(act && !act.dead && !act.escaped && G.phase==="players"){
-    if(UI.mode?.t==="move")  legalMoves(act).forEach(i=>legal.add(i));
-    if(UI.mode?.t==="speed" || UI.mode?.t==="bloodlust" || UI.mode?.t==="hitrun")
-      legalMoves(UI.mode.s).forEach(i=>legal.add(i));
+    zonesMode(UI.mode, act).forEach(i=>legal.add(i));
     if(UI.mode?.t==="attack") UI.mode.zones.forEach(i=>legalAtk.add(i));
     if(UI.mode?.t==="bile")   [act.z,...neighbours(act.z)].forEach(i=>legal.add(i));
     if(UI.mode?.t==="torch")  UI.mode.zones.forEach(i=>legal.add(i));
@@ -2537,6 +2774,10 @@ function renderBoard(){
     });
     if(z.noise){ const e=T("noise","","Bruit : "+z.noise,"tok_noise");
                  const sp=document.createElement("span"); sp.textContent=z.noise; e.appendChild(sp); }
+    /* La colonne de jetons occupe le haut-droit. Réserver sa largeur en
+       permanence rétrécit les figurines pour rien quand la Zone n'en porte
+       aucun : on ne le fait donc que si elle en contient. */
+    if(tk.children.length) d.classList.add("avecjetons");
     d.appendChild(tk);
     // Zones d'Invasion : un rectangle par pion, plaqué sur le bord choisi
     z.spawnTokens.forEach(t=>{
@@ -2569,7 +2810,8 @@ function renderBoard(){
     const ac=document.createElement("div"); ac.className="actors";
     survIn(z.i).forEach(s=>{
       const p=pastille(s.c, s.id, s.n[0], "sv"+(s===act?" act":""));
-      p.title=s.n+" — "+s.wounds+" Blessure(s)";
+      rendreSelectionnable(p, s);
+      p.title=s.n+" — "+s.wounds+" Blessure(s) · clic pour le sélectionner";
       if(s.wounds){const w=document.createElement("div");w.className="wnd";w.textContent=s.wounds;p.appendChild(w);}
       ac.appendChild(p);
     });
@@ -2660,8 +2902,7 @@ function renderCrypts(){
   box.style.display="flex";
   const act=G.survivors[UI.tab];
   const legalMove = act && !act.dead && !act.escaped && G.phase==="players"
-                    && UI.mode && ["move","speed","bloodlust","hitrun"].includes(UI.mode.t)
-                    ? new Set(legalMoves(UI.mode.s||act)) : new Set();
+                    ? new Set(zonesMode(UI.mode, act)) : new Set();
   crypts.forEach(z=>{
     const d=document.createElement("div");
     const img=CRYPT_IMG[z.crypt];
@@ -2680,6 +2921,8 @@ function renderCrypts(){
     const ac=document.createElement("div"); ac.className="actors";
     survIn(z.i).forEach(s=>{
       const p=pastille(s.c,s.id,s.n[0],"sv"+(s===act?" act":""));
+      rendreSelectionnable(p, s);
+      p.title=s.n+" — "+s.wounds+" Blessure(s) · clic pour le sélectionner";
       if(s.wounds){const w=document.createElement("div");w.className="wnd";w.textContent=s.wounds;p.appendChild(w);}
       ac.appendChild(p);
     });
@@ -2703,16 +2946,24 @@ function onZoneClick(i){
   const m=UI.mode; const act=G.survivors[UI.tab];
   if(!m){ return; }
   if(m.t==="move"){ if(legalMoves(act).includes(i)){ UI.mode=null; doMove(act,i); } return; }
-  if(m.t==="speed"||m.t==="bloodlust"||m.t==="hitrun"){
+  if(m.t==="jump"){
     const s=m.s;
-    if(!legalMoves(s).includes(i)) return;
-    const hadZ = zombiesIn(s.z).length;
-    s.z=i; logLine(`${s.n} se déplace en ${zn(i)} (${m.t==="speed"?"Vitesse":m.t==="bloodlust"?"Soif de sang":"Frappe et esquive"}).`);
+    if(!jumpCibles(s).includes(i)) return;
+    s.z=i; UI.mode=null;
+    logLine(`${s.n} bondit jusqu'en ${zn(i)} (Saut).`);
+    afterMove(s); return;
+  }
+  if(m.t==="speed"||m.t==="bloodlust"||m.t==="hitrun"||m.t==="sprint"||m.t==="charge"){
+    const s=m.s;
+    if(!zonesMode(m, act).includes(i)) return;
+    s.z=i; logLine(`${s.n} se déplace en ${zn(i)} (${NOM_MODE[m.t]}).`);
     m.left--;
     const stop = zombiesIn(i).length>0;
     if(m.t==="bloodlust" && (m.left<=0 || stop)){
-      if(zombiesIn(i).length){ s.free.push({types:["melee"],label:"Soif de sang"}); logLine("→ Action de Mêlée gratuite.","l-obj"); }
-      else logLine("Soif de sang : aucune Zone avec Zombie atteinte.","l-bad");
+      if(zombiesIn(i).length){
+        s.free.push({types:m.gain.types, label:m.gain.label});
+        logLine(`→ Action de ${m.gain.label} gratuite.`,"l-obj");
+      } else logLine("Soif de sang : aucune Zone avec Zombie atteinte.","l-bad");
       UI.mode=null;
     } else if(m.left<=0 || stop) UI.mode=null;
     afterMove(s); return;
@@ -2864,11 +3115,53 @@ function renderPanel(){
   if(zi.exit && winCond().exit!=="none")
     ar.appendChild(btn(missionPrete() ? "Sortir" : "Sortie verrouillée",
                        ()=>{tryExit(s);render();}, "prim"));
-  if(hasSkill(s,"Soif de sang : Mêlée"))
-    ar.appendChild(btn("Soif de sang", ()=>{ if(!pay(s,"bloodlust")) return toast("Plus d'Action.");
-      UI.mode={t:"bloodlust", s, left:2}; logLine(`${s.n} : Soif de sang — jusqu'à 2 Zones vers des Zombies.`); render(); },
-      "", !canPay(s,"bloodlust")));
-  if(s.hitRun) ar.appendChild(btn("Frappe et esquive", ()=>{ UI.mode={t:"hitrun",s,left:1}; s.hitRun=false; render(); },"prim"));
+  /* Soif de sang : 1 Action, jusqu'à 2 Zones vers des Zombies, puis une Action
+     de Combat gratuite — de Mêlée, ou au choix avec « Soif de sang : Combat ». */
+  const soifs = [];
+  if(hasSkill(s,"Soif de sang : Mêlée")) soifs.push(["Soif de sang", ["melee"]]);
+  if(hasSkill(s,"Soif de sang : Combat"))   soifs.push(["Soif de sang (Combat)", ["melee","ranged","magic"]]);
+  soifs.forEach(([label,types])=>{
+    ar.appendChild(btn(label, ()=>{
+      if(!pay(s,"bloodlust")) return toast("Plus d'Action.");
+      UI.mode={t:"bloodlust", s, left:2, gain:{types,label}};
+      logLine(`${s.n} : ${label} — jusqu'à 2 Zones vers des Zombies.`); render();
+    }, "", !canPay(s,"bloodlust")));
+  });
+  /* Déplacement payé d'avance : Saut et Sprint coûtent une Action de
+     Déplacement, pénalité de Zone comprise, et ne servent qu'une fois par Tour. */
+  const payerDeplacement = () => {
+    const cout = moveCost(s);
+    if(s.actions < cout && !(cout===1 && s.free.some(f=>f.types.includes("move")))){
+      toast("Pas assez d'Actions (sortir de cette Zone coûte "+cout+" Actions)."); return false;
+    }
+    if(cout===1){ if(!pay(s,"move")) return false; } else s.actions -= cout;
+    return true;
+  };
+  if(hasSkill(s,"Saut"))
+    ar.appendChild(btn(UI.mode?.t==="jump" ? "Annuler Saut" : `Saut (${moveCost(s)})`, ()=>{
+      if(UI.mode?.t==="jump"){ UI.mode=null; return render(); }
+      if(s.jumped) return toast("Saut : une fois par Tour.");
+      if(!jumpCibles(s).length) return toast("Saut : aucune Zone à 2 Zones en ligne de vue.");
+      if(!payerDeplacement()) return;
+      s.jumped=true; UI.mode={t:"jump", s};
+      logLine(`${s.n} : Saut — 2 Zones vers une Zone en ligne de vue.`); render();
+    }, UI.mode?.t==="jump"?"prim":"", s.jumped && UI.mode?.t!=="jump"));
+  if(hasSkill(s,"Sprint"))
+    ar.appendChild(btn(UI.mode?.t==="sprint" ? "Annuler Sprint" : `Sprint (${moveCost(s)})`, ()=>{
+      if(UI.mode?.t==="sprint"){ UI.mode=null; return render(); }
+      if(s.sprinted) return toast("Sprint : une fois par Tour.");
+      if(!payerDeplacement()) return;
+      s.sprinted=true; UI.mode={t:"sprint", s, left:3};
+      logLine(`${s.n} : Sprint — jusqu'à 3 Zones.`); render();
+    }, UI.mode?.t==="sprint"?"prim":"", s.sprinted && UI.mode?.t!=="sprint"));
+  if(hasSkill(s,"Charge"))
+    ar.appendChild(btn(UI.mode?.t==="charge" ? "Annuler Charge" : "Charge", ()=>{
+      if(UI.mode?.t==="charge"){ UI.mode=null; return render(); }
+      if(!chargeCibles(s,2).length) return toast("Charge : aucun Zombie à 2 Zones ou moins.");
+      UI.mode={t:"charge", s, left:2};
+      logLine(`${s.n} : Charge — 2 Zones vers des Zombies.`); render();
+    }, UI.mode?.t==="charge"?"prim":""));
+  if(s.hitRun) ar.appendChild(btn("Fuite", ()=>{ UI.mode={t:"hitrun",s,left:1}; s.hitRun=false; render(); },"prim"));
   info.appendChild(ar);
   p.appendChild(info);
 
@@ -2926,11 +3219,24 @@ function renderPanel(){
   // aide contextuelle
   if(UI.mode){
     const m=el("div","card");
-    const txt={move:"Clique une Zone adjacente.",
-      attack:`Action de ${ATK[weaponProfile(UI.mode.s,UI.mode.c,UI.mode.alt).kind].n} — clique une Zone cible en rouge.`,
-      bile:"Clique une Zone à Portée 0-1 pour y poser la Bile.",torch:"Clique une Zone contenant de la Bile pour l'enflammer.",
-      speed:"Clique pour te déplacer (2 Zones).",bloodlust:"Déplace-toi jusqu'à 2 Zones vers des Zombies.",
-      hitrun:"Déplacement gratuit.",repulse:"Clique une Zone vue contenant des Zombies.",ench:""}[UI.mode.t];
+    /* Chaque phrase est différée : bâtir l'objet entier évaluait aussi celle de
+       l'attaque, qui interroge l'arme visée — absente dans tout autre mode, ce
+       qui interrompait le rendu du panneau. */
+    const AIDE = {
+      move:()=>"Clique une Zone adjacente.",
+      attack:()=>`Action de ${ATK[weaponProfile(UI.mode.s,UI.mode.c,UI.mode.alt).kind].n} — clique une Zone cible en rouge.`,
+      bile:()=>"Clique une Zone à Portée 0-1 pour y poser la Bile.",
+      torch:()=>"Clique une Zone contenant de la Bile pour l'enflammer.",
+      speed:()=>"Clique pour te déplacer (2 Zones).",
+      bloodlust:()=>"Déplace-toi jusqu'à 2 Zones vers des Zombies.",
+      hitrun:()=>"Déplacement gratuit.",
+      repulse:()=>"Clique une Zone vue contenant des Zombies.",
+      ench:()=>"",
+      jump:()=>"Saut — clique une Zone à 2 Zones, en ligne de vue.",
+      sprint:()=>`Sprint — encore ${UI.mode.left} Zone(s). Les Zombies arrêtent la course.`,
+      charge:()=>`Charge — encore ${UI.mode.left} Zone(s), vers des Zombies.`
+    };
+    const txt = AIDE[UI.mode.t] ? AIDE[UI.mode.t]() : "";
     m.appendChild(el("div",null,txt||""));
     if(UI.mode.t==="ench") renderEnchTargets(m, UI.mode.s, UI.mode.c);
     m.appendChild(btn("Annuler", ()=>{ UI.mode=null; render(); },"danger"));
@@ -2998,12 +3304,12 @@ function applyNewSkill(s, name){
   if(G.phase!=="players" || s.dead || s.escaped) return;
   if(name==="+1 Action") s.actions++;
   const add=(types,label)=>s.free.push({types,label});
-  if(name==="+1 Action Déplacement gratuite") add(["move"],"Déplacement");
-  if(name==="+1 Action Mêlée gratuite")       add(["melee"],"Mêlée");
-  if(name==="+1 Action Distance gratuite")    add(["ranged"],"Distance");
-  if(name==="+1 Action Magie gratuite")       add(["magic","ench"],"Magie");
+  if(name==="+1 Action de Déplacement gratuite") add(["move"],"Déplacement");
+  if(name==="+1 Action de Mêlée gratuite")       add(["melee"],"Mêlée");
+  if(name==="+1 Action À distance gratuite")    add(["ranged"],"Distance");
+  if(name==="+1 Action de Magie gratuite")       add(["magic","ench"],"Magie");
   if(name==="Lanceur de sorts")               add(["magic","ench"],"Sorts");
-  if(name==="+1 Action Combat gratuite")      add(["melee","ranged","magic"],"Combat");
+  if(name==="+1 Action de Combat gratuite")      add(["melee","ranged","magic"],"Combat");
 }
 
 /* ---------- modales ---------- */
@@ -3017,9 +3323,181 @@ function choose(title, opts){
     m.style.display="grid";
   });
 }
-function render(){ if(!G) return; renderBoard(); renderPanel(); majBoutonTuiles();
+function render(){ if(!G) return;
+  /* Un mode au clic est en cours : les figurines rendent la main à la Zone. */
+  document.body.classList.toggle("modeclic", !!UI.mode);
+  renderBoard(); renderPanel(); majBoutonTuiles();
   document.getElementById("btnEnd").disabled = G.over || G.phase!=="players";
   autoSave(); }
+
+/* --------------------------------------------------------------------------
+   SURVIVANTS SUPPLÉMENTAIRES
+   Wulfsburg, Green Horde, invités… se déclarent dans
+   zombicide_fichiers/survivants/survivants.js — de simples données, chargées
+   par une balise de script (la seule façon de lire un fichier voisin quand la
+   page est ouverte en file://).
+
+   Les compétences sont appliquées PAR LEUR NOM : une compétence absente de
+   SKILL_TXT n'aurait aucun effet en jeu. On le signale plutôt que de laisser
+   un Survivant à moitié muet.
+   -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+   VOCABULAIRE DES COMPÉTENCES
+   Les cartes portent des noms ANGLAIS ; le moteur travaille avec leurs
+   traductions. On accepte donc les deux à la saisie.
+
+   `ALIAS_COMP` : nom de carte → nom interne, pour les compétences réellement
+   appliquées par le moteur.
+   `COMP_LIVRET` : le reste du glossaire du livret (p.20-22). Ces noms sont
+   valides mais SANS effet ici — les distinguer d'une faute de frappe évite de
+   croire qu'un personnage joue à pleine puissance alors qu'il lui manque une
+   capacité.
+   -------------------------------------------------------------------------- */
+const ALIAS_COMP = {
+  "+1 free combat action":"+1 Action de Combat gratuite",
+  "+1 free melee action":"+1 Action de Mêlée gratuite",
+  "+1 free ranged action":"+1 Action À distance gratuite",
+  "+1 free magic action":"+1 Action de Magie gratuite",
+  "+1 free move action":"+1 Action de Déplacement gratuite",
+  "+1 die : combat":"+1 dé : Combat",   "+1 die : melee":"+1 dé : Mêlée",
+  "+1 die : ranged":"+1 dé : À distance", "+1 die : magic":"+1 dé : Magie",
+  "+1 to dice roll : combat":"+1 au résultat du dé : Combat",
+  "+1 to dice roll : melee":"+1 au résultat du dé : Mêlée",
+  "+1 to dice roll : ranged":"+1 au résultat du dé : À distance",
+  "+1 to dice roll : magic":"+1 au résultat du dé : Magie",
+  "+1 damage : melee":"+1 Dégât : Mêlée",
+  "roll 6 : +1 die combat":"Sur un 6 : +1 dé Combat",
+  "bloodlust : melee":"Soif de sang : Mêlée",
+  "slippery":"Insaisissable",        "barbarian":"Barbare",
+  "hit & run":"Fuite", "spellbook":"Grimoire",
+  "spellcaster":"Lanceur de sorts", "swordmaster":"Maître d'Armes",
+  "ironhide":"Corps de fer",     "iron rain":"Pluie de fer",
+  "point blank":"À bout portant",
+  "jump":"Saut", "sprint":"Sprint", "charge":"Charge", "marksman":"Tireur d'élite",
+  "+1 max range":"+1 Portée max", "reaper : combat":"Faucheur : Combat",
+  "bloodlust : combat":"Soif de sang : Combat"
+};
+/* Compétences du livret que le moteur n'applique pas encore. */
+const COMP_LIVRET = ["+1 Action d'Enchantement gratuite","+1 Action de Fouille gratuite",
+  "+1 Dégât avec [Équipement]","+1 free Enchantment Action","+1 free enchantment action",
+  "+1 free search action","+1 free Search Action","+1 Zone par Déplacement",
+  "+1 Zone per Move","+1 zone per move","2 Zones par Action de Déplacement","Ambidextre",
+  "ambidextrous","Ambidextrous","Ange gardien","blitz","Blitz","bloodlust : magic",
+  "Bloodlust : Magic","Bloodlust : Ranged","bloodlust : ranged","born leader","Born leader",
+  "Break-in","break-in","C'est tout ce que t'as ?","can start at","Chanceux","Charognard",
+  "Chef né","Collectionneur [type de Zombie]","collector","Collector","Coriace",
+  "Cuirassé [type de Zombie]","Destiny","destiny","Destinée","Double Enchantement",
+  "Effraction","Faucheur : Magie","Faucheur : Mêlée","Faucheur : À distance",
+  "Fouille : +1 carte","Free reload","free reload","Frenzy : Combat","frenzy : magic",
+  "Frenzy : Magic","frenzy : melee","Frenzy : Melee","frenzy : ranged","Frenzy : Ranged",
+  "Frère d'armes [effet de jeu]","Frénésie : Combat","Frénésie : Magie","Frénésie : Mêlée",
+  "Frénésie : À distance","Fureur Guerrière","hoard","hold your nose","ironclad","Ironclad",
+  "Is that all you have got ?","is that all you have got ?","Les deux font la paire",
+  "Lien Zombie","lifesaver","Lifesaver","lock it down","loud","Low profile","low profile",
+  "Lucky","lucky","Mana rain","mana rain","matching set !","Matching set !","Pillard",
+  "Pluie de mana","Possède [Équipement]","Poussée","Profil bas","Provocation",
+  "Précision chirurgicale","Putréfié","Reaper : Magic","reaper : magic","Reaper : Melee",
+  "reaper : melee","reaper : ranged","Reaper : Ranged","Rechargement gratuit",
+  "Regeneration","regeneration","Roll 6 : +1 die Magic","roll 6 : +1 die magic",
+  "Roll 6 : +1 die Melee","roll 6 : +1 die melee","Roll 6 : +1 die Ranged",
+  "roll 6 : +1 die ranged","rotten","Rotten","Régénération","scavenger","Scavenger",
+  "search : +1 card","Search : +1 card","shove","Shove","Soif de sang : Magie",
+  "Soif de sang : À distance","start with a","Start with a [Equipment]","Steady hand",
+  "steady hand","Super force","super strength","Super strength","Sur un 6 : +1 dé Magie",
+  "Sur un 6 : +1 dé Mêlée","Sur un 6 : +1 dé À distance","Tactician","tactician",
+  "Tacticien","Taunt","taunt","Tir instinctif","Tough","tough","Transmutation","trick shot",
+  "Trick shot","zombie link","Zombie link"];
+/* Noms employés avant l'adoption des intitulés officiels VF (Green Horde,
+   Règles p.54-58). Un survivants.js ou une sauvegarde écrits avant la bascule
+   restent lisibles : sans cette table la compétence passerait pour inconnue
+   et le Survivant jouerait sans, en silence. */
+const ANCIENS_NOMS = {
+  "+1 Action Combat gratuite":           "+1 Action de Combat gratuite",
+  "+1 Action Mêlée gratuite":            "+1 Action de Mêlée gratuite",
+  "+1 Action Distance gratuite":         "+1 Action À distance gratuite",
+  "+1 Action Magie gratuite":            "+1 Action de Magie gratuite",
+  "+1 Action Déplacement gratuite":      "+1 Action de Déplacement gratuite",
+  "+1 au jet de dé : Combat":            "+1 au résultat du dé : Combat",
+  "+1 au jet de dé : Mêlée":             "+1 au résultat du dé : Mêlée",
+  "+1 au jet de dé : Distance":          "+1 au résultat du dé : À distance",
+  "+1 au jet de dé : Magie":             "+1 au résultat du dé : Magie",
+  "+1 dé : Distance":                    "+1 dé : À distance",
+  "Résultat 6 : +1 dé Combat":           "Sur un 6 : +1 dé Combat",
+  "Anguille":                            "Insaisissable",
+  "Peau de fer":                         "Corps de fer",
+  "Frappe et esquive":                   "Fuite",
+  "Maître d'armes":                      "Maître d'Armes",
+  "Putride":                             "Putréfié",
+  "Jump":                                "Saut",
+  "Marksman":                            "Tireur d'élite",
+  "+1 max Range":                        "+1 Portée max",
+  "Reaper : Combat":                     "Faucheur : Combat",
+  "Bloodlust : Combat":                  "Soif de sang : Combat"
+};
+const nomActuel = n => ANCIENS_NOMS[n] || n;
+
+/* Comparaison indulgente : casse, accents, espaces et ponctuation ignorés —
+   le livret écrit « Hit &Run » ou « Lockit down » selon les colonnes. */
+const cleComp = t => (t||"").toLowerCase().normalize("NFD")
+  .replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]/g,"");
+
+/* Vocabulaire réellement implémenté : la liste exhaustive des compétences que
+   le moteur teste par hasSkill(). Elle était auparavant déduite des six fiches
+   de la boîte — mais une compétence qu'aucune d'elles ne porte passait alors
+   pour inconnue, et une compétence seulement décrite passait pour appliquée.
+   Toute nouvelle compétence codée doit être ajoutée ici. */
+const COMP_MOTEUR = [
+  "+1 Action",
+  "+1 Action de Combat gratuite","+1 Action de Mêlée gratuite","+1 Action À distance gratuite",
+  "+1 Action de Magie gratuite","+1 Action de Déplacement gratuite",
+  "+1 dé : Combat","+1 dé : Mêlée","+1 dé : À distance","+1 dé : Magie",
+  "+1 au résultat du dé : Combat","+1 au résultat du dé : Mêlée",
+  "+1 au résultat du dé : À distance","+1 au résultat du dé : Magie",
+  "+1 Dégât : Mêlée","Sur un 6 : +1 dé Combat","Soif de sang : Mêlée",
+  "Insaisissable","Barbare","Fuite","Grimoire","Lanceur de sorts",
+  "Maître d'Armes","Corps de fer","Pluie de fer","À bout portant",
+  "Saut","Sprint","Charge","Tireur d'élite","+1 Portée max",
+  "Faucheur : Combat","Soif de sang : Combat"
+];
+function competencesConnues(){ return new Set(COMP_MOTEUR); }
+/* Rend le nom interne d'une compétence écrite en français OU en anglais. */
+function normaliserComp(nom, connues){
+  if(connues.has(nom)) return nom;
+  if(connues.has(nomActuel(nom))) return nomActuel(nom);
+  const c = cleComp(nom);
+  for(const k of connues) if(cleComp(k)===c) return k;
+  for(const [en,fr] of Object.entries(ALIAS_COMP)) if(cleComp(en)===c) return fr;
+  return null;
+}
+const estDuLivret = nom => COMP_LIVRET.some(k=>cleComp(k)===cleComp(nom));
+function chargerSurvivants(){
+  const connues = competencesConnues();      // relevé AVANT tout ajout
+  const liste = Array.isArray(window.ZBP_SURVIVANTS) ? window.ZBP_SURVIVANTS : [];
+  const soucis = [];
+  liste.forEach(v=>{
+    if(!v || !v.id || !v.n) return soucis.push("entrée sans identifiant ou sans nom");
+    if(SURVIVORS.some(x=>x.id===v.id)) return soucis.push(`identifiant déjà pris : ${v.id}`);
+    /* on traduit ce qui peut l'être, on garde le reste tel quel pour le signaler */
+    const conv = l => (l||[]).map(k=>normaliserComp(k, connues) || k);
+    const sv = {id:v.id, n:v.n, c:v.c||"#8a8a8a", bodyItem:v.bodyItem||null,
+                bio:v.bio||"", boite:v.boite||"",
+                blue:conv(v.blue), orange:conv(v.orange), red:conv(v.red)};
+    if(!sv.blue.length) soucis.push(`${sv.n} : aucune compétence de départ (niveau Bleu)`);
+    [...sv.blue, ...sv.orange, ...sv.red].forEach(k=>{
+      if(connues.has(k)) return;
+      soucis.push(estDuLivret(k)
+        ? `${sv.n} : « ${k} » existe dans le livret mais n'est pas encore appliquée par le moteur`
+        : `${sv.n} : compétence inconnue — « ${k} » (faute de frappe ?)`);
+    });
+    if(sv.bodyItem && !EQ[sv.bodyItem])
+      soucis.push(`${sv.n} : objet de Corps inconnu — « ${sv.bodyItem} »`);
+    SURVIVORS.push(sv);
+    // portrait : surv_<id>.png, sauf nom explicite
+    SPRITES[sv.id] = v.sprite || ("surv_"+sv.id+".png");
+  });
+  return soucis;
+}
+let soucisSurvivants = [];
 
 /* ---------- écran de sélection des Survivants ---------- */
 let TEAM = SURVIVORS.map(v=>v.id);
@@ -3039,6 +3517,58 @@ function chargerGear(){
     if(GEAR[k] && !STARTERS.some(st=>st.id===GEAR[k])) delete GEAR[k];
   });
 }
+/* --------------------------------------------------------------------------
+   INFOBULLE DES COMPÉTENCES
+   `title` arriverait trop tard et sans mise en forme : on gère une bulle à
+   nous, au-dessus de l'écran de choix et toujours dans la fenêtre.
+   -------------------------------------------------------------------------- */
+const compAppliquee = k => COMP_MOTEUR.includes(k);
+let bulleEl = null;
+function bulle(){
+  if(!bulleEl){ bulleEl=document.createElement("div"); bulleEl.id="bulle";
+                document.body.appendChild(bulleEl); }
+  return bulleEl;
+}
+function montrerBulle(nom, x, y){
+  const b=bulle();
+  const txt = SKILL_TXT[nom];
+  const applique = compAppliquee(nom);
+  b.innerHTML = `<div class="bt">${htm(nom)}</div>`+
+    (txt ? `<div>${htm(txt)}</div>`
+         : `<div>Compétence du livret. Reporte-toi aux règles pour son effet exact.</div>`)+
+    (applique ? "" :
+      `<div class="bk">⚠ Pas encore appliquée par le moteur : le Survivant joue sans.</div>`);
+  b.style.display="block";
+  placerBulle(x,y);
+}
+function placerBulle(x,y){
+  const b=bulle(), r=b.getBoundingClientRect(), m=12;
+  let gx = x+14, gy = y+16;
+  if(gx + r.width  > innerWidth  - m) gx = Math.max(m, x - 14 - r.width);
+  if(gy + r.height > innerHeight - m) gy = Math.max(m, y - 16 - r.height);
+  b.style.left = gx+"px"; b.style.top = gy+"px";
+}
+const cacherBulle = ()=>{ if(bulleEl) bulleEl.style.display="none"; };
+/* Délégation : les cartes sont reconstruites à chaque clic, pas les écouteurs. */
+(()=>{
+  const zone = document.getElementById("setupList");
+  if(!zone) return;
+  zone.addEventListener("mouseover", e=>{
+    const c=e.target.closest(".cmp"); if(!c) return;
+    montrerBulle(c.dataset.c, e.clientX, e.clientY);
+  });
+  zone.addEventListener("mousemove", e=>{
+    if(bulleEl && bulleEl.style.display==="block") placerBulle(e.clientX, e.clientY);
+  });
+  zone.addEventListener("mouseout", e=>{
+    if(e.target.closest(".cmp")) cacherBulle();
+  });
+  zone.addEventListener("click", cacherBulle);   // la carte se redessine sous le curseur
+})();
+
+/* Texte d'origine extérieure inséré dans du balisage : toujours échappé. */
+const htm = t => String(t==null?"":t).replace(/[&<>"']/g,
+  c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function showSetup(){
   try{ const m=JSON.parse(localStorage.getItem("zbp_team"));
        if(Array.isArray(m) && m.length) TEAM=m.filter(id=>SURVIVORS.some(v=>v.id===id)); }catch(e){}
@@ -3065,19 +3595,27 @@ function resumeObjectifs(q){
 }
 /* Fiche de la mission choisie : description, objectif, et un repère chiffré.
    Une entrée qui ne porte qu'un `file` n'est lisible qu'après chargement. */
+/* Effectif minimum imposé par la fiche de quête. Absent = aucune exigence. */
+const minSurv = q => Math.max(1, (q && q.minSurvivors|0) || 1);
+
 function afficherInfoMission(q, entree){
   const b=document.getElementById("missionInfo");
   b.innerHTML="";
   if(!q){
-    b.style.display = entree ? "" : "none";
+    b.style.display = entree ? "block" : "none";
     if(entree){
       b.appendChild(el("div","ti", entree.name||"Mission"));
       b.appendChild(el("div","ob","Clique « Charger » pour lire le détail."));
     }
     return;
   }
-  b.style.display="";
+  b.style.display="block";
   b.appendChild(el("div","ti", q.name||"Mission"));
+  /* En-tête de la fiche de quête, à la manière des cartes officielles :
+     « FACILE · 4+ SURVIVANTS · 45 MINUTES ». Seul ce qui est renseigné sort. */
+  const enTete=[q.difficulty, minSurv(q)>1?`${minSurv(q)}+ Survivants`:"", q.duration]
+                 .filter(Boolean);
+  if(enTete.length) b.appendChild(el("div","fq", enTete.join(" · ")));
   if(q.description) b.appendChild(el("div","de", q.description));
   if(q.goal) b.appendChild(el("div","ob","Objectif — "+q.goal));
   const t=Object.keys(q.tiles||{}).length;
@@ -3090,7 +3628,8 @@ function renderMissions(){
   const sel=document.getElementById("missionSel");
   const list=missionsDispo();
   row.style.display = list.length ? "" : "none";
-  if(!list.length) return;
+  // sans catalogue, la fiche doit disparaître aussi, pas garder l'ancienne
+  if(!list.length){ afficherInfoMission(null, null); return; }
   sel.innerHTML="";
   list.forEach((m,i)=>{
     const o=document.createElement("option");
@@ -3105,17 +3644,56 @@ function renderMissions(){
   };
   sel.onchange();
 }
+/* Rappel d'effectif : visible pendant qu'on coche, pas seulement au moment de
+   cliquer « Commencer ». */
+function renderEffectif(){
+  const e=document.getElementById("effectif"); if(!e) return;
+  const mn=minSurv(QUEST);
+  if(mn<=1){ e.style.display="none"; return; }
+  const ok = TEAM.length >= mn;
+  e.style.display="block";
+  e.style.color = ok ? "#8fd08f" : "#e0a060";
+  e.textContent = ok
+    ? `✓ ${TEAM.length} Survivants — l'effectif conseillé de ${mn} est atteint.`
+    : `⚠ Mission prévue pour ${mn} Survivants minimum — ${TEAM.length} ${TEAM.length>1?"sélectionnés":"sélectionné"}. `+
+      `La partie reste jouable, mais l'Invasion ne diminue pas.`;
+}
 function renderSetup(){
+  renderEffectif();
   const box=document.getElementById("setupList"); box.innerHTML="";
+  /* Un Survivant ajouté dont une compétence est inconnue jouerait sans elle :
+     mieux vaut le dire que de laisser une carte silencieusement affaiblie. */
+  const av=document.getElementById("setupAvert");
+  if(av){
+    av.textContent = soucisSurvivants.length
+      ? "Survivants ajoutés — "+soucisSurvivants.join(" · ") : "";
+    av.style.display = soucisSurvivants.length ? "block" : "none";
+  }
   SURVIVORS.forEach(v=>{
     const on=TEAM.includes(v.id);
     const d=document.createElement("div");
     d.className="pick"+(on?" on":"");
     d.style.setProperty("--pc", v.c);
-    d.innerHTML=`<div class="dot">${v.n[0]}</div>`+
-      `<div class="nfo"><div class="nm">${v.n}</div>`+
-      `<div class="sk">${v.blue[0]}</div>`+
-      `<div class="sk">Corps : ${EQ[v.bodyItem]?EQ[v.bodyItem].n:"—"}</div></div>`+
+    /* `bio` et `boite` viennent d'un fichier écrit à la main : on les échappe
+       plutôt que de les injecter telles quelles dans le balisage. */
+    /* Les trois niveaux, chaque compétence survolable : on choisit un
+       Survivant sur son arbre, pas sur son seul talent de départ.
+       `bio`, `boite` et les noms viennent d'un fichier écrit à la main : on les
+       échappe plutôt que de les injecter telles quelles dans le balisage. */
+    const rang = (cle, css, titre) => {
+      const l = v[cle]||[];
+      if(!l.length) return "";
+      return `<div class="niv ${css}"><span class="lv">${titre}</span>`+
+        l.map(k=>`<span class="cmp${compAppliquee(k)?"":" ko"}" data-c="${htm(k)}">${htm(k)}</span>`)
+         .join("")+`</div>`;
+    };
+    d.innerHTML=`<div class="dot">${htm(v.n[0])}</div>`+
+      `<div class="nfo"><div class="nm">${htm(v.n)}</div>`+
+      `<div class="sk">Corps : ${EQ[v.bodyItem]?htm(EQ[v.bodyItem].n):"—"}</div>`+
+      (v.boite ? `<div class="boite">${htm(v.boite)}</div>` : "")+
+      rang("blue","b","BLEU")+rang("orange","o","ORANGE")+rang("red","r","ROUGE")+
+      (v.bio ? `<div class="bio" title="${htm(v.bio)}">${htm(v.bio)}</div>` : "")+
+      `</div>`+
       `<div class="ck">✓</div>`;
     d.onclick=()=>{
       if(on) TEAM=TEAM.filter(x=>x!==v.id); else TEAM=[...TEAM, v.id];
@@ -3376,6 +3954,7 @@ document.getElementById("missionLoad").onclick = async ()=>{
     QUEST=q;
     try{ localStorage.setItem("zbp_quest", JSON.stringify(q)); }catch(e){}
     afficherInfoMission(q, entree);
+    renderEffectif();                 // la nouvelle mission peut exiger plus de monde
     msg.style.color="#6bbf3f";
     const nbT=Object.keys(q.tiles||{}).length;
     msg.textContent=`« ${q.name||entree.name} » chargée (${source}`+
@@ -3387,6 +3966,11 @@ document.getElementById("missionLoad").onclick = async ()=>{
 };
 document.getElementById("setupStart").onclick = ()=>{
   if(!TEAM.length){ document.getElementById("setupMsg").textContent="Choisis au moins un Survivant."; return; }
+  /* La fiche de quête recommande un effectif. En dessous, l'Invasion ne diminue
+     pas et la partie devient très rude — on le dit, sans interdire : c'est au
+     joueur de décider s'il tente le coup. L'avertissement suit dans le journal,
+     pour qu'il reste lisible une fois la partie lancée. */
+  const mn = minSurv(QUEST), sousEffectif = TEAM.length < mn ? {mn, n:TEAM.length} : null;
   // le stock d'armes de départ doit être respecté (menus déjà bridés, mais un
   // changement d'équipe peut rendre un choix caduc)
   const trop = STARTERS.find(st=>TEAM.filter(id=>GEAR[id]===st.id).length > st.nb);
@@ -3395,6 +3979,9 @@ document.getElementById("setupStart").onclick = ()=>{
   // on garde l'ordre de la boîte plutôt que l'ordre des clics
   const ordonne = SURVIVORS.map(v=>v.id).filter(id=>TEAM.includes(id));
   clearSave(); newGame(ordonne); zoomFit();
+  if(sousEffectif) logLine(
+    `⚠ Cette mission est prévue pour ${sousEffectif.mn} Survivants au minimum — `+
+    `la partie commence à ${sousEffectif.n}. L'Invasion ne diminue pas pour autant.`, "l-bad");
 };
 document.getElementById("btnSave").onclick = downloadSave;
 document.getElementById("btnLoad").onclick = ()=>document.getElementById("fileLoad").click();
@@ -3421,6 +4008,71 @@ if(CUSTOM_QUEST){
     location.href = location.pathname;          // retire aussi le #q= de l'URL
   };
 }
+/* --------------------------------------------------------------------------
+   JOURNAL : repliable et redimensionnable
+   Le repli est un geste franc — on en profite pour réajuster le cadrage. Le
+   glisser, lui, ne touche pas au zoom : on règle une hauteur, on ne demande pas
+   un recadrage à chaque pixel.
+   -------------------------------------------------------------------------- */
+const LOG_H_DEF = 172, LOG_H_MIN = 56;
+const logPane = document.getElementById("logPane");
+const logGrip = document.getElementById("logGrip");
+const logToggle = document.getElementById("logToggle");
+
+function appliquerLog(clos){
+  document.body.classList.toggle("logclos", clos);
+  logToggle.textContent = clos ? "▸" : "▾";
+  try{ localStorage.setItem("zbp_logclos", clos ? "1" : "0"); }catch(e){}
+}
+/* Le plateau doit garder de quoi exister : on borne au passage, sinon une
+   fenêtre rétrécie après coup laisserait un journal plus haut qu'elle. */
+function hauteurLogMax(){
+  return Math.max(LOG_H_MIN, document.getElementById("main").clientHeight - 150);
+}
+function appliquerHauteurLog(h, memoriser){
+  const v = Math.min(hauteurLogMax(), Math.max(LOG_H_MIN, Math.round(h)));
+  logPane.style.height = v + "px";
+  if(memoriser!==false){ try{ localStorage.setItem("zbp_logh", v); }catch(e){} }
+  return v;
+}
+logToggle.onclick = ()=>{
+  appliquerLog(!document.body.classList.contains("logclos"));
+  zoomFit();                       // le plateau récupère ou rend de la hauteur
+};
+
+let glisse = null;
+logGrip.addEventListener("pointerdown", e=>{
+  if(document.body.classList.contains("logclos")) return;
+  glisse = {y:e.clientY, h:logPane.getBoundingClientRect().height};
+  logGrip.setPointerCapture(e.pointerId);
+  document.body.classList.add("logdrag");
+  e.preventDefault();
+});
+logGrip.addEventListener("pointermove", e=>{
+  if(!glisse) return;
+  appliquerHauteurLog(glisse.h + (glisse.y - e.clientY));   // vers le haut = plus grand
+});
+const finGlisse = e=>{
+  if(!glisse) return;
+  glisse = null;
+  document.body.classList.remove("logdrag");
+  try{ logGrip.releasePointerCapture(e.pointerId); }catch(err){}
+};
+logGrip.addEventListener("pointerup", finGlisse);
+logGrip.addEventListener("pointercancel", finGlisse);
+logGrip.addEventListener("dblclick", ()=>appliquerHauteurLog(LOG_H_DEF));
+/* Une fenêtre rétrécie peut rendre la hauteur mémorisée intenable. */
+addEventListener("resize", ()=>{
+  if(!document.body.classList.contains("logclos"))
+    appliquerHauteurLog(logPane.getBoundingClientRect().height, false);
+});
+
+try{
+  appliquerLog(localStorage.getItem("zbp_logclos")==="1");
+  const h = parseFloat(localStorage.getItem("zbp_logh"));
+  if(h > 0) appliquerHauteurLog(h, false);
+}catch(e){ appliquerLog(false); }
+
 document.getElementById("btnRules").onclick = ()=>{
   const m=document.getElementById("modal");
   document.getElementById("mTitle").textContent="Règles & notes";
@@ -3432,6 +4084,7 @@ document.getElementById("btnRules").onclick = ()=>{
 document.getElementById("modal").addEventListener("click",e=>{
   if(e.target.id==="modal") e.currentTarget.style.display="none";
 });
+soucisSurvivants = chargerSurvivants();
 chargerFichiersMissions(()=>preloadSprites(()=>{
   let memo = null;
   try{ memo = parseFloat(localStorage.getItem("zbp_zoom")); }catch(e){}

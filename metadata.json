@@ -58,5 +58,11 @@
     "description": "Éditeur de plans de quêtes pour Zombicide: Black Plague — zones, murs, portes, apparitions et objectifs.",
     "icone": "🗺️",
     "categorie": "Jeux"
+  },
+  "zombicide-personnages.html": {
+    "titre": "Zombicide — Éditeur de personnages (BÊTA)",
+    "description": "Crée des survivants supplémentaires pour Zombicide: Black Plague et génère le fichier survivants.js utilisé par le jeu.",
+    "icone": "🧑‍🤝‍🧑",
+    "categorie": "Jeux"
   }
 }

@@ -3,7 +3,7 @@
 ZBP_MISSION({name:" Q01-Chasse au gros gibier",
   quest:{
    "name": " Q01-Chasse au gros gibier",
-   "description": "Nous avons rapidement découvert le point de départ\nde l’invasion de zombies. D’autres survivants\nont aperçu un zombie gigantesque errant dans les rues,\nainsi qu’une sorte de sorcier maléfique guidant la horde pour nous submerger.\nIl nous a fallu deux jours pour localiser le Nécromancien\net comprendre qu’aucune de nos armes ne pouvait\nvenir à bout de l’Abomination. Prenons d’assaut\nle laboratoire du Nécromancien et éliminons-les tous deux grâce à une concoction secrète de notre cru : le Feu de Dragon.\nQue la chasse commence !",
+   "description": "Nous avons rapidement découvert le point de départ de l’invasion de zombies. D’autres survivants ont aperçu un zombie gigantesque errant dans les rues, ainsi qu’une sorte de sorcier maléfique guidant la horde pour nous submerger.\nIl nous a fallu deux jours pour localiser le Nécromancien et comprendre qu’aucune de nos armes ne pouvait venir à bout de l’Abomination. Prenons d’assaut le laboratoire du Nécromancien et éliminons-les tous deux grâce à une concoction secrète de notre cru : le Feu de Dragon.\nQue la chasse commence !",
    "goal": "Atteignez ces objectifs dans n'importe quel ordre pour remporter la partie :\n• Éliminez la bête et son maître. Tuez au moins une Abomination\net un Nécromancien.\n• Investissez le laboratoire. Emparez-vous de tous les objectifs.",
    "W": 6,
    "H": 6,
@@ -15,6 +15,9 @@ ZBP_MISSION({name:" Q01-Chasse au gros gibier",
     "M.NOOO",
     "M.NOOO"
    ],
+   "minSurvivors": 6,
+   "difficulty": "Facile",
+   "duration": "60 minutes",
    "doors": [
     {
      "x": 0,
@@ -302,18 +305,6 @@ ZBP_MISSION({name:" Q01-Chasse au gros gibier",
    "win": {
     "exit": "none",
     "goals": [
-     {
-      "label": "",
-      "need": [
-       "kill:necromancer"
-      ]
-     },
-     {
-      "label": "",
-      "need": [
-       "kill:abomination"
-      ]
-     },
      {
       "label": "",
       "need": [
