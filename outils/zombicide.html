@@ -64,9 +64,12 @@ body.hastiles .zone.unexplored{
 .tileLayer{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .tileLayer div{position:absolute;background-size:100% 100%;background-repeat:no-repeat}
 .zone::after{content:"";position:absolute;inset:0;pointer-events:none}
-.zone.legal{outline:2px solid #4f9d5a;outline-offset:-2px;cursor:pointer;
+/* Zone atteignable : le liseré ne suit QUE le pourtour de la Zone, même si
+   elle couvre plusieurs cases — les arêtes internes ne sont pas bordées.
+   Le tracé est posé côté JS, en ombres portées internes par côté. */
+.zone.legal{cursor:pointer;
   background-image:radial-gradient(circle,rgba(79,157,90,.22),transparent 70%)}
-.zone.legalAtk{outline:2px solid #c05050;outline-offset:-2px;cursor:pointer;
+.zone.legalAtk{cursor:pointer;
   background-image:radial-gradient(circle,rgba(192,80,80,.22),transparent 70%)}
 .zone.selz{outline:2px solid var(--gold);outline-offset:-2px}
 .zone .lbl{position:absolute;left:3px;top:2px;color:#6d6157;pointer-events:none;
@@ -1115,11 +1118,15 @@ function buildBoard(q){
        "aucune"    pas de limite du tout (façade ouverte sur la rue).
      Un type inconnu (limites Green Horde à venir) est traité comme un mur :
      c'est le choix prudent tant que ses règles ne sont pas écrites. */
-  const LIM_OUVERTES = {ouverture:1, aucune:1};
+  /* « ouverture » et « aucune » se franchissent toutes deux, mais seule
+     « aucune » signifie l'absence de limite. Une ouverture SÉPARE deux Zones
+     (livret) et se dessine comme un mur percé : les confondre effaçait le
+     contour des pièces et fusionnait des Zones distinctes. */
+  const ETAT_LIM = {ouverture:"opening", aucune:"open"};
   (q.limits||[]).forEach(l=>{
     const z = at(l.x,l.y), nb = at(l.x+DXY[l.s][0], l.y+DXY[l.s][1]);
     if(!z) return;
-    const etat = LIM_OUVERTES[l.t] ? "open" : "wall";
+    const etat = ETAT_LIM[l.t] || "wall";
     z.edge[l.s]=etat;
     if(nb) nb.edge[OPP[l.s]]=etat;
   });
@@ -1179,6 +1186,25 @@ function buildBoard(q){
     const z=at(p.x,p.y); if(!z) return;
     z.obj = {color:p.color||"red", hidden:!!p.hidden, back:p.back||null, revealed:!p.hidden};
   });
+  /* ---- Zones : une case de rue est une Zone à elle seule ; un bâtiment peut
+     en couvrir plusieurs, tant qu'aucune limite ne les sépare (livret p.10 :
+     « La position d'une figurine dans la zone et l'agencement des murs n'ont
+     aucune importance »). `grp` porte la case de référence de la Zone : les
+     figurines s'y tiennent, ce qui évite de les dessiner en double. */
+  zones.forEach(z=>{ z.grp = z.i; });
+  zones.filter(z=>z.room && !z.crypt).forEach(z=>{
+    if(z.grp !== z.i) return;                       // déjà rattachée
+    const pile=[z];
+    while(pile.length){
+      const c=pile.pop();
+      for(const sd of ["n","e","s","w"]){
+        if(c.edge[sd]!=="open") continue;   // mur, porte OU ouverture : Zones distinctes
+        const nb = at(c.x+DXY[sd][0], c.y+DXY[sd][1]);
+        if(!nb || !nb.room || nb.room!==z.room || nb.grp===z.i) continue;
+        nb.grp = z.i; pile.push(nb);
+      }
+    }
+  });
   // la rue est toujours visible ; les bâtiments sont dans le brouillard
   zones.forEach(z=>{ if(!z.room) z.explored=true; });
   // Un bâtiment dont une porte est déjà ouverte au départ n'est jamais envahi (p.19).
@@ -1192,26 +1218,33 @@ const AT = (x,y) => (x<0||y<0||x>=G.q.W||y>=G.q.H) ? null : G.zones[y*G.q.W+x];
 
 /* ---------- adjacence / déplacement ---------- */
 function openSide(z,s){
-  if(z.edge[s]==="open") return true;
+  if(z.edge[s]==="open" || z.edge[s]==="opening") return true;
   if(z.edge[s]==="door") return !!z.door[s];
   return false;
 }
 /* Zones accessibles en 1 Déplacement. Une porte de crypte ouverte relie la case
    à la Zone de Crypte de sa couleur, « comme si elles étaient connectées » (p.32). */
+/* Zones voisines. On part de TOUTES les cases de la Zone et on renvoie des
+   Zones (leur case de référence), jamais des cases : deux cases d'une même
+   Zone ne sont pas voisines, elles sont le même endroit. */
 function neighbours(i){
-  const z=Z(i), out=[];
+  const z=Z(i);
   if(z.crypt){
     // depuis la crypte : toutes les Zones dont la trappe de cette couleur est ouverte
-    G.zones.forEach(o=>{ if(!o.crypt && o.cryptDoor===z.crypt && o.cryptOpen) out.push(o.i); });
-    return out;
+    const out=[];
+    G.zones.forEach(o=>{ if(!o.crypt && o.cryptDoor===z.crypt && o.cryptOpen) out.push(ref(o.i)); });
+    return [...new Set(out)];
   }
-  for(const s of ["n","e","s","w"]){
-    if(!openSide(z,s)) continue;
-    const nb = AT(z.x+DXY[s][0], z.y+DXY[s][1]);
-    if(nb) out.push(nb.i);
-  }
-  if(z.cryptDoor && z.cryptOpen){ const c=cryptZone(z.cryptDoor); if(c) out.push(c.i); }
-  return out;
+  const moi = ref(i), vus = new Set();
+  casesZone(i).forEach(c=>{
+    for(const sd of ["n","e","s","w"]){
+      if(!openSide(c,sd)) continue;
+      const nb = AT(c.x+DXY[sd][0], c.y+DXY[sd][1]);
+      if(nb && ref(nb.i)!==moi) vus.add(ref(nb.i));
+    }
+    if(c.cryptDoor && c.cryptOpen){ const k=cryptZone(c.cryptDoor); if(k) vus.add(k.i); }
+  });
+  return [...vus];
 }
 /* Distances depuis i. `asIfOpen` : les zombies tracent leur route comme si
    toutes les portes étaient ouvertes (p.25), même si elles les bloquent. */
@@ -1250,7 +1283,15 @@ function neighboursOpen(i){
    — dans un bâtiment : toutes les Zones partageant une ouverture, limité à
      UNE Zone de distance ; en regardant dehors, la rue en ligne droite ;
    — aucune ligne de vue entre une crypte et les Zones qui la relient (p.32). */
+/* Ligne de vue : on regarde depuis chaque case de la Zone, et on ne retient
+   que des Zones. */
 function los(i){
+  if(Z(i).crypt) return new Set([ref(i)]);
+  const vues=new Set();
+  casesZone(i).forEach(c=>losCase(c.i).forEach(k=>vues.add(ref(k))));
+  return vues;
+}
+function losCase(i){
   const z=Z(i), seen=new Set([i]);
   if(z.crypt) return seen;                     // la crypte ne voit qu'elle-même
   const inside = !!z.building;
@@ -1278,9 +1319,23 @@ function los(i){
 /* ---------- accès rapides ---------- */
 const alive     = () => G.survivors.filter(s=>!s.dead && !s.escaped);
 const onBoard   = () => G.survivors.filter(s=>!s.dead && !s.escaped);
-const survIn    = i  => onBoard().filter(s=>s.z===i);
-const zombiesIn = i  => G.zombies.filter(zz=>zz.z===i);
-function noiseOf(i){ return Z(i).noise + survIn(i).filter(s=>!s.invisible).length; }
+/* Une Zone peut couvrir plusieurs cases : on interroge toujours sa case de
+   référence, où se tiennent les figurines. */
+const ref        = i  => (Z(i) && Z(i).grp!=null) ? Z(i).grp : i;
+const memeZone   = (a,b) => ref(a)===ref(b);
+const casesZone  = i  => G.zones.filter(z=>ref(z.i)===ref(i));
+const survIn    = i  => onBoard().filter(s=>s.z===ref(i));
+const zombiesIn = i  => G.zombies.filter(zz=>zz.z===ref(i));
+/* Pour le DESSIN, il faut interroger la case et non la Zone : sinon chaque
+   case d'une Zone de plusieurs cases dessinerait les mêmes figurines. Les
+   acteurs se tenant tous sur la case de référence, ils n'apparaissent qu'une
+   fois, à cet endroit. */
+const survInCase    = i => onBoard().filter(s=>s.z===i);
+const zombiesInCase = i => G.zombies.filter(zz=>zz.z===i);
+/* Le Bruit se compte par Zone : les jetons de toutes ses cases s'additionnent. */
+function noiseOf(i){
+  return casesZone(i).reduce((n,c)=>n+c.noise,0) + survIn(i).filter(s=>!s.invisible).length;
+}
 
 /* ---------- niveau de danger & compétences ---------- */
 function dangerIdx(xp){ for(let k=0;k<4;k++) if(xp<=DANGER[k].max) return k; return 3; }
@@ -1453,7 +1508,7 @@ function newGame(ids){
   SURVIVORS.forEach((sv,k)=>{
     if(!choisis.includes(sv.id)) return;
     G.survivors.push({
-      ...sv, idx:k, z: q.start.y*q.W + q.start.x, xp:0, wounds:0,
+      ...sv, idx:k, z: ref(q.start.y*q.W + q.start.x), xp:0, wounds:0,
       dead:false, escaped:false,
       hands:new Array(RULES.handSlots).fill(null),
       back: new Array(RULES.backSlots).fill(null),
@@ -1622,7 +1677,7 @@ function doMove(s, target, freeMove){
     if(cost===1){ if(!pay(s,"move")) return; }
     else s.actions -= cost;
   }
-  s.z = target;
+  s.z = ref(target);
   logLine(`${s.n} se déplace en ${zn(target)}${cost>1?" ("+cost+" Actions)":""}.`);
   afterMove(s);
 }
@@ -1717,9 +1772,16 @@ async function doOpenDoor(s){
     if(!ok){ render(); return checkEnd(); }
   }
   if(door.crypt){
-    // Les cryptes ne provoquent aucune Invasion à leur découverte (p.32).
+    /* La CRYPTE elle-même ne provoque aucune Invasion à sa découverte (p.32).
+       Mais la trappe débouche sur une Zone du plateau : ouverte depuis
+       l'intérieur, elle révèle un bâtiment encore clos, qui subit alors son
+       Invasion — c'est l'exemple du livret, « il ouvre l'autre porte de la
+       crypte depuis l'intérieur, il y a une activation de zombies ».
+       Quand on ouvre la trappe depuis la pièce, ce bâtiment est déjà ouvert :
+       openBuilding() s'arrête de lui-même. */
     z.cryptOpen = true;
     logLine(`La trappe de crypte ${cryptNom(z.cryptDoor)} de ${zn(z.i)} est ouverte.`,"l-obj");
+    if(z.building) openBuilding(z.building);
   } else {
     z.door[side]=true;
     const nb=AT(z.x+DXY[side][0], z.y+DXY[side][1]);
@@ -1735,8 +1797,11 @@ function openBuilding(b){
   const cells = G.zones.filter(o=>o.building===b && !o.crypt);
   if(!cells.length || cells[0].buildingOpened) return;
   cells.forEach(c=>{ c.buildingOpened=true; c.explored=true; });
-  logLine(`Bâtiment « ${b} » ouvert : Invasion dans ses ${cells.length} Zone(s).`,"l-bad");
-  runSpawnSequence(cells.map(c=>c.i));
+  /* Une Invasion par ZONE, pas par case : un bâtiment de 2 cases formant une
+     seule Zone n'en déclenche qu'une. */
+  const zones = [...new Set(cells.map(c=>ref(c.i)))];
+  logLine(`Bâtiment « ${b} » ouvert : Invasion dans ${zones.length===1?"sa Zone":`ses ${zones.length} Zones`}.`,"l-bad");
+  runSpawnSequence(zones);
 }
 
 /* ---------- fouiller ---------- */
@@ -1812,8 +1877,10 @@ function cardName(c){ return c ? c.e.n : "vide"; }
 /* Un Objectif caché montre toujours sa face rouge ; sa vraie couleur (le verso)
    n'est révélée qu'au moment où un Survivant le récupère. */
 async function doObjective(s){
-  const z=Z(s.z);
-  if(!z.obj) return toast("Aucun Objectif dans cette Zone.");
+  /* L'Objectif peut être posé sur une AUTRE case de la même Zone : « la
+     position d'une figurine dans la zone n'a aucune importance » (p.10). */
+  const z=casesZone(s.z).find(c=>c.obj);
+  if(!z) return toast("Aucun Objectif dans cette Zone.");
   if(!canPay(s,"objective")) return toast("Plus d'Action disponible.");
   pay(s,"objective");
   const o = z.obj, couleur = o.hidden ? (o.back||"red") : o.color;
@@ -1892,8 +1959,8 @@ function announceUnlocks(couleur){
    Même mécanique pour un objet posé par la quête dans une Zone du plateau, à
    ceci près qu'il ne rapporte pas d'expérience. */
 async function doTakeArtefact(s){
-  const z=Z(s.z);
-  if(!z.crypt || !z.vaultCards.length) return toast("Aucun Artefact ici.");
+  const z=casesZone(s.z).find(c=>c.crypt && c.vaultCards.length);
+  if(!z) return toast("Aucun Artefact ici.");
   if(!canPay(s,"objective")) return toast("Plus d'Action disponible.");
   pay(s,"objective");
   const c = z.vaultCards.shift();
@@ -1903,8 +1970,8 @@ async function doTakeArtefact(s){
   render(); checkEnd();
 }
 async function doTakeItem(s){
-  const z=Z(s.z);
-  if(!z.items || !z.items.length) return toast("Aucun objet dans cette Zone.");
+  const z=casesZone(s.z).find(c=>c.items && c.items.length);
+  if(!z) return toast("Aucun objet dans cette Zone.");
   if(!canPay(s,"objective")) return toast("Plus d'Action disponible.");
   pay(s,"objective");
   const c = z.items.shift();
@@ -2243,7 +2310,7 @@ function addZombie(t, zi){
     activateType(t); return null;
   }
   G.pool[t]--;
-  const z = {id:G.nextZid++, t, z:zi, entry:zi};
+  const z = {id:G.nextZid++, t, z:ref(zi), entry:ref(zi)};
   G.zombies.push(z); return z;
 }
 async function zombiePhase(){
@@ -2631,6 +2698,11 @@ function loadState(d){
     objectivesLeft: d.objectivesLeft|0, firstPlayer: d.firstPlayer|0,
     customMap: JSON.stringify(d.q) !== JSON.stringify(DEFAULT_QUEST)
   };
+  /* Sauvegarde écrite quand chaque case valait une Zone : les figurines
+     pouvaient se trouver sur n'importe laquelle. On les ramène sur la case de
+     référence de leur Zone, sinon elles s'ignoreraient entre elles. */
+  G.survivors.forEach(sv=>{ sv.z = ref(sv.z); });
+  G.zombies.forEach(zz=>{ zz.z = ref(zz.z); zz.entry = ref(zz.entry); });
   G.kills = {...(d.kills||{})};
   G.takenAt = {...(d.takenAt||{})};
   Object.keys(ZT).forEach(k=>{ if(typeof G.pool[k]!=="number") G.pool[k]=ZT[k].pool; });
@@ -2718,7 +2790,7 @@ function calerGrille(container){
 }
 function ajouterZombies(container, zoneIdx){
   const cnt={};
-  zombiesIn(zoneIdx).forEach(zz=>cnt[zz.t]=(cnt[zz.t]||0)+1);
+  zombiesInCase(zoneIdx).forEach(zz=>cnt[zz.t]=(cnt[zz.t]||0)+1);
   Object.keys(cnt).sort((a,b)=>TARGET_PRIORITY[a]-TARGET_PRIORITY[b]).forEach(t=>{
     const n=cnt[t];
     const p=pastille(ZT[t].c, t, ZT[t].ini, n>2?"pile3":(n>1?"pile2":""));
@@ -2809,8 +2881,9 @@ function renderBoard(){
   const act = G.survivors[UI.tab];
   const legal = new Set(), legalAtk = new Set();
   if(act && !act.dead && !act.escaped && G.phase==="players"){
-    zonesMode(UI.mode, act).forEach(i=>legal.add(i));
-    if(UI.mode?.t==="attack") UI.mode.zones.forEach(i=>legalAtk.add(i));
+    // une Zone peut couvrir plusieurs cases : on les éclaire toutes
+    zonesMode(UI.mode, act).forEach(i=>casesZone(i).forEach(c=>legal.add(c.i)));
+    if(UI.mode?.t==="attack") UI.mode.zones.forEach(i=>casesZone(i).forEach(c=>legalAtk.add(c.i)));
     if(UI.mode?.t==="bile")   [act.z,...neighbours(act.z)].forEach(i=>legal.add(i));
     if(UI.mode?.t==="torch")  UI.mode.zones.forEach(i=>legal.add(i));
     if(UI.mode?.t==="repulse")los(act.z).forEach(i=>{ if(zombiesIn(i).length) legalAtk.add(i); });
@@ -2820,6 +2893,21 @@ function renderBoard(){
     d.className="zone"+(z.building?" room":"")+(z.building&&!z.explored?" unexplored":"");
     if(legal.has(z.i)) d.className+=" legal";
     if(legalAtk.has(z.i)) d.className+=" legalAtk";
+    /* Un seul contour par Zone : on ne borde un côté que s'il donne sur autre
+       chose que la même Zone mise en avant. */
+    const surb = legalAtk.has(z.i) ? {jeu:legalAtk, col:"#c05050"}
+               : legal.has(z.i)    ? {jeu:legal,    col:"#4f9d5a"} : null;
+    if(surb){
+      const dec={n:"inset 0 2px 0 0", s:"inset 0 -2px 0 0",
+                 w:"inset 2px 0 0 0", e:"inset -2px 0 0 0"};
+      const bords=[];
+      for(const sd of ["n","e","s","w"]){
+        const nb=AT(z.x+DXY[sd][0], z.y+DXY[sd][1]);
+        if(nb && surb.jeu.has(nb.i) && memeZone(nb.i, z.i)) continue;   // arête interne
+        bords.push(dec[sd]+" "+surb.col);
+      }
+      d.style.boxShadow = bords.join(",");
+    }
     d.dataset.i=z.i;
     const lb=document.createElement("div"); lb.className="lbl";
     lb.textContent=(z.x+1)+","+(z.y+1)+(z.building?" "+z.building:""); d.appendChild(lb);
@@ -2854,7 +2942,7 @@ function renderBoard(){
     }
     // figurines
     const ac=document.createElement("div"); ac.className="actors";
-    survIn(z.i).forEach(s=>{
+    survInCase(z.i).forEach(s=>{
       const p=pastille(s.c, s.id, s.n[0], "sv"+(s===act?" act":""));
       rendreSelectionnable(p, s);
       p.title=s.n+" — "+s.wounds+" Blessure(s) · clic pour le sélectionner";
@@ -2922,6 +3010,14 @@ function renderWalls(){
       if(!AT(z.x+DXY[s][0], z.y+DXY[s][1])) continue;   // bord du plateau
       if(z.edge[s]==="open") continue;
       const [a,b,c,d]=seg[s];
+      if(z.edge[s]==="opening"){
+        /* Ouverture : le mur est bien là, percé d'un passage. On lit ainsi le
+           contour de la pièce tout en voyant par où l'on passe. */
+        const p=(k,lo,hi)=>lo+(hi-lo)*k;
+        line(a, b, p(.30,a,c), p(.30,b,d), "wall");
+        line(p(.70,a,c), p(.70,b,d), c, d, "wall");
+        continue;
+      }
       line(a,b,c,d,"wall");
       if(z.edge[s]==="door"){
         const p=(k,lo,hi)=>lo+(hi-lo)*k;
@@ -2966,7 +3062,7 @@ function renderCrypts(){
     d.appendChild(inf);
     poserJetons(d, z);        // objets déposés, Bruit, Bile, marqueurs
     const ac=document.createElement("div"); ac.className="actors";
-    survIn(z.i).forEach(s=>{
+    survInCase(z.i).forEach(s=>{
       const p=pastille(s.c,s.id,s.n[0],"sv"+(s===act?" act":""));
       rendreSelectionnable(p, s);
       p.title=s.n+" — "+s.wounds+" Blessure(s) · clic pour le sélectionner";
@@ -2990,6 +3086,7 @@ const CRYPT_NOM = {violet:"violette", purple:"violette", jaune:"jaune", yellow:"
 const cryptNom = c => CRYPT_NOM[c] || c;
 function onZoneClick(i){
   if(G.over || G.phase!=="players") return;
+  i = ref(i);            // cliquer n'importe quelle case d'une Zone vaut la Zone
   const m=UI.mode; const act=G.survivors[UI.tab];
   if(!m){ return; }
   if(m.t==="move"){ if(legalMoves(act).includes(i)){ UI.mode=null; doMove(act,i); } return; }
@@ -3136,10 +3233,13 @@ function renderPanel(){
   // zone courante
   const zi=Z(s.z);
   const info=el("div","card");
+  const nbCases = casesZone(s.z).length;
+  const bruitZone = casesZone(s.z).reduce((n,c)=>n+c.noise,0);
   info.appendChild(el("div","zoneinfo",
     `Zone ${zn(s.z)} — ${zi.crypt?"Crypte "+zi.crypt:zi.building?"Bâtiment "+zi.building:"Rue"}`+
+    (nbCases>1?` · ${nbCases} cases`:"")+
     (zombiesIn(s.z).length?` · ${zombiesIn(s.z).length} Zombie(s)`:"")+
-    (zi.noise?` · Bruit ${zi.noise}`:"")));
+    (bruitZone?` · Bruit ${bruitZone}`:"")));
   const ar=el("div","row"); ar.style.marginTop="6px";
   ar.appendChild(btn(UI.mode?.t==="move"?"Annuler":"Déplacer ("+moveCost(s)+")",
     ()=>{ UI.mode = UI.mode?.t==="move"?null:{t:"move"}; render(); },
@@ -3161,16 +3261,20 @@ function renderPanel(){
       + (!outils.length ? " — il faut une arme de Mêlée au symbole « Ouvrir une porte » en main."
        : !canPay(s,"door") ? " — plus d'Action disponible." : "");
   ar.appendChild(bOuvrir);
-  if(zi.obj) ar.appendChild(btn(
-    zi.obj.hidden ? "Prendre l'Objectif (face cachée)" : `Prendre l'Objectif ${colM(zi.obj.color)}`,
+  /* Le contenu se cherche dans toute la Zone, qui peut couvrir plusieurs cases. */
+  const cObj  = casesZone(s.z).find(c=>c.obj);
+  const cArt  = casesZone(s.z).find(c=>c.crypt && c.vaultCards.length);
+  const cItem = casesZone(s.z).find(c=>c.items && c.items.length);
+  if(cObj) ar.appendChild(btn(
+    cObj.obj.hidden ? "Prendre l'Objectif (face cachée)" : `Prendre l'Objectif ${colM(cObj.obj.color)}`,
     ()=>doObjective(s), "prim", !canPay(s,"objective")));
-  if(zi.crypt && zi.vaultCards.length)
-    ar.appendChild(btn(`Prendre un Artefact (${zi.vaultCards.length})`, ()=>doTakeArtefact(s), "prim", !canPay(s,"objective")));
-  if(zi.items && zi.items.length)
-    ar.appendChild(btn(`Ramasser ${zi.items[0].e.n}`+(zi.items.length>1?` (${zi.items.length})`:""),
+  if(cArt)
+    ar.appendChild(btn(`Prendre un Artefact (${cArt.vaultCards.length})`, ()=>doTakeArtefact(s), "prim", !canPay(s,"objective")));
+  if(cItem)
+    ar.appendChild(btn(`Ramasser ${cItem.items[0].e.n}`+(cItem.items.length>1?` (${cItem.items.length})`:""),
                        ()=>doTakeItem(s), "prim", !canPay(s,"objective")));
   ar.appendChild(btn("Faire du bruit", ()=>doNoise(s), "", !canPay(s,"noise")));
-  if(zi.exit && winCond().exit!=="none")
+  if(casesZone(s.z).some(c=>c.exit) && winCond().exit!=="none")
     ar.appendChild(btn(missionPrete() ? "Sortir" : "Sortie verrouillée",
                        ()=>{tryExit(s);render();}, "prim"));
   /* Soif de sang : 1 Action, jusqu'à 2 Zones vers des Zombies, puis une Action

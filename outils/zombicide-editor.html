@@ -144,7 +144,6 @@ body.doormode .c:hover{filter:none}
 .walls{position:absolute;left:0;top:0;pointer-events:none;z-index:6}
 .walls .wall{stroke:#8a7458;stroke-width:6;stroke-linecap:square}
 /* Ouverture : franchissable, mais c'est bien une limite entre deux Zones */
-.walls .lim-ouverture{stroke:#c9a227;stroke-width:4;stroke-dasharray:6 5;opacity:.95}
 .walls .wall.ouv{stroke-width:4;stroke-dasharray:6 5;opacity:.75}
 .walls .door{stroke-width:12;stroke-linecap:butt}
 .hatch{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -215,10 +214,15 @@ body.tilesview #wrap .stage{margin:0;flex:1;min-width:0}
 #tileEdit .tc.bat{background:rgba(51,41,31,calc(var(--ova)*.55))}
 #tileEdit .tw{position:absolute;background:rgba(240,217,160,var(--ova));
   box-shadow:0 0 3px #000a;z-index:3;pointer-events:none}
-#tileEdit .tw.lim-ouverture{background:repeating-linear-gradient(90deg,
-    rgba(201,162,39,var(--ova)) 0 5px, transparent 5px 10px);box-shadow:none}
-#tileEdit .tw.lim-ouverture.vert{background:repeating-linear-gradient(0deg,
-    rgba(201,162,39,var(--ova)) 0 5px, transparent 5px 10px)}
+/* Ouverture : la même convention qu'en jeu et dans la vue Carte — un mur percé
+   en son milieu, plutôt qu'un pointillé sur toute la longueur. */
+#tileEdit .tw.lim-ouverture{box-shadow:none;
+  background:linear-gradient(90deg,
+    rgba(240,217,160,var(--ova)) 0 30%, transparent 30% 70%,
+    rgba(240,217,160,var(--ova)) 70% 100%)}
+#tileEdit .tw.lim-ouverture.vert{background:linear-gradient(180deg,
+    rgba(240,217,160,var(--ova)) 0 30%, transparent 30% 70%,
+    rgba(240,217,160,var(--ova)) 70% 100%)}
 /* Ouverture : mur volontairement absent (pas encore de porte) — pointillé.
    Le sens du pointillé suit celui du mur, d'où la variante .vert. */
 #tileEdit .tw.ouv{box-shadow:none;
@@ -865,7 +869,12 @@ function renderWalls(){
       const t=limiteDe(x,y,s);
       if(!t) continue;
       const [a,b,c,d]=seg[s];
-      line(a,b,c,d,"wall lim-"+t);
+      if(t==="ouverture"){
+        /* Même convention qu'en jeu : le mur est là, percé d'un passage.
+           Une porte ne peut pas s'y poser — la poser convertit l'arête en mur. */
+        line(a, b, p(.30,a,c), p(.30,b,d), "wall");
+        line(p(.70,a,c), p(.70,b,d), c, d, "wall");
+      } else line(a,b,c,d,"wall lim-"+t);
       const dr=findDoor(x,y,s);
       if(!dr) continue;
       const col=colCss(dr.color||"grey");
@@ -1727,10 +1736,23 @@ function renderPanel(){
     if(!tileStamp && faites.length) tileStamp=faites[0];
     r.appendChild(sel);
     c1.appendChild(r);
-    const r2=el("div","row"); r2.style.marginTop="4px";
-    r2.appendChild(el("label",null,"Rotation :"));
-    [0,1,2,3].forEach(k=>r2.appendChild(btn(k*90+"°", ()=>{tileRot=k; render();}, tileRot===k?"on":"")));
-    c1.appendChild(r2);
+    /* Les quatre angles en aperçu : on choisit l'orientation en la voyant,
+       plutôt qu'en la déduisant d'un nombre de degrés. */
+    const r2=el("div","row"); r2.style.marginTop="6px"; r2.style.alignItems="flex-start";
+    [0,1,2,3].forEach(k=>{
+      const cel=el("div"); cel.style.cssText="display:flex;flex-direction:column;align-items:center;gap:3px";
+      const vue=apercuTuile(tileStamp, k, 76);
+      vue.style.cursor="pointer";
+      if(k===tileRot){ vue.style.borderColor="var(--gold)"; vue.style.boxShadow="0 0 0 1px var(--gold)"; }
+      vue.title = k*90+"° — clique pour choisir cette orientation";
+      vue.onclick = ()=>{ tileRot=k; render(); };
+      cel.appendChild(vue);
+      const lb=el("div", null, k*90+"°");
+      lb.style.cssText="font-size:10px;color:"+(k===tileRot?"var(--gold)":"var(--dim)");
+      cel.appendChild(lb);
+      r2.appendChild(cel);
+    });
+    if(faites.length) c1.appendChild(r2);
     if(!faites.length)
       c1.appendChild(el("div","hint","Passe d'abord par l'onglet 🧩 Tuiles pour décrire au moins une tuile."));
     else
@@ -2189,6 +2211,52 @@ function tuileVide(){ return {cells:new Array(9).fill("."), limites:{}}; }
 
 /* Rotation d'une tuile par quarts de tour horaires : la case (x,y) va en
    (2-y, x) et chaque côté tourne avec elle. */
+/* Aperçu d'une tuile telle qu'elle sera POSÉE : l'illustration tournée de
+   l'angle choisi, et par-dessus les limites déclarées, à la même convention
+   qu'en jeu (mur plein, ouverture percée). Cela permet de vérifier d'un coup
+   d'œil que l'orientation tombe juste avant de cliquer la carte. */
+function apercuTuile(id, rot, px){
+  const base = TILES[id];
+  const box = document.createElement("div");
+  box.style.cssText = `width:${px}px;height:${px}px;position:relative;flex:0 0 auto;`+
+    `border:1px solid var(--line);border-radius:5px;overflow:hidden;background:#14110f`;
+  if(!base) return box;
+  const t = tuileTournee(base, rot);
+  const im = document.createElement("div");
+  im.style.cssText = `position:absolute;inset:0;background:url("${tileImg(id)}") center/cover no-repeat;`+
+    `transform:rotate(${((rot%4)+4)%4*90}deg)`;
+  box.appendChild(im);
+
+  const NS="http://www.w3.org/2000/svg";
+  const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox","0 0 300 300");
+  svg.setAttribute("preserveAspectRatio","none");
+  svg.style.cssText="position:absolute;inset:0;width:100%;height:100%";
+  const trait=(x1,y1,x2,y2)=>{
+    const l=document.createElementNS(NS,"line");
+    l.setAttribute("x1",x1); l.setAttribute("y1",y1);
+    l.setAttribute("x2",x2); l.setAttribute("y2",y2);
+    l.setAttribute("stroke","#f0d9a0"); l.setAttribute("stroke-width","7");
+    l.setAttribute("stroke-linecap","square");
+    svg.appendChild(l);
+  };
+  const U=100, p=(k,lo,hi)=>lo+(hi-lo)*k;
+  for(let y=0;y<3;y++) for(let x=0;x<3;x++) for(const sd of tCotes(x,y)){
+    const ty = tLim(t,x,y,sd);
+    if(!ty) continue;
+    const X=x*U, Y=y*U;
+    const seg = {n:[X,Y,X+U,Y], w:[X,Y,X,Y+U],
+                 e:[X+U,Y,X+U,Y+U], s:[X,Y+U,X+U,Y+U]}[sd];
+    const [a,b,c,d]=seg;
+    if(ty==="ouverture"){
+      trait(a, b, p(.30,a,c), p(.30,b,d));
+      trait(p(.70,a,c), p(.70,b,d), c, d);
+    } else trait(a,b,c,d);
+  }
+  box.appendChild(svg);
+  return box;
+}
+
 function tuileTournee(t, rot){
   let cells=[...t.cells], limites={...(t.limites||{})};
   const ROT={n:"e",e:"s",s:"w",w:"n"};
