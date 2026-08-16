@@ -263,6 +263,12 @@ body.zsmall .zone .lbl{display:none}
    d'œil même dans une Zone bondée. --halo sert aussi aux états de survol. */
 :root{--halo:#00ff00}
 .pastille.sv.act{box-shadow:0 0 0 3px var(--halo),0 0 18px 3px #00ff0099}
+/* Zombies en cours de déplacement pendant le pas-à-pas : halo rouge, pour
+   suivre des yeux le groupe qui bouge. Contour + lueur plutôt qu'une ombre
+   portée : `box-shadow` serait écrasé par l'effet de pile des zombies, qui
+   l'utilise déjà. */
+.pastille.zbouge{outline:3px solid #ff2b2b;outline-offset:1px;
+  filter:drop-shadow(0 0 6px #ff2b2bcc) drop-shadow(0 0 12px #ff2b2b88)}
 /* Figurine sélectionnable : le curseur et un léger halo l'annoncent. */
 .pastille.sv.cliquable{cursor:pointer}
 .pastille.sv.cliquable:hover{box-shadow:0 0 0 2px #f0e2b8}
@@ -1717,24 +1723,37 @@ function canPay(s,type){
 const peutAgir = s => !s.dead && !s.escaped && (s.actions>0 || s.free.length>0);
 /* Le Survivant actif vient d'épuiser ses Actions : on annule le mode au clic —
    sinon le prochain clic sur la carte ne produirait que « Plus d'Action » — et
-   on passe au suivant qui peut encore jouer. */
+   on passe au suivant qui peut encore jouer.
+   Le passage de main attend un instant : basculer à l'image près ne laissait
+   pas le temps de voir le résultat de la dernière Action. Un choix manuel
+   pendant ce délai l'emporte et annule la bascule. */
+const DELAI_MAIN = 1200;
+let bascule = null;
+function annulerBascule(){ if(bascule){ clearTimeout(bascule); bascule = null; } }
+
 function passerLaMain(){
   const s = UI.epuise; if(!s) return;
   UI.epuise = null;
   if(G.over || G.phase!=="players") return;
   if(G.survivors[UI.tab] !== s) return;        // il n'est plus au premier plan
-  if(UI.mode){ UI.mode = null; }
+  if(UI.mode){ UI.mode = null; }               // le mode tombe TOUT DE SUITE
   const n = G.survivors.length;
+  let cible = -1;
   for(let k=1;k<=n;k++){
     const i = (UI.tab + k) % n;
-    if(peutAgir(G.survivors[i])){
-      UI.tab = i;
-      UI.centrer = G.survivors[i];        // on amène le nouveau venu à l'écran
-      logLine(`${s.n} n'a plus d'Action — au tour de ${G.survivors[i].n}.`,"l-sys");
-      return;
-    }
+    if(peutAgir(G.survivors[i])){ cible = i; break; }
   }
-  logLine("Plus aucune Action disponible — termine le Tour.","l-sys");
+  if(cible < 0){ logLine("Plus aucune Action disponible — termine le Tour.","l-sys"); return; }
+  logLine(`${s.n} n'a plus d'Action — au tour de ${G.survivors[cible].n}.`,"l-sys");
+  annulerBascule();
+  bascule = setTimeout(()=>{
+    bascule = null;
+    if(G.over || G.phase!=="players") return;
+    if(G.survivors[UI.tab] !== s) return;      // le joueur a déjà choisi lui-même
+    UI.tab = cible;
+    UI.centrer = G.survivors[cible];           // on amène le nouveau venu à l'écran
+    render();
+  }, DELAI_MAIN);
 }
 /* Un Survivant qui vient d'épuiser ses Actions est noté : le prochain rendu
    annulera le mode en cours et passera la main. On ne le fait PAS à chaque
@@ -2449,7 +2468,8 @@ function addZombie(t, zi){
    l'autre, sa Zone de départ et d'arrivée mises en avant. Un clic accélère,
    et le pas-à-pas se coupe entièrement depuis le pied de page.
    -------------------------------------------------------------------------- */
-const ANIM_MS = 900;
+const ANIM_MS = 900;      // le déplacement, une fois le groupe à l'écran
+const ANIM_CAM = 450;     // le temps de l'amener au centre et de le repérer
 let animZombies = true;
 let etapeZombies = null;          // {de, vers} du groupe en cours
 
@@ -2535,12 +2555,19 @@ async function activateAll(runnersOnly){
     const lot = parTrajet[cle].filter(m=>G.zombies.includes(m.zz));
     if(!lot.length) continue;
     const de = lot[0].zz.z, vers = lot[0].dest, t = lot[0].zz.t;
-    etapeZombies = {de, vers};
+    /* D'abord MONTRER le groupe là où il est, puis le déplacer : voir la
+       figurine bouger n'a de sens que si on la regardait déjà. `ou` porte la
+       Zone à mettre en avant, qui suit le groupe. */
+    etapeZombies = {de, vers, t, ou:de};
+    render();
+    if(animZombies){ centrerSurZone(de); await pause(ANIM_CAM); }
+
     lot.forEach(m=>{
       m.zz.z = m.dest;
       if(m.zz.t==="necromancer" && hasSpawn(Z(m.dest)) && m.dest!==m.zz.entry)
         necroEscape(m.zz);
     });
+    etapeZombies.ou = vers;
     (G.traces ||= []).push({de, vers, t, n:lot.length});
     logLine(`${lot.length} ${plurZ(t, lot.length)} : ${zn(de)} → ${zn(vers)}.`);
     render();
@@ -2963,6 +2990,7 @@ function rendreSelectionnable(p, s){
     ev.stopPropagation();
     const k = G.survivors.indexOf(s);
     if(k<0 || k===UI.tab) return;
+    annulerBascule();                         // choisir soi-même l'emporte
     UI.tab = k; render();
   };
 }
@@ -2975,7 +3003,11 @@ function ajouterZombies(container, zoneIdx){
   zombiesInCase(zoneIdx).forEach(zz=>cnt[zz.t]=(cnt[zz.t]||0)+1);
   Object.keys(cnt).sort((a,b)=>TARGET_PRIORITY[a]-TARGET_PRIORITY[b]).forEach(t=>{
     const n=cnt[t];
-    const p=pastille(ZT[t].c, t, ZT[t].ini, n>2?"pile3":(n>1?"pile2":""));
+    /* Halo rouge sur le groupe qui vient d'avancer, le temps de l'étape. */
+    const bouge = etapeZombies && etapeZombies.t===t
+                  && memeZone(zoneIdx, etapeZombies.ou);
+    const p=pastille(ZT[t].c, t, ZT[t].ini,
+      (n>2?"pile3":(n>1?"pile2":""))+(bouge?" zbouge":""));
     p.style.setProperty("--zc", ZT[t].c);
     p.title = n+" "+plurZ(t,n);
     if(n>1){ const e=document.createElement("div"); e.className="nb"; e.textContent=n; p.appendChild(e); }
@@ -3422,7 +3454,7 @@ function renderPanel(){
   G.survivors.forEach((s,k)=>{
     const a=actionState(s);
     const b=btn((s.dead?"†":s.escaped?"✓":"")+s.n,
-                ()=>{UI.tab=k; UI.mode=null; UI.centrer=s; render();},
+                ()=>{annulerBascule(); UI.tab=k; UI.mode=null; UI.centrer=s; render();},
                 a.cls+(k===UI.tab?" on":""));
     b.title = `${s.n} — ${a.txt}`;
     if(a.n) b.appendChild(el("span","na",a.n));      // Actions restantes
@@ -3747,13 +3779,16 @@ function choose(title, opts){
    n'existent pas avant. */
 function centrerSur(s){
   if(!s || s.dead || s.escaped) return;
+  centrerSurZone(s.z);
+}
+function centrerSurZone(i){
   const wrap = document.getElementById("boardWrap");
   if(!wrap) return;
-  const zone = Z(s.z);
+  const zone = Z(i);
   const cible = zone && zone.crypt
     ? [...document.querySelectorAll("#crypts .cryptZone")]
         .find(d=>d.textContent.includes(cryptNom(zone.crypt).toUpperCase()))
-    : [...document.querySelectorAll("#board .zone")].find(d=>+d.dataset.i===ref(s.z));
+    : [...document.querySelectorAll("#board .zone")].find(d=>+d.dataset.i===ref(i));
   if(!cible) return;
   const w = wrap.getBoundingClientRect(), c = cible.getBoundingClientRect();
   wrap.scrollTo({
