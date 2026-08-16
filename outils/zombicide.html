@@ -292,6 +292,36 @@ body.modeclic .pastille.sv.cliquable.act:hover{
   font-size:10px;font-weight:700;display:grid;place-items:center;line-height:1}
 
 /* ---------- panneau ---------- */
+/* Liste des Survivants : une colonne à part, entre le plateau et le panneau.
+   Elle reste visible en permanence — les onglets, eux, défilaient avec
+   l'inventaire et disparaissaient dès qu'on descendait un peu. */
+/* La bande du bas est partagée : le journal à gauche, les Survivants à droite.
+   La poignée règle la hauteur de l'ensemble. */
+#bas{height:172px;flex:0 0 auto;display:flex;flex-direction:column;background:#191614}
+#basCorps{flex:1;min-height:0;display:flex}
+#survPane{width:42%;min-width:250px;flex:0 0 auto;display:flex;flex-direction:column;
+  border-left:1px solid var(--line);background:#1c1917}
+#survBar{padding:2px 10px;background:#1a1714;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.4px;color:var(--gold);text-transform:uppercase}
+/* Les cartes s'égrènent librement et se rangent d'elles-mêmes en colonnes.
+   Leur largeur est celle du NOM LE PLUS LONG, calculée à l'affichage : à moitié
+   de panneau chacune, elles s'étiraient très au-delà de ce que le texte demande. */
+#survivants{flex:1;min-height:0;overflow-y:auto;padding:6px;
+  display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px}
+#survivants .sv-carte{flex:0 0 auto}
+.sv-carte{display:flex;gap:6px;align-items:center;padding:5px 6px;border-radius:6px;
+  border:1px solid var(--line);background:#241f1b;cursor:pointer;text-align:left}
+.sv-carte:hover{border-color:var(--gold)}
+.sv-carte.on{background:#33291a;border-color:var(--gold)}
+.sv-carte .pion{width:26px;height:26px;border-radius:50%;flex:0 0 auto;
+  border:2px solid #0009;background:var(--pc) center/cover no-repeat;
+  display:grid;place-items:center;font-weight:700;font-size:12px;color:#1a1714}
+.sv-carte .pion.img{color:transparent}
+.sv-carte .txt{min-width:0;flex:1;line-height:1.2}
+.sv-carte .nm{font-size:11.5px;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.sv-carte .et{font-size:10px}
+.sv-carte .hp{font-size:9px;color:#e07070}
 #side{width:430px;min-width:430px;background:var(--panel);border-left:1px solid var(--line);
   display:flex;flex-direction:column;height:100vh}
 #side header{padding:10px 12px;border-bottom:1px solid var(--line);background:#1a1714}
@@ -349,8 +379,7 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 .slot.wound{border-color:var(--blood);background:#3a1f1f}
 .slot.pick{cursor:pointer;outline:1px dashed var(--gold)}
 
-#logPane{height:172px;flex:0 0 auto;display:flex;flex-direction:column;
-  background:#191614}
+#logPane{flex:1;min-width:0;display:flex;flex-direction:column}
 /* Poignée de redimensionnement : une lisière fine qui remplace le filet du
    haut, assez large pour être attrapée sans gêner le plateau au-dessus. */
 #logGrip{height:6px;flex:0 0 auto;cursor:ns-resize;background:var(--line);
@@ -368,8 +397,8 @@ body.logclos #logGrip:hover{background:var(--line)}
 #logBar button:hover:not(:disabled){background:transparent;color:var(--gold)}
 #log{flex:1;min-height:0;overflow-y:auto;padding:6px 10px;font-size:12px;line-height:1.4}
 /* Replié : il ne reste que la barre de titre, le plateau récupère la place. */
-body.logclos #logPane{height:auto}
-body.logclos #log{display:none}
+body.logclos #bas{height:auto}
+body.logclos #basCorps{display:none}
 #log div{margin-bottom:2px;white-space:pre-line}
 .l-dice{color:#e8d48a}.l-kill{color:#8fd08f}.l-bad{color:#e08080}
 .l-sys{color:#8fa8c8}.l-round{color:var(--gold);font-weight:700;margin-top:6px}
@@ -474,13 +503,21 @@ a.lienpdf:hover{background:#4a3a1c}
   </div>
   <div id="boardWrap"><div class="stage"><div id="board"></div><div id="crypts"></div></div></div>
 </div>
-<div id="logPane">
+<div id="bas">
   <div id="logGrip" title="Glisser pour régler la hauteur · double-clic pour revenir à la taille d'origine"></div>
-  <div id="logBar">
-    <span>Journal</span>
-    <button id="logToggle" title="Replier ou déplier le journal">▾</button>
+  <div id="basCorps">
+    <div id="logPane">
+      <div id="logBar">
+        <span>Journal</span>
+        <button id="logToggle" title="Replier ou déplier le journal">▾</button>
+      </div>
+      <div id="log"></div>
+    </div>
+    <div id="survPane">
+      <div id="survBar"><span>Survivants</span></div>
+      <div id="survivants"></div>
+    </div>
   </div>
-  <div id="log"></div>
 </div>
 </div>
 
@@ -1300,6 +1337,40 @@ function buildBoard(q){
       }
     }
   });
+  /* ---- Complexes de bâtiment ----
+     Une Ouverture sépare deux ZONES mais pas deux pièces : de part et d'autre,
+     c'est le même bâtiment. C'est lui qu'une porte ouvre, et c'est dans chacune
+     de ses Zones que l'Invasion se résout — une seule fois.
+     Sans cette notion, chaque lettre passait pour un bâtiment distinct : entrer
+     par une Ouverture n'ouvrait rien, et la porte suivante déclenchait une
+     Invasion dans une Zone déjà occupée. */
+  zones.forEach(z=>{ z.cplx = z.i; });
+  zones.filter(z=>z.room && !z.crypt).forEach(z=>{
+    if(z.cplx !== z.i) return;
+    const pile=[z];
+    while(pile.length){
+      const c=pile.pop();
+      for(const sd of ["n","e","s","w"]){
+        if(c.edge[sd]!=="open" && c.edge[sd]!=="opening") continue;
+        const nb = at(c.x+DXY[sd][0], c.y+DXY[sd][1]);
+        if(!nb || !nb.room || nb.cplx===z.i) continue;
+        nb.cplx = z.i; pile.push(nb);
+      }
+    }
+  });
+  /* Un bâtiment auquel on accède sans ouvrir de porte n'a jamais été clos :
+     il est ouvert dès la mise en place, et ne déclenche aucune Invasion. */
+  const ouverts = new Set();
+  zones.filter(z=>z.room && !z.crypt).forEach(z=>{
+    for(const sd of ["n","e","s","w"]){
+      if(z.edge[sd]!=="open" && z.edge[sd]!=="opening") continue;
+      const nb = at(z.x+DXY[sd][0], z.y+DXY[sd][1]);
+      if(!nb || !nb.room) ouverts.add(z.cplx);       // donne sur la rue ou le bord
+    }
+  });
+  zones.forEach(z=>{ if(z.room && ouverts.has(z.cplx)){
+    z.buildingOpened = true; z.explored = true; } });
+
   // la rue est toujours visible ; les bâtiments sont dans le brouillard
   zones.forEach(z=>{ if(!z.room) z.explored=true; });
   // Un bâtiment dont une porte est déjà ouverte au départ n'est jamais envahi (p.19).
@@ -1920,26 +1991,29 @@ async function doOpenDoor(s){
        openBuilding() s'arrête de lui-même. */
     z.cryptOpen = true;
     logLine(`La trappe de crypte ${cryptNom(z.cryptDoor)} de ${zn(z.i)} est ouverte.`,"l-obj");
-    if(z.building) openBuilding(z.building);
+    if(z.building) openBuilding(z);
   } else {
     z.door[side]=true;
     const nb=AT(z.x+DXY[side][0], z.y+DXY[side][1]);
     if(nb) nb.door[OPP[side]]=true;
-    if(nb && nb.building) openBuilding(nb.building);
-    if(z.building) openBuilding(z.building);
+    if(nb && nb.building) openBuilding(nb);
+    if(z.building) openBuilding(z);
   }
   render(); checkEnd();
 }
 /* Invasion dans les bâtiments (p.19) : ouvrir une porte sur un bâtiment encore
    clos déclenche une Invasion dans CHACUNE de ses Zones, l'une après l'autre. */
-function openBuilding(b){
-  const cells = G.zones.filter(o=>o.building===b && !o.crypt);
+function openBuilding(z){
+  if(!z || !z.room || z.crypt) return;
+  /* Le complexe entier s'ouvre : les Ouvertures ne sont pas des cloisons. */
+  const cells = G.zones.filter(o=>!o.crypt && o.cplx===z.cplx);
   if(!cells.length || cells[0].buildingOpened) return;
   cells.forEach(c=>{ c.buildingOpened=true; c.explored=true; });
   /* Une Invasion par ZONE, pas par case : un bâtiment de 2 cases formant une
      seule Zone n'en déclenche qu'une. */
   const zones = [...new Set(cells.map(c=>ref(c.i)))];
-  logLine(`Bâtiment « ${b} » ouvert : Invasion dans ${zones.length===1?"sa Zone":`ses ${zones.length} Zones`}.`,"l-bad");
+  const nom = [...new Set(cells.map(c=>c.building))].join("+");
+  logLine(`Bâtiment « ${nom} » ouvert : Invasion dans ${zones.length===1?"sa Zone":`ses ${zones.length} Zones`}.`,"l-bad");
   runSpawnSequence(zones);
 }
 
@@ -3428,6 +3502,42 @@ function btn(label, fn, cls, dis){ const b=el("button",cls,label); b.onclick=fn;
 /* État d'Actions d'un Survivant, pour le code couleur du nom.
    Les Actions gratuites comptent : un Survivant à 0 Action générale mais avec
    une Action de Mêlée gratuite peut encore jouer. */
+/* La colonne des Survivants. Chaque carte : portrait, nom, Actions restantes,
+   Blessures. Cliquer sélectionne et recentre, comme le faisaient les onglets. */
+function renderSurvivants(){
+  const box=document.getElementById("survivants");
+  if(!box) return;
+  box.innerHTML="";
+  G.survivors.forEach((s,k)=>{
+    const a=actionState(s);
+    const d=el("div","sv-carte"+(k===UI.tab?" on":""));
+    d.style.setProperty("--pc", s.c);
+    d.title = `${s.n} — ${a.txt}`;
+    const pion=el("div","pion", (s.n[0]||"?").toUpperCase());
+    if(SPRITE_OK[s.id]){ pion.classList.add("img");
+      pion.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[s.id]})`; }
+    d.appendChild(pion);
+    const txt=el("div","txt");
+    txt.appendChild(el("div","nm",(s.dead?"† ":s.escaped?"✓ ":"")+s.n));
+    const et=el("div","et "+a.cls,
+      s.dead?"éliminé" : s.escaped?"évacué" :
+      a.n ? a.n+" Action"+(a.n>1?"s":"") : "plus d'Action");
+    txt.appendChild(et);
+    if(!s.dead && !s.escaped && s.wounds)
+      txt.appendChild(el("div","hp","♥".repeat(Math.max(0,RULES.survivorWounds-s.wounds))));
+    d.appendChild(txt);
+    d.onclick=()=>{ annulerBascule(); UI.tab=k; UI.mode=null; UI.centrer=s; render(); };
+    box.appendChild(d);
+  });
+  /* Toutes à la même largeur, celle qu'exige le nom le plus long — et jamais
+     plus large que la colonne disponible. */
+  const cartes = [...box.querySelectorAll(".sv-carte")];
+  cartes.forEach(c=>{ c.style.width = "max-content"; });
+  const large = Math.max(0, ...cartes.map(c=>c.offsetWidth));
+  const plafond = Math.max(80, box.clientWidth - 12);
+  if(large) cartes.forEach(c=>{ c.style.width = Math.min(large, plafond) + "px"; });
+}
+
 function actionState(s){
   if(s.dead)    return {cls:"act-out",  n:0, txt:"éliminé"};
   if(s.escaped) return {cls:"act-out",  n:0, txt:"évacué"};
@@ -3449,26 +3559,7 @@ function renderPanel(){
     `Danger ${DANGER[teamDanger()].name} · Objectifs sur le plateau : ${G.objectivesLeft} · `+
     `Mission ${pret?"✓":"✗"} ${missionChecklist()}`;
 
-  // onglets survivants
-  const tabs=el("div","tabs");
-  G.survivors.forEach((s,k)=>{
-    const a=actionState(s);
-    const b=btn((s.dead?"†":s.escaped?"✓":"")+s.n,
-                ()=>{annulerBascule(); UI.tab=k; UI.mode=null; UI.centrer=s; render();},
-                a.cls+(k===UI.tab?" on":""));
-    b.title = `${s.n} — ${a.txt}`;
-    if(a.n) b.appendChild(el("span","na",a.n));      // Actions restantes
-    if(!s.dead && !s.escaped && s.wounds)
-      b.appendChild(el("span","hp","♥".repeat(Math.max(0,RULES.survivorWounds-s.wounds))));
-    tabs.appendChild(b);
-  });
-  p.appendChild(tabs);
-  const leg=el("div","hint");
-  leg.style.marginTop="-4px";
-  leg.innerHTML = 'Nom <span class="act-full">vert</span> : toutes ses Actions · '+
-                  '<span class="act-some">or</span> : tour entamé · '+
-                  '<span class="act-none">gris</span> : plus d\'Action';
-  p.appendChild(leg);
+  renderSurvivants();
 
   const s=G.survivors[UI.tab];
   if(!s) return;
@@ -4498,13 +4589,18 @@ if(CUSTOM_QUEST){
    un recadrage à chaque pixel.
    -------------------------------------------------------------------------- */
 const LOG_H_DEF = 172, LOG_H_MIN = 56;
-const logPane = document.getElementById("logPane");
+const logPane = document.getElementById("bas");
 const logGrip = document.getElementById("logGrip");
 const logToggle = document.getElementById("logToggle");
 
+let hauteurBande = LOG_H_DEF;      // hauteur voulue quand la bande est dépliée
 function appliquerLog(clos){
   document.body.classList.toggle("logclos", clos);
   logToggle.textContent = clos ? "▸" : "▾";
+  /* Repliée, la bande doit se réduire à sa poignée : on retire la hauteur en
+     ligne, qui l'emporterait sur la règle de repli. Elle est reposée au
+     dépliage. */
+  logPane.style.height = clos ? "" : hauteurBande + "px";
   try{ localStorage.setItem("zbp_logclos", clos ? "1" : "0"); }catch(e){}
 }
 /* Le plateau doit garder de quoi exister : on borne au passage, sinon une
@@ -4514,7 +4610,8 @@ function hauteurLogMax(){
 }
 function appliquerHauteurLog(h, memoriser){
   const v = Math.min(hauteurLogMax(), Math.max(LOG_H_MIN, Math.round(h)));
-  logPane.style.height = v + "px";
+  hauteurBande = v;
+  if(!document.body.classList.contains("logclos")) logPane.style.height = v + "px";
   if(memoriser!==false){ try{ localStorage.setItem("zbp_logh", v); }catch(e){} }
   return v;
 }
