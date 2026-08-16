@@ -71,6 +71,11 @@ body.hastiles .zone.unexplored{
   background-image:radial-gradient(circle,rgba(79,157,90,.22),transparent 70%)}
 .zone.legalAtk{cursor:pointer;
   background-image:radial-gradient(circle,rgba(192,80,80,.22),transparent 70%)}
+/* Trajet du groupe de zombies qui vient d'avancer : d'où il part, où il arrive. */
+.zone.zdepart{background-image:radial-gradient(circle,rgba(192,80,80,.14),transparent 70%);
+  outline:2px dashed #c0505099;outline-offset:-3px}
+.zone.zarrivee{background-image:radial-gradient(circle,rgba(192,80,80,.3),transparent 65%);
+  outline:2px solid #d06060;outline-offset:-3px}
 .zone.selz{outline:2px solid var(--gold);outline-offset:-2px}
 .zone .lbl{position:absolute;left:3px;top:2px;color:#6d6157;pointer-events:none;
   font-size:clamp(6px,calc(var(--zs)*.1),10px)}
@@ -79,6 +84,12 @@ body.zsmall .zone .lbl{display:none}
 
 /* murs & portes : un calque SVG unique, un trait centré sur chaque arête */
 .walls{position:absolute;left:0;top:0;pointer-events:none;z-index:6}
+/* Flèches des déplacements zombies : au-dessus des murs, sous les fenêtres. */
+.traces{position:absolute;left:0;top:0;pointer-events:none;z-index:7}
+.traces .trace{stroke:#d06060;stroke-width:3;opacity:.85;
+  stroke-dasharray:7 5;stroke-linecap:round}
+.traces .tracen{fill:#f0c0c0;font-size:12px;font-weight:700;text-anchor:middle;
+  paint-order:stroke;stroke:#000;stroke-width:3px;stroke-linejoin:round}
 .walls .wall{stroke:#8a7458;stroke-width:7;stroke-linecap:square}
 /* Porte fermée : barre pleine de sa couleur. Porte ouverte : barre coupée en
    deux (tirets larges) — l'icône change donc à l'ouverture. */
@@ -447,6 +458,7 @@ a.lienpdf:hover{background:#4a3a1c}
     <span id="zLbl">100 %</span>
     <button id="zIn" title="Zoomer (Ctrl + molette, ou +)">+</button>
     <button id="zFit" title="Ajuster la carte à la fenêtre (touche 0)">Ajuster</button>
+    <button id="zTrace" title="Flèches des déplacements zombies du dernier Round">➤</button>
     <button id="zTile" title="Afficher les tuiles de terrain" style="display:none">🖼</button>
     <input id="zTileOp" type="range" min="15" max="100" title="Visibilité des tuiles"
            style="display:none">
@@ -472,6 +484,7 @@ a.lienpdf:hover{background:#4a3a1c}
   <div id="scroll"></div>
   <div id="foot">
     <button id="btnEnd" class="prim">Fin de tour → Phase Zombie</button>
+    <button id="btnAnim" class="prim">Zombies pas à pas : oui</button>
     <button id="btnRules">Règles</button>
     <button id="btnSave">Sauvegarder (JSON)</button>
     <button id="btnLoad">Charger…</button>
@@ -909,7 +922,7 @@ function validateQuest(q){
   if(q.exit && q.exit.side && !dxy[q.exit.side]) return "bord de Sortie inconnu : "+q.exit.side;
   for(const [col,liste] of Object.entries(q.objEffects||{}))
     for(const ef of (liste||[])){
-      if(!ef || !["xp","necro","equip","draw"].includes(ef.t))
+      if(!ef || !["xp","necro","equip","draw","zombie"].includes(ef.t))
         return `effet d'Objectif inconnu (${col}) : `+(ef&&ef.t);
       if(ef.t==="equip" && !EQ[ef.id]) return `effet d'Objectif ${col} : équipement inconnu `+ef.id;
       if(ef.t==="xp" && !(ef.n>0)) return `effet d'Objectif ${col} : XP invalides`;
@@ -1539,6 +1552,7 @@ function newGame(ids){
     pool: {}, vaultDeck: [], objectivesLeft: q.objectives.length, firstPlayer: 0,
     taken: {},                       // Objectifs récupérés, par couleur
     kills: {},                       // zombies tués, par type
+    traces: [],                      // trajets de la dernière Phase des Zombies
     takenAt: {},                     // Objectifs récupérés, par case "x,y"
     takenNames: {},                  // Objectifs nommés récupérés, par clé
     revealed: {},                    // versos d'Objectifs cachés déjà retournés
@@ -2016,6 +2030,13 @@ async function effetsObjectif(s, couleur){
       logLine(`Règle spéciale : ${s.n} reçoit « ${c.e.n} ».`,"l-obj");
       await giveCard(s,c);
     }
+    else if(ef.t==="zombie"){
+      /* Une carte d'Invasion tirée et résolue dans la Zone du Survivant. On
+         réutilise la séquence du jeu : elle gère la « double invasion » et le
+         remélange de la pioche. */
+      logLine(`Règle spéciale : ${s.n} tire une carte d'Invasion.`,"l-bad");
+      runSpawnSequence([ref(s.z)]);
+    }
     else if(ef.t==="draw"){
       // une carte tirée au hasard dans la liste décrite par la quête
       const ids = (ef.ids||[]).filter(id=>EQ[id]);
@@ -2417,8 +2438,38 @@ function addZombie(t, zi){
   const z = {id:G.nextZid++, t, z:ref(zi), entry:ref(zi)};
   G.zombies.push(z); return z;
 }
+/* --------------------------------------------------------------------------
+   PHASE DES ZOMBIES AU RALENTI
+   Tout appliquer d'un coup rendait la phase illisible : on ne savait pas qui
+   venait d'où. Chaque GROUPE qui emprunte le même trajet avance donc l'un après
+   l'autre, sa Zone de départ et d'arrivée mises en avant. Un clic accélère,
+   et le pas-à-pas se coupe entièrement depuis le pied de page.
+   -------------------------------------------------------------------------- */
+const ANIM_MS = 900;
+let animZombies = true;
+let etapeZombies = null;          // {de, vers} du groupe en cours
+
+function pause(ms){
+  if(!animZombies) return Promise.resolve();
+  return new Promise(res=>{
+    let fini = false;
+    const stop = ()=>{ if(fini) return; fini = true;
+      clearTimeout(t); document.removeEventListener("click", stop, true); res(); };
+    const t = setTimeout(stop, ms);
+    document.addEventListener("click", stop, true);   // cliquer passe à la suite
+  });
+}
+function appliquerAnim(actif){
+  animZombies = !!actif;
+  const b = document.getElementById("btnAnim");
+  if(b){ b.textContent = "Zombies pas à pas : "+(animZombies?"oui":"non");
+         b.classList.toggle("prim", animZombies); }
+  try{ localStorage.setItem("zbp_animz", animZombies ? "1" : "0"); }catch(e){}
+}
+
 async function zombiePhase(){
   G.phase="zombies";
+  G.traces = [];                  // on ne garde que la phase qui commence
   logLine("— Phase des Zombies —","l-sys");
   await activateAll(false);
   await activateAll(true);      // 2e Action des Runners
@@ -2472,13 +2523,26 @@ async function activateAll(runnersOnly){
   });
   // 1) toutes les attaques
   for(const a of attacks) await resolveZombieAttacks(a.zi, a.list);
-  // 2) puis tous les mouvements
-  moves.forEach(m=>{
-    if(!G.zombies.includes(m.zz)) return;
-    m.zz.z = m.dest;
-    if(m.zz.t==="necromancer" && hasSpawn(Z(m.dest)) && m.dest!==m.zz.entry)
-      necroEscape(m.zz);
-  });
+  /* 2) puis les mouvements, un GROUPE à la fois : même départ, même arrivée,
+        même type. Six Walkers qui suivent la même route font une seule étape. */
+  const parTrajet = {};
+  moves.forEach(m=>{ (parTrajet[m.zz.z+">"+m.dest+">"+m.zz.t] ||= []).push(m); });
+  for(const cle of Object.keys(parTrajet)){
+    const lot = parTrajet[cle].filter(m=>G.zombies.includes(m.zz));
+    if(!lot.length) continue;
+    const de = lot[0].zz.z, vers = lot[0].dest, t = lot[0].zz.t;
+    etapeZombies = {de, vers};
+    lot.forEach(m=>{
+      m.zz.z = m.dest;
+      if(m.zz.t==="necromancer" && hasSpawn(Z(m.dest)) && m.dest!==m.zz.entry)
+        necroEscape(m.zz);
+    });
+    (G.traces ||= []).push({de, vers, t, n:lot.length});
+    logLine(`${lot.length} ${plurZ(t, lot.length)} : ${zn(de)} → ${zn(vers)}.`);
+    render();
+    await pause(ANIM_MS);
+  }
+  etapeZombies = null;
   if(moves.length) logLine(`${moves.length} Zombie(s) se déplacent.`);
   render();
 }
@@ -2570,7 +2634,12 @@ function activateType(t){
       const v=alive2.reduce((a,b)=>a.wounds<=b.wounds?a:b);
       logLine(`${ZT[t].n} (activation suppl.) attaque ${v.n}.`,"l-bad"); wound(v, ZT[t].noArmor); }); return; }
     const steps = zombieSteps(zi);
-    list.forEach((zz,k)=>{ if(steps.length) zz.z = steps[k%steps.length]; });
+    list.forEach((zz,k)=>{
+      if(!steps.length) return;
+      const dest = steps[k%steps.length];
+      if(dest!==zz.z) (G.traces ||= []).push({de:zz.z, vers:dest, t:zz.t, n:1});
+      zz.z = dest;
+    });
   });
 }
 
@@ -2716,6 +2785,7 @@ function serialize(){
     nextZid:G.nextZid, objectivesLeft:G.objectivesLeft, firstPlayer:G.firstPlayer,
     taken:{...G.taken}, kills:{...(G.kills||{})}, takenAt:{...(G.takenAt||{})},
     takenNames:{...(G.takenNames||{})}, revealed:{...(G.revealed||{})},
+    traces:(G.traces||[]).map(t=>({...t})),
     pool:{...G.pool}, tab:UI.tab,
     // seul l'état mutable des Zones est stocké : la structure (murs, portes,
     // cryptes) est reconstruite depuis la quête.
@@ -2812,6 +2882,7 @@ function loadState(d){
   G.takenAt = {...(d.takenAt||{})};
   G.takenNames = {...(d.takenNames||{})};
   G.revealed = {...(d.revealed||{})};
+  G.traces = (d.traces||[]).map(t=>({...t}));
   Object.keys(ZT).forEach(k=>{ if(typeof G.pool[k]!=="number") G.pool[k]=ZT[k].pool; });
 
   UI = {tab: d.tab|0, mode:null, data:null, reorgSel:null};
@@ -3000,6 +3071,11 @@ function renderBoard(){
     d.className="zone"+(z.building?" room":"")+(z.building&&!z.explored?" unexplored":"");
     if(legal.has(z.i)) d.className+=" legal";
     if(legalAtk.has(z.i)) d.className+=" legalAtk";
+    /* Trajet du groupe de zombies en cours de déplacement. */
+    if(etapeZombies){
+      if(memeZone(z.i, etapeZombies.de))   d.className+=" zdepart";
+      if(memeZone(z.i, etapeZombies.vers)) d.className+=" zarrivee";
+    }
     /* Un seul contour par Zone : on ne borde un côté que s'il donne sur autre
        chose que la même Zone mise en avant. */
     const surb = legalAtk.has(z.i) ? {jeu:legalAtk, col:"#c05050"}
@@ -3063,6 +3139,7 @@ function renderBoard(){
     b.appendChild(d);
   });
   b.appendChild(renderWalls());
+  b.appendChild(renderTraces());
   renderCrypts();
 }
 /* Illustrations des tuiles de terrain, sous la grille. Purement décoratif :
@@ -3090,6 +3167,69 @@ function renderTileLayer(){
   return couche;
 }
 const questAvecTuiles = () => !!(G && G.q.tiles && Object.keys(G.q.tiles).length);
+
+/* Flèches des déplacements de la dernière Phase des Zombies : elles répondent
+   à « d'où viennent-ils ? » une fois le tour des joueurs commencé, quand le
+   ralenti est déjà passé. Une flèche par trajet, avec l'effectif.
+   Les Zones de Crypte sont hors du plateau : leurs trajets ne peuvent pas être
+   tracés ici, le journal les mentionne. */
+let voirTraces = true;
+function centreZone(i){
+  const zs = parseInt(getComputedStyle(document.documentElement)
+               .getPropertyValue("--zs")) || 92;
+  const cs = casesZone(i).filter(z=>!z.crypt);
+  if(!cs.length) return null;                        // Crypte : hors plateau
+  const cx = cs.reduce((a,z)=>a+z.x,0)/cs.length;
+  const cy = cs.reduce((a,z)=>a+z.y,0)/cs.length;
+  return {x:(cx+.5)*zs, y:(cy+.5)*zs};
+}
+function renderTraces(){
+  const NS="http://www.w3.org/2000/svg";
+  const zs = parseInt(getComputedStyle(document.documentElement)
+               .getPropertyValue("--zs")) || 92;
+  const svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("class","traces");
+  svg.setAttribute("width", G.q.W*zs); svg.setAttribute("height", G.q.H*zs);
+  svg.setAttribute("viewBox", `0 0 ${G.q.W*zs} ${G.q.H*zs}`);
+  if(!voirTraces || G.phase!=="players" || !(G.traces||[]).length) return svg;
+
+  const def=document.createElementNS(NS,"defs");
+  const mk=document.createElementNS(NS,"marker");
+  mk.setAttribute("id","pointe"); mk.setAttribute("viewBox","0 0 10 10");
+  mk.setAttribute("refX","9"); mk.setAttribute("refY","5");
+  mk.setAttribute("markerWidth","5"); mk.setAttribute("markerHeight","5");
+  mk.setAttribute("orient","auto-start-reverse");
+  const tri=document.createElementNS(NS,"path");
+  tri.setAttribute("d","M 0 1 L 10 5 L 0 9 z"); tri.setAttribute("fill","#d06060");
+  mk.appendChild(tri); def.appendChild(mk); svg.appendChild(def);
+
+  /* Trajets identiques cumulés : deux vagues de Runners sur la même route ne
+     doivent pas superposer deux flèches. */
+  const parTrajet = {};
+  (G.traces||[]).forEach(tr=>{
+    const k = tr.de+">"+tr.vers;
+    (parTrajet[k] ||= {de:tr.de, vers:tr.vers, n:0}).n += tr.n;
+  });
+  Object.values(parTrajet).forEach(tr=>{
+    const a=centreZone(tr.de), b=centreZone(tr.vers);
+    if(!a || !b) return;                              // Crypte : rien à tracer
+    const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy) || 1;
+    const marge = zs*.30;                             // on dégage les figurines
+    const x1=a.x+dx/L*marge, y1=a.y+dy/L*marge;
+    const x2=b.x-dx/L*marge, y2=b.y-dy/L*marge;
+    const l=document.createElementNS(NS,"line");
+    l.setAttribute("x1",x1); l.setAttribute("y1",y1);
+    l.setAttribute("x2",x2); l.setAttribute("y2",y2);
+    l.setAttribute("class","trace");
+    l.setAttribute("marker-end","url(#pointe)");
+    svg.appendChild(l);
+    const t=document.createElementNS(NS,"text");
+    t.setAttribute("x",(x1+x2)/2); t.setAttribute("y",(y1+y2)/2 - 3);
+    t.setAttribute("class","tracen"); t.textContent = tr.n;
+    svg.appendChild(t);
+  });
+  return svg;
+}
 
 /* Un seul calque SVG au-dessus de la grille : chaque arête interne est tracée
    UNE fois, centrée sur la frontière (les bords de plateau sont matérialisés
@@ -3235,7 +3375,10 @@ function onZoneClick(i){
     const from=m.s.z, d=bfsFrom(from);
     const dests = neighbours(i).filter(nb=>d[nb]===d[i]+1);
     if(!dests.length){ toast("Aucune Zone de destination valide."); UI.mode=null; return render(); }
-    zombiesIn(i).forEach(zz=>zz.z=dests[0]);
+    zombiesIn(i).forEach(zz=>{
+      (G.traces ||= []).push({de:zz.z, vers:dests[0], t:zz.t, n:1});
+      zz.z = dests[0];
+    });
     pay(m.s,"ench"); m.s.ench.repulse=true;
     logLine(`Repousser : les Zombies de ${zn(i)} sont poussés en ${zn(dests[0])}.`,"l-obj");
     UI.mode=null; render(); return;
@@ -4351,6 +4494,21 @@ try{
   const h = parseFloat(localStorage.getItem("zbp_logh"));
   if(h > 0) appliquerHauteurLog(h, false);
 }catch(e){ appliquerLog(false); }
+
+function appliquerTraces(v){
+  voirTraces = !!v;
+  const b=document.getElementById("zTrace");
+  if(b) b.classList.toggle("on", voirTraces);
+  try{ localStorage.setItem("zbp_traces", voirTraces?"1":"0"); }catch(e){}
+  if(G) render();
+}
+document.getElementById("zTrace").onclick = ()=>appliquerTraces(!voirTraces);
+try{ appliquerTraces(localStorage.getItem("zbp_traces") !== "0"); }
+catch(e){ appliquerTraces(true); }
+
+document.getElementById("btnAnim").onclick = ()=>appliquerAnim(!animZombies);
+try{ appliquerAnim(localStorage.getItem("zbp_animz") !== "0"); }
+catch(e){ appliquerAnim(true); }
 
 document.getElementById("btnRules").onclick = ()=>{
   const m=document.getElementById("modal");

@@ -647,9 +647,12 @@ const EFFETS_OBJ = {
   xp:    {n:"Gagner des XP",                     val:"nombre"},
   necro: {n:"Faire apparaître un Nécromancien"},
   equip: {n:"Recevoir un Équipement précis",     val:"equip"},
-  draw:  {n:"Tirer une carte au hasard dans une liste", val:"liste"}
+  draw:  {n:"Tirer une carte au hasard dans une liste", val:"liste"},
+  /* Une carte d'Invasion tirée et résolue dans la Zone du Survivant : la
+     « double invasion » et le remélange suivent les règles ordinaires. */
+  zombie:{n:"Tirer une carte Zombie (Invasion dans la Zone)"}
 };
-const EFFETS_ORDRE = ["xp","necro","equip","draw"];
+const EFFETS_ORDRE = ["xp","necro","equip","draw","zombie"];
 function texteEffet(ef){
   if(!ef || !EFFETS_OBJ[ef.t]) return "?";
   if(ef.t==="xp")    return `+${ef.n|0} XP`;
@@ -1992,6 +1995,87 @@ function renderPanel(){
 
 /* Cartes présentes dans les deux vues : nom de quête, vérification, export. */
 /* Nom de fichier tiré du nom de la quête : minuscules, sans accent, tirets. */
+/* ==========================================================================
+   ÉCRIRE DANS LE DOSSIER DES MISSIONS
+   Un navigateur n'écrit pas où il veut. Là où l'API File System Access existe
+   (Chrome, Edge), on désigne le dossier zombicide_missions UNE FOIS : ensuite
+   l'éditeur y dépose le fichier de mission ET met à jour missions.js tout seul.
+   Ailleurs, il reste le téléchargement, à déposer et déclarer à la main.
+   ========================================================================== */
+const FSA_DIR = typeof window.showDirectoryPicker === "function";
+let dossierMissions = null;
+
+function idbMission(op, val){
+  return new Promise(res=>{
+    let rq; try{ rq=indexedDB.open("zbp-editeur",1); }catch(e){ return res(null); }
+    rq.onupgradeneeded = ()=>rq.result.createObjectStore("h");
+    rq.onerror = ()=>res(null);
+    rq.onsuccess = ()=>{
+      let st; try{ st=rq.result.transaction("h", op==="get"?"readonly":"readwrite").objectStore("h"); }
+      catch(e){ return res(null); }
+      const r = op==="get" ? st.get("missions") : (val ? st.put(val,"missions") : st.delete("missions"));
+      r.onsuccess=()=>res(op==="get"?r.result:true);
+      r.onerror=()=>res(null);
+    };
+  });
+}
+async function lierDossierMissions(){
+  try{
+    const h = await window.showDirectoryPicker({mode:"readwrite"});
+    dossierMissions = h; await idbMission("put", h);
+    say(`Dossier « ${h.name} » lié : les missions s'y enregistreront.`,"ok");
+  }catch(e){
+    if(e.name!=="AbortError") say("Liaison impossible : "+e.message,"err");
+  }
+  render();
+}
+async function accesDossier(){
+  if(!dossierMissions) return false;
+  const ok = await dossierMissions.queryPermission({mode:"readwrite"}) === "granted"
+          || await dossierMissions.requestPermission({mode:"readwrite"}) === "granted";
+  return ok;
+}
+async function ecrireFichier(dir, nom, contenu){
+  const f = await dir.getFileHandle(nom, {create:true});
+  const w = await f.createWritable();
+  await w.write(contenu); await w.close();
+}
+/* missions.js n'est qu'une liste de noms de fichiers : on la relit, on y ajoute
+   le nôtre s'il manque, et on la réécrit. Éditer ce fichier à la main était le
+   pas de trop. */
+async function majCatalogue(dir, nomFichier){
+  let liste = [];
+  try{
+    const f = await dir.getFileHandle("missions.js");
+    const txt = await (await f.getFile()).text();
+    const m = /\[([\s\S]*?)\]/.exec(txt);
+    if(m) liste = (m[1].match(/"[^"]+"|'[^']+'/g)||[]).map(x=>x.slice(1,-1));
+  }catch(e){ /* pas encore de catalogue : on le crée */ }
+  const neuf = !liste.includes(nomFichier);
+  if(neuf) liste.push(nomFichier);
+  const contenu = [
+    "/* Catalogue des missions — tenu à jour par zombicide-editor.html.",
+    "   Un navigateur ne peut pas lister un dossier : cette liste lui dit quoi charger. */",
+    "window.ZBP_MISSION_FILES = [",
+    ...liste.map((n,i)=>`  ${JSON.stringify(n)}${i<liste.length-1?",":""}`),
+    "];", ""].join(String.fromCharCode(10));
+  await ecrireFichier(dir, "missions.js", contenu);
+  return {neuf, total:liste.length};
+}
+
+/* Contenu d'un fichier de mission. En .js la quête s'annonce elle-même : une
+   seule source de vérité, et le menu la voit même sans serveur. Le .json reste
+   utile comme échange. */
+function contenuMission(q, ext){
+  if(ext!=="js") return JSON.stringify(q,null,1);
+  const NL = String.fromCharCode(10);
+  const corps = JSON.stringify(q,null,1).split(NL).join(NL+"  ");
+  return [
+    "/* Mission Zombicide — dossier zombicide_fichiers/zombicide_missions/ */",
+    "ZBP_MISSION({name:"+JSON.stringify(q.name||"Ma mission")+",",
+    "  quest:"+corps+"});", ""].join(NL);
+}
+
 function nomFichierMission(nom, ext){
   const base=(nom||"").toLowerCase()
     .normalize("NFD").replace(/[̀-ͯ]/g,"")
@@ -2045,18 +2129,30 @@ function ajouterCartesCommunes(p){
   /* Enregistrement du fichier de mission. Le nom est déduit du nom de la quête,
      pour qu'il soit prêt à déposer dans zombicide_missions/. */
   const r7=el("div","row"); r7.style.marginTop="6px";
+
+  /* Écriture directe dans le dossier lié : le fichier de mission ET le
+     catalogue. C'est ce qui évite le copier-coller puis l'édition à la main de
+     missions.js. */
+  const enregistrerDansDossier = async ()=>{
+    if(!await accesDossier()) return say("Écriture refusée sur le dossier.","err");
+    const q = toQuest();
+    const nom = nomFichierMission(q.name,"js");
+    try{
+      await ecrireFichier(dossierMissions, nom, contenuMission(q,"js"));
+      const cat = await majCatalogue(dossierMissions, nom);
+      say(`« ${nom} » écrit dans ${dossierMissions.name}`+
+          (cat.neuf ? ` et ajouté au catalogue (${cat.total} mission(s)).`
+                    : ` — déjà au catalogue (${cat.total} mission(s)).`)+
+          " Recharge le jeu pour la voir.","ok");
+    }catch(e){ say("Écriture impossible : "+e.message,"err"); }
+  };
+
   const enregistrer=(ext)=>{
     const q=toQuest();
     const nom=nomFichierMission(q.name,ext);
     /* En .js la quête s'annonce elle-même : une seule source de vérité, et le
        menu la voit même sans serveur. Le .json reste utile comme échange. */
-    const corps = JSON.stringify(q,null,1).split("\n").join("\n  ");
-    const contenu = ext==="js"
-      ? [`/* Mission Zombicide — déposer dans zombicide_fichiers/zombicide_missions/`,
-         `   puis ajouter ${JSON.stringify(nom)} à ZBP_MISSION_FILES dans missions.js */`,
-         `ZBP_MISSION({name:${JSON.stringify(q.name||"Ma mission")},`,
-         `  quest:${corps}});`, ""].join("\n")
-      : JSON.stringify(q,null,1);
+    const contenu = contenuMission(q, ext);
     const blob=new Blob([contenu],{type: ext==="js"?"text/javascript":"application/json"});
     const u=URL.createObjectURL(blob), a=document.createElement("a");
     a.href=u; a.download=nom; document.body.appendChild(a); a.click(); a.remove();
@@ -2064,13 +2160,33 @@ function ajouterCartesCommunes(p){
     say(`« ${nom} » enregistré — dépose-le dans zombicide_fichiers/zombicide_missions/.`,"ok");
     render();
   };
-  r7.appendChild(btn("Enregistrer la mission (.js)", ()=>enregistrer("js"), "prim"));
+  if(dossierMissions){
+    r7.appendChild(btn("Enregistrer dans "+dossierMissions.name, enregistrerDansDossier, "prim"));
+    r7.appendChild(btn("Délier", async ()=>{
+      dossierMissions=null; await idbMission("put",null);
+      say("Dossier délié : retour au téléchargement."); render(); }));
+  } else if(FSA_DIR){
+    r7.appendChild(btn("Lier le dossier des missions…", lierDossierMissions, "prim"));
+  }
+  r7.appendChild(btn("Télécharger (.js)", ()=>enregistrer("js"), dossierMissions?"":"prim"));
   r7.appendChild(btn("… en .json", ()=>enregistrer("json")));
   c6.appendChild(r7);
   /* La ligne à recopier dans le catalogue : sans elle, le fichier déposé
      resterait invisible, le navigateur ne sachant pas lister un dossier. */
   const decl=el("textarea"); decl.readOnly=true; decl.style.height="40px";
   decl.value=`window.ZBP_MISSION_FILES = [${JSON.stringify(nomFichierMission(M.name,"js"))}];`;
+  if(dossierMissions)
+    c6.appendChild(el("div","hint",
+      "Dossier lié : « Enregistrer » y dépose le fichier ET met missions.js à jour. "+
+      "La déclaration ci-dessous n'a plus à être recopiée."));
+  else if(FSA_DIR)
+    c6.appendChild(el("div","hint",
+      "Lie le dossier zombicide_fichiers/zombicide_missions une bonne fois : "+
+      "l'éditeur y écrira ensuite le fichier et tiendra missions.js à jour tout seul."));
+  else
+    c6.appendChild(el("div","hint",
+      "Ce navigateur ne sait pas écrire dans un dossier : dépose le fichier téléchargé "+
+      "dans zombicide_fichiers/zombicide_missions et ajoute son nom à missions.js."));
   c6.appendChild(el("div","hint","À déclarer dans missions.js pour que la mission apparaisse au menu (ajoute le nom à la liste existante) :"));
   c6.appendChild(decl);
   c6.appendChild(el("div","hint","Le .js est le format recommandé : il fonctionne même en ouvrant la page d'un double-clic, et la quête n'existe qu'à un seul endroit. Le .json ne se charge que si la page est servie en http."));
@@ -2951,6 +3067,15 @@ render();
 // les images et les missions arrivent après coup : on redessine à leur arrivée
 preloadSprites(()=>{ if(Object.values(SPRITE_OK).some(Boolean)) render(); });
 chargerFichiersMissions(()=>{ if(missionsDispo().length) render(); });
+/* Dossier lié lors d'une visite précédente. Sans permission encore accordée on
+   garde la poignée : le navigateur la redemandera à la première écriture. */
+(async ()=>{
+  if(!FSA_DIR) return;
+  const h = await idbMission("get"); if(!h) return;
+  dossierMissions = h;
+  try{ await h.queryPermission({mode:"readwrite"}); }catch(e){ dossierMissions=null; }
+  render();
+})();
 say("Peins les bâtiments, place les portes, puis « Jouer cette carte ».");
 </script>
 
