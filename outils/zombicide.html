@@ -106,11 +106,19 @@ body.zsmall .zone .lbl{display:none}
 .cryptZone .ch{font-size:11px;font-weight:700;color:var(--cc);letter-spacing:.5px;
   text-shadow:0 1px 3px #000,0 0 6px #000}
 .cryptZone .ci{font-size:10px;color:#d8cfc2;margin-bottom:4px;text-shadow:0 1px 3px #000}
-.cryptZone .actors{position:static;display:grid;
-  grid-template-columns:repeat(var(--gc,2),1fr);gap:3px;inset:auto;
-  margin-top:auto;align-content:flex-end;justify-items:center}
+/* Même disposition que sur le plateau : flux centré et diamètre plafonné.
+   La Crypte gardait l'ancienne grille, avec sa dernière rangée collée à gauche. */
+.cryptZone .actors{position:static;inset:auto;margin:auto auto 0;
+  /* La Crypte est plus large qu'une case : sans borne, six figurines tiendraient
+     sur une rangée et la grille carrée ne serait plus respectée. On limite donc
+     la largeur à ce que --gc figurines réclament, dans les 164 px utiles. */
+  --dispo:min(164px, calc(var(--gc,2)*var(--zs)*.33 + (var(--gc,2) - 1)*3px));
+  --ps:calc((var(--dispo) - (var(--gc,2) - 1)*3px) / var(--gc,2));
+  width:var(--dispo);
+  display:flex;flex-wrap:wrap;justify-content:center;
+  align-content:flex-end;align-items:flex-end;gap:3px}
 
-.toks{position:absolute;right:2px;top:2px;display:flex;flex-direction:column;gap:2px;z-index:3}
+.toks{position:absolute;right:2px;top:2px;display:flex;flex-direction:column;gap:2px;z-index:4}
 .tok{width:calc(var(--zs)*.22);height:calc(var(--zs)*.22);border-radius:50%;
   display:grid;place-items:center;border:1px solid #0008;font-weight:700;
   font-size:clamp(7px,calc(var(--zs)*.11),12px)}
@@ -128,6 +136,7 @@ body.zsmall .zone .lbl{display:none}
   font-size:clamp(7px,calc(var(--zs)*.12),13px)}
 .spw.exitk.img{color:transparent}
 .tok.item{background:#c9a227;color:#241c06;border-color:#000a}
+.tok.vault{background:#a06bd8;color:#fff;border-color:#0009}
 /* Objectif : jeton CARRÉ, comme dans la boîte — c'est ce qui le distingue des
    autres pastilles, toutes rondes. Un Objectif caché montre sa face rouge,
    marquée d'un « ? ». */
@@ -157,7 +166,9 @@ body.zsmall .zone .lbl{display:none}
   color:#fff;text-shadow:0 0 2px #000,0 0 3px #000}
 
 /* Zone d'Invasion : rectangle plaqué sur un bord de la case */
-.spw{position:absolute;background:var(--sc);border:1px solid #0009;z-index:3;
+/* Empilement dans la case, du fond vers la surface :
+   marqueur de Zone (1) < pion d'Invasion (2) < figurines (3) < jetons (4). */
+.spw{position:absolute;background:var(--sc);border:1px solid #0009;z-index:2;
   display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;
   text-shadow:0 1px 1px #0008}
 .spw.n{left:18%;top:2px;width:64%;height:calc(var(--zs)*.14)}
@@ -197,24 +208,38 @@ body.zsmall .zone .lbl{display:none}
    --ps borne le diamètre à ce qu'une rangée de --gc peut contenir : sans cela,
    dix figurines débordaient largement de la case. */
 .actors{position:absolute;inset:6px 6px 6px 6px;
-  --ps:calc((100% - (var(--gc,2) - 1)*2px - 1px) / var(--gc,2));
+  /* --dispo : largeur réellement disponible, exprimée en LONGUEUR. Un
+     pourcentage se résoudrait au point d'usage — sur la hauteur dans `height`,
+     sur la pastille elle-même pour ses badges — d'où des ovales et des badges
+     minuscules. --ps en découle et reste utilisable partout. */
+  --dispo:calc(var(--zs) - 12px);
+  --ps:calc((var(--dispo) - (var(--gc,2) - 1)*2px) / var(--gc,2));
   display:flex;flex-wrap:wrap;justify-content:center;
-  align-content:flex-end;align-items:flex-end;gap:2px;z-index:2}
-.zone.avecjetons .actors{right:24px}
+  align-content:flex-end;align-items:flex-end;gap:2px;z-index:3}
+.zone.avecjetons .actors{right:24px; --dispo:calc(var(--zs) - 30px)}
 /* La figurine garde sa taille tant qu'il y a la place, et rétrécit ensuite.
-   Les Survivants restent un peu plus gros que les Zombies. */
+   Les Survivants restent un peu plus gros que les Zombies.
+   `--ps` contient un pourcentage : dans `width` il se résout sur la largeur du
+   conteneur, mais dans `height` il se résoudrait sur sa HAUTEUR — ce qui
+   aplatissait les pastilles en ovales. On ne fixe donc que la largeur et on
+   laisse `aspect-ratio` rendre la hauteur. */
+/* Pas d'`overflow:hidden` ici : les pastilles de Blessure et d'effectif
+   débordent volontairement du cercle et seraient rognées. C'est la taille de
+   police, réduite avec --ps, qui permet à la figurine de rétrécir. */
 .actors .pastille{width:min(calc(var(--zs)*.28), var(--ps));
-                  height:min(calc(var(--zs)*.28), var(--ps))}
+                  height:min(calc(var(--zs)*.28), var(--ps));
+                  min-height:0;
+                  font-size:min(clamp(7px,calc(var(--zs)*.12),13px), calc(var(--ps)*.5))}
 .actors .pastille.sv{width:min(calc(var(--zs)*.33), var(--ps));
                      height:min(calc(var(--zs)*.33), var(--ps))}
 /* Les pastilles de Blessure et d'effectif suivent, sinon elles finiraient
    plus grandes que la figurine qu'elles annotent. */
-.actors .pastille .wnd{width:min(14px, calc(var(--ps)*.5));
-                       height:min(14px, calc(var(--ps)*.5));
-                       font-size:min(9px, calc(var(--ps)*.34))}
-.actors .pastille .nb{min-width:min(15px, calc(var(--ps)*.55));
-                      height:min(15px, calc(var(--ps)*.55));
-                      font-size:min(10px, calc(var(--ps)*.38))}
+.actors .pastille .wnd{width:max(11px, min(14px, calc(var(--ps)*.5)));
+                       height:max(11px, min(14px, calc(var(--ps)*.5)));
+                       font-size:max(8px, min(9px, calc(var(--ps)*.34)))}
+.actors .pastille .nb{min-width:max(13px, min(15px, calc(var(--ps)*.55)));
+                      height:max(13px, min(15px, calc(var(--ps)*.55)));
+                      font-size:max(9px, min(10px, calc(var(--ps)*.38)))}
 .pastille{width:calc(var(--zs)*.28);height:calc(var(--zs)*.28);border-radius:50%;
   border:2px solid #0009;display:grid;place-items:center;font-weight:700;
   font-size:clamp(7px,calc(var(--zs)*.12),13px);
@@ -2380,7 +2405,10 @@ function activateType(t){
 
 /* ---------- apparition ---------- */
 function drawSpawn(){
-  if(!G.spawnDeck.length){ G.spawnDeck = shuffle(G.spawnDiscard); G.spawnDiscard=[]; }
+  if(!G.spawnDeck.length){
+    G.spawnDeck = shuffle(G.spawnDiscard); G.spawnDiscard=[];
+    logLine(`La pioche d'Invasion est épuisée : ${G.spawnDeck.length} cartes remélangées.`,"l-sys");
+  }
   const c = G.spawnDeck.pop(); G.spawnDiscard.push(c); return c;
 }
 /* Résout UNE carte d'Invasion déjà tirée (hors « double invasion »). */
@@ -2435,7 +2463,13 @@ function runSpawnSequence(list){
     let doubles = 0;
     for(let d=0; d<draws && guard<60; d++){
       guard++;
-      const cell = drawSpawn().row[teamDanger()];
+      /* On nomme la carte tirée : sans cela, deux tirages différents donnant
+         « 1 Walker » — un quart des cartes au niveau Bleu — laissent croire que
+         la pioche n'est pas mélangée. */
+      const carte = drawSpawn();
+      const cell = carte.row[teamDanger()];
+      logLine(`Carte d'Invasion nº${carte.id} sur ${SPAWN_TABLE.length} `+
+              `(${G.spawnDeck.length} restante(s) avant remélange).`,"l-sys");
       if(cell==="D"){ doubles++; logLine(`Invasion ${zn(zi)} : DOUBLE INVASION → reportée sur la Zone suivante.`,"l-bad"); }
       else applySpawnCell(cell, zi);
     }
@@ -2702,6 +2736,71 @@ function pastille(kind, key, label, extra){
   else { d.style.background=kind; d.textContent=label; }
   return d;
 }
+/* Jetons, marqueurs et Sortie d'une Zone, posés dans le conteneur `d`.
+   Extrait de la boucle du plateau pour servir aussi aux Cryptes, qui n'en
+   affichaient aucun : un jeton Bruit ou un objet déposé y était invisible. */
+function poserJetons(d, z){
+  const tk=document.createElement("div"); tk.className="toks";
+  /* `sp` : clé d'image facultative. Si le PNG existe il remplace le jeton
+     dessiné en CSS ; sinon on garde la pastille et sa lettre. */
+  const T=(c,t,title,sp)=>{
+    const e=document.createElement("div"); e.className="tok "+c;
+    if(sp && SPRITE_OK[sp]){ e.classList.add("img");
+      e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[sp]})`; }
+    else e.textContent=t;
+    e.title=title||""; tk.appendChild(e); return e;};
+  if(z.exit){
+    // la Sortie se pose sur un bord, comme un pion d'Invasion
+    const e=document.createElement("div");
+    const cote=(G.q.exit && G.q.exit.side) || "n";
+    e.className="spw exitk "+cote;
+    e.style.setProperty("--sc","#2f6b4a");
+    e.textContent="S"; e.title="Zone de Sortie";
+    if(SPRITE_OK.tok_exit){ e.classList.add("img");
+      e.style.setProperty("--ratio", SPRITE_RATIO.tok_exit||1);
+      e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES.tok_exit})`; }
+    d.appendChild(e);
+  }
+  if(z.obj){
+    // face rouge tant que l'Objectif est caché ; sa vraie couleur reste secrète
+    const face = z.obj.hidden ? "red" : z.obj.color;
+    const e = T("obj"+(z.obj.hidden?" hidden":""), z.obj.hidden?"?":"O",
+      z.obj.hidden ? "Objectif face cachée (recto rouge) — +5 XP"
+                   : `Objectif ${colM(z.obj.color)} — +5 XP`,
+      z.obj.hidden ? "tok_obj_hidden" : "tok_obj_"+z.obj.color);
+    e.style.setProperty("--oc", colCss(face));
+  }
+  if(z.items && z.items.length)
+    T("item", z.items.length>1?String(z.items.length):"◈",
+      z.items.map(c=>c.e.n).join(", "), "tok_item");
+  /* Artefacts de crypte : ils n'avaient qu'une mention en texte, alors qu'ils
+     sont l'unique contenu d'une Crypte. Un jeton les rend visibles. */
+  if(z.vaultCards && z.vaultCards.length)
+    T("vault", z.vaultCards.length>1?String(z.vaultCards.length):"✦",
+      "Artefact(s) de crypte : "+z.vaultCards.map(c=>c.e.n).join(", "), "tok_vault");
+  /* Marqueurs de Zone, sous le reste. La Bile en fait partie : avec son
+     image elle devient un grand marqueur, sinon elle garde sa pastille. */
+  const marq=[...(z.markers||[])];
+  if(z.bile && SPRITE_OK.tok_bile) marq.push("bile");
+  else if(z.bile) T("bile","B","Bile de Dragon");
+  marq.forEach(t=>{
+    const m=document.createElement("div");
+    const cle="tok_"+t;
+    if(SPRITE_OK[cle]){ m.className="zmark";
+      m.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[cle]})`; }
+    else { m.className="zmark vide"; m.textContent=MARQUEURS[t].n; }
+    m.title=MARQUEURS[t].n;
+    d.appendChild(m);
+  });
+  if(z.noise){ const e=T("noise","","Bruit : "+z.noise,"tok_noise");
+               const sp=document.createElement("span"); sp.textContent=z.noise; e.appendChild(sp); }
+  /* La colonne de jetons occupe le haut-droit. Réserver sa largeur en
+     permanence rétrécit les figurines pour rien quand la Zone n'en porte
+     aucun : on ne le fait donc que si elle en contient. */
+  if(tk.children.length) d.classList.add("avecjetons");
+  d.appendChild(tk);
+}
+
 function renderBoard(){
   const b=document.getElementById("board");
   b.style.gridTemplateColumns=`repeat(${G.q.W}, var(--zs))`;
@@ -2725,60 +2824,7 @@ function renderBoard(){
     const lb=document.createElement("div"); lb.className="lbl";
     lb.textContent=(z.x+1)+","+(z.y+1)+(z.building?" "+z.building:""); d.appendChild(lb);
     // jetons
-    const tk=document.createElement("div"); tk.className="toks";
-    /* `sp` : clé d'image facultative. Si le PNG existe il remplace le jeton
-       dessiné en CSS ; sinon on garde la pastille et sa lettre. */
-    const T=(c,t,title,sp)=>{
-      const e=document.createElement("div"); e.className="tok "+c;
-      if(sp && SPRITE_OK[sp]){ e.classList.add("img");
-        e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[sp]})`; }
-      else e.textContent=t;
-      e.title=title||""; tk.appendChild(e); return e;};
-    if(z.exit){
-      // la Sortie se pose sur un bord, comme un pion d'Invasion
-      const e=document.createElement("div");
-      const cote=(G.q.exit && G.q.exit.side) || "n";
-      e.className="spw exitk "+cote;
-      e.style.setProperty("--sc","#2f6b4a");
-      e.textContent="S"; e.title="Zone de Sortie";
-      if(SPRITE_OK.tok_exit){ e.classList.add("img");
-        e.style.setProperty("--ratio", SPRITE_RATIO.tok_exit||1);
-        e.style.backgroundImage=`url(${SPRITE_DIR+SPRITES.tok_exit})`; }
-      d.appendChild(e);
-    }
-    if(z.obj){
-      // face rouge tant que l'Objectif est caché ; sa vraie couleur reste secrète
-      const face = z.obj.hidden ? "red" : z.obj.color;
-      const e = T("obj"+(z.obj.hidden?" hidden":""), z.obj.hidden?"?":"O",
-        z.obj.hidden ? "Objectif face cachée (recto rouge) — +5 XP"
-                     : `Objectif ${colM(z.obj.color)} — +5 XP`,
-        z.obj.hidden ? "tok_obj_hidden" : "tok_obj_"+z.obj.color);
-      e.style.setProperty("--oc", colCss(face));
-    }
-    if(z.items && z.items.length)
-      T("item", z.items.length>1?String(z.items.length):"◈",
-        z.items.map(c=>c.e.n).join(", "), "tok_item");
-    /* Marqueurs de Zone, sous le reste. La Bile en fait partie : avec son
-       image elle devient un grand marqueur, sinon elle garde sa pastille. */
-    const marq=[...(z.markers||[])];
-    if(z.bile && SPRITE_OK.tok_bile) marq.push("bile");
-    else if(z.bile) T("bile","B","Bile de Dragon");
-    marq.forEach(t=>{
-      const m=document.createElement("div");
-      const cle="tok_"+t;
-      if(SPRITE_OK[cle]){ m.className="zmark";
-        m.style.backgroundImage=`url(${SPRITE_DIR+SPRITES[cle]})`; }
-      else { m.className="zmark vide"; m.textContent=MARQUEURS[t].n; }
-      m.title=MARQUEURS[t].n;
-      d.appendChild(m);
-    });
-    if(z.noise){ const e=T("noise","","Bruit : "+z.noise,"tok_noise");
-                 const sp=document.createElement("span"); sp.textContent=z.noise; e.appendChild(sp); }
-    /* La colonne de jetons occupe le haut-droit. Réserver sa largeur en
-       permanence rétrécit les figurines pour rien quand la Zone n'en porte
-       aucun : on ne le fait donc que si elle en contient. */
-    if(tk.children.length) d.classList.add("avecjetons");
-    d.appendChild(tk);
+    poserJetons(d, z);
     // Zones d'Invasion : un rectangle par pion, plaqué sur le bord choisi
     z.spawnTokens.forEach(t=>{
       const actif = spawnActive(t);
@@ -2918,6 +2964,7 @@ function renderCrypts(){
     inf.textContent=`${open.length}/${doors.length} trappe(s) ouverte(s)`+
       (z.vaultCards.length?` · ${z.vaultCards.length} Artefact(s)`:"");
     d.appendChild(inf);
+    poserJetons(d, z);        // objets déposés, Bruit, Bile, marqueurs
     const ac=document.createElement("div"); ac.className="actors";
     survIn(z.i).forEach(s=>{
       const p=pastille(s.c,s.id,s.n[0],"sv"+(s===act?" act":""));
@@ -3098,11 +3145,22 @@ function renderPanel(){
     ()=>{ UI.mode = UI.mode?.t==="move"?null:{t:"move"}; render(); },
     UI.mode?.t==="move"?"prim":"", !canPay(s,"move")));
   ar.appendChild(btn("Fouiller", ()=>doSearch(s), "", s.searched||!zi.building||zi.crypt||zombiesIn(s.z).length||!canPay(s,"search")));
-  const portes = doorSides(s), ouvrables = doorSidesOpenable(s);
-  ar.appendChild(btn(
-    portes.length && !ouvrables.length ? "Porte verrouillée" : "Ouvrir porte",
-    ()=>doOpenDoor(s), "",
-    !portes.length || !doorTools(s).length || !canPay(s,"door")));
+  /* Le bouton ne se grise que s'il n'y a rien à ouvrir. Auparavant, l'absence
+     d'arme au symbole « Ouvrir une porte » le désactivait sans un mot : devant
+     une trappe de crypte bien visible, le joueur ne pouvait pas savoir ce qui
+     lui manquait. Le clic délivre maintenant la raison exacte. */
+  const portes = doorSides(s), ouvrables = doorSidesOpenable(s), outils = doorTools(s);
+  const rienQueTrappes = portes.length && portes.every(d=>d.crypt);
+  const bOuvrir = btn(
+    portes.length && !ouvrables.length ? "Porte verrouillée"
+      : rienQueTrappes ? "Ouvrir la trappe" : "Ouvrir porte",
+    ()=>doOpenDoor(s), "", !portes.length);
+  bOuvrir.title = !portes.length
+    ? "Aucune porte ni trappe fermée accessible depuis cette Zone."
+    : portes.map(doorLabel).join(" · ")
+      + (!outils.length ? " — il faut une arme de Mêlée au symbole « Ouvrir une porte » en main."
+       : !canPay(s,"door") ? " — plus d'Action disponible." : "");
+  ar.appendChild(bOuvrir);
   if(zi.obj) ar.appendChild(btn(
     zi.obj.hidden ? "Prendre l'Objectif (face cachée)" : `Prendre l'Objectif ${colM(zi.obj.color)}`,
     ()=>doObjective(s), "prim", !canPay(s,"objective")));
