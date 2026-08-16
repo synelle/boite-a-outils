@@ -533,7 +533,11 @@ function blank(W,H){
     rules:{}, objEffects:{},
     /* win.goals : les objectifs de mission, tous requis, chacun avec son
        intitulé et une ou plusieurs conditions. */
-    win:{goals:[{label:"", need:["objectives:all"]}], exit:"all"},
+    /* `mode` : « all » exige tous les buts, « any » un seul. Un but restant un
+       ET de ses conditions, on écrit ainsi « A OU (B ET C) ». */
+    win:{goals:[{label:"", need:["objectives:all"]}], exit:"all", mode:"all"},
+    triggers:[],               // déclencheurs affichés à gauche : choisis à la main
+    trigNames:{},              // leur intitulé — l'objectif de quête, tel qu'on le lit
     nodePos:{},                // positions du graphe : éditeur seulement, non exporté
     tiles:{}                   // "tx,ty" → {id, rot} : tuiles posées (décor + traçabilité)
   };
@@ -667,8 +671,15 @@ const CONDS = [["", "aucune condition"],
                ["never",           "jamais"]];
 /* Conditions offertes à la composition : le vocabulaire fixe, plus ce que la
    carte contient réellement — un Objectif précis se désigne par sa case. */
+/* Même clé que le jeu : casse, accents et ponctuation ignorés. */
+const cleObj = n => (n||"").toLowerCase().normalize("NFD")
+  .replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+
 function condsDisponibles(){
   const l = CONDS.filter(c=>c[0]);
+  /* Un Objectif nommé se vise par son NOM : le déplacer ne casse pas la quête. */
+  M.objectives.filter(o=>o.name).forEach(o=>
+    l.push([`objective:named:${cleObj(o.name)}`, `« ${o.name} » récupéré`]));
   M.objectives.forEach(o=>l.push([`objective:at:${o.x},${o.y}`,
     `l'Objectif en (${o.x+1},${o.y+1}) récupéré`]));
   [["yellow","Jaune"],["orange","Orange"],["red","Rouge"]].forEach(([k,n])=>
@@ -678,6 +689,9 @@ function condsDisponibles(){
 function condTexte(c){
   const fixe = CONDS.find(x=>x[0]===(c||""));
   if(fixe) return fixe[1];
+  const mn=/^objective:named:(.+)$/.exec(c||"");
+  if(mn){ const o=M.objectives.find(o=>o.name && cleObj(o.name)===mn[1]);
+          return `« ${o ? o.name : mn[1]} » récupéré`; }
   const ma=/^objective:at:(\d+),(\d+)$/.exec(c||"");
   if(ma) return `l'Objectif en (${+ma[1]+1},${+ma[2]+1}) récupéré`;
   const md=/^danger:(\w+)$/.exec(c||"");
@@ -689,9 +703,10 @@ const EXIT_TXT  = {all:"tous les Survivants vivants doivent sortir",
                    none:"aucune sortie requise"};
 const texteBut = g => g.label || (g.need||[]).map(condTexte).join(" et ");
 function missionTexte(){
-  const b=(M.win.goals||[]).map(texteBut);
-  if(M.win.exit!=="none") b.push(EXIT_TXT[M.win.exit]||EXIT_TXT.all);
-  return b.length ? b.join(", puis ") : "aucune condition";
+  const b=(M.win.goals||[]).filter(g=>(g.need||[]).length).map(texteBut);
+  let t = b.join(M.win.mode==="any" ? " OU " : ", puis ");
+  if(M.win.exit!=="none") t += (t?", puis ":"")+(EXIT_TXT[M.win.exit]||EXIT_TXT.all);
+  return t || "aucune condition";
 }
 
 /* Une porte se pose sur un MUR. Chaque arête interne du plateau est le Nord ou
@@ -948,7 +963,16 @@ function paint(x,y){
   else if(tool==="obj"){
     const k=M.objectives.findIndex(p=>p.x===x&&p.y===y);
     if(k>=0) M.objectives.splice(k,1);
-    else M.objectives.push(objHidden ? {x,y,hidden:true} : {x,y,color:objColor});
+    else {
+      M.objectives.push(objHidden ? {x,y,hidden:true} : {x,y,color:objColor});
+      /* Poser un Objectif de couleur met son déclencheur à disposition : c'est
+         le cas courant, autant ne pas le faire réclamer. */
+      if(!objHidden){
+        M.triggers = M.triggers || [];
+        const d="objective:"+objColor;
+        if(!M.triggers.includes(d)) M.triggers.push(d);
+      }
+    }
   }
   render();
 }
@@ -1065,7 +1089,16 @@ function problems(){
     const ma=/^objective:at:(\d+),(\d+)$/.exec(c);
     if(ma && !M.objectives.some(o=>o.x===+ma[1] && o.y===+ma[2]))
       p.push(`Un objectif de mission attend l'Objectif en (${+ma[1]+1},${+ma[2]+1}), absent de la carte.`);
+    const mn=/^objective:named:(.+)$/.exec(c);
+    if(mn && !M.objectives.some(o=>o.name && cleObj(o.name)===mn[1]))
+      p.push(`Un objectif de mission attend l'Objectif nommé « ${mn[1]} », absent de la carte.`);
   }); });
+  /* Deux Objectifs de même nom seraient indiscernables pour la quête. */
+  const parNom={};
+  M.objectives.filter(o=>o.name).forEach(o=>{
+    const k=cleObj(o.name); (parNom[k]=parNom[k]||[]).push(o); });
+  Object.values(parNom).forEach(l=>{ if(l.length>1)
+    p.push(`${l.length} Objectifs portent le nom « ${l[0].name} » : la quête ne pourrait pas les distinguer.`); });
   if(M.win.exit==="none" && !toutesConds.length)
     p.push("Mission sans condition ni sortie : elle serait gagnée dès le premier instant.");
   // une porte grise ne peut pas être verrouillée
@@ -1211,8 +1244,11 @@ function toQuest(){
     spawns:M.spawns.map(p=>({x:p.x,y:p.y,color:p.color||"red",side:p.side||"n"})),
     start:M.start,
     exit:M.exit ? {x:M.exit.x, y:M.exit.y, side:M.exit.side||"n"} : null,
-    objectives:M.objectives.map(o=>o.hidden?{x:o.x,y:o.y,hidden:true}
-                                           :{x:o.x,y:o.y,color:o.color||"red"}) };
+    objectives:M.objectives.map(o=>{
+      const e = o.hidden ? {x:o.x,y:o.y,hidden:true} : {x:o.x,y:o.y,color:o.color||"red"};
+      if(o.name) e.name = o.name;          // Objectif désigné par son nom
+      return e;
+    }) };
   if(lim.length) q.limits=lim;
   if(M.zombies.length) q.zombies=M.zombies.map(z=>({x:z.x,y:z.y,t:z.t,n:z.n}));
   if(M.items.length) q.items=M.items.map(i=>({x:i.x,y:i.y,id:i.id}));
@@ -1232,6 +1268,7 @@ function toQuest(){
     if(l && l.length) E[c]=l.map(e=>({...e})); });
   if(Object.keys(E).length) q.objEffects=E;
   q.win={exit:M.win.exit};
+  if(M.win.mode==="any") q.win.mode="any";      // « all » est la valeur par défaut
   const buts=(M.win.goals||[]).filter(g=>g.need && g.need.length)
     .map(g=>({label:g.label||"", need:[...g.need]}));
   if(buts.length) q.win.goals=buts;
@@ -1241,6 +1278,9 @@ function toQuest(){
 function fromQuest(q){
   const m=blank(q.W,q.H);
   m.name=q.name||"Quête"; m.goal=q.goal||""; m.description=q.description||"";
+  /* Déclencheurs et intitulés se recomposent d'après ce qui est branché : la
+     liste n'a pas besoin de voyager dans le fichier de quête. */
+  m.triggers=[]; m.trigNames={};
   m.minSurvivors = Math.max(1, q.minSurvivors|0 || 1);
   m.difficulty = q.difficulty||""; m.duration = q.duration||"";
   for(let y=0;y<q.H;y++) for(let x=0;x<q.W;x++)
@@ -1278,8 +1318,11 @@ function fromQuest(q){
   m.cryptDoors=(q.cryptDoors||[]).map(d=>({x:d.x,y:d.y,color:d.color}))
     .concat((q.doors||[]).filter(d=>d.crypt).map(d=>({x:d.x,y:d.y,color:d.crypt})));
   m.spawns=(q.spawns||[]).map(p=>({x:p.x,y:p.y,color:p.color||"red",side:p.side||"n"}));
-  m.objectives=(q.objectives||[]).map(p=>p.hidden?{x:p.x,y:p.y,hidden:true}
-                                                 :{x:p.x,y:p.y,color:p.color||"red"});
+  m.objectives=(q.objectives||[]).map(p=>{
+    const o = p.hidden ? {x:p.x,y:p.y,hidden:true} : {x:p.x,y:p.y,color:p.color||"red"};
+    if(p.name) o.name = p.name;
+    return o;
+  });
   m.zombies=(q.zombies||[]).map(z=>({x:z.x,y:z.y,t:z.t,n:Math.max(1,z.n|0||1)}));
   m.items=(q.items||[]).map(i=>({x:i.x,y:i.y,id:i.id}));
   m.cryptItems={}; Object.entries(q.cryptItems||{}).forEach(([c,l])=>m.cryptItems[c]=[...l]);
@@ -1295,13 +1338,20 @@ function fromQuest(q){
      condition préalable. L'ancienne forme `need` (une seule condition) est
      relue comme un objectif unique. */
   m.win = q.win
-    ? {exit: q.win.exit || "all",
+    ? {exit: q.win.exit || "all", mode: q.win.mode==="any" ? "any" : "all",
        goals: Array.isArray(q.win.goals)
          ? q.win.goals.map(g=>({label:g.label||"",
              need: Array.isArray(g.need) ? [...g.need] : (g.need?[g.need]:[])}))
              .filter(g=>g.need.length)
          : (q.win.need ? [{label:"", need:[q.win.need]}] : [])}
-    : {goals:[{label:"", need:["objectives:all"]}], exit:"all"};
+    : {goals:[{label:"", need:["objectives:all"]}], exit:"all", mode:"all"};
+  /* Les intitulés des objectifs redeviennent des noms de déclencheurs, et les
+     couleurs d'Objectif posées reprennent leur place à gauche. */
+  (m.win.goals||[]).forEach(g=>(g.need||[]).forEach(c=>{ if(g.label) m.trigNames[c]=g.label; }));
+  m.objectives.filter(o=>!o.hidden).forEach(o=>{
+    const d="objective:"+(o.color||"red");
+    if(!m.triggers.includes(d)) m.triggers.push(d);
+  });
   m.tiles = {...(q.tiles||{})};
   m.start=q.start?{x:q.start.x,y:q.start.y}:null;
   m.exit=q.exit?{x:q.exit.x,y:q.exit.y,side:q.exit.side||"n"}:null;
@@ -1442,62 +1492,64 @@ function cartesTuile(p){
    voulez ». Chacun porte un intitulé libre et une ou plusieurs conditions,
    toutes nécessaires — de quoi écrire « Tuez au moins une Abomination ET un
    Nécromancien » en un seul objectif. */
-function carteObjectifsMission(p){
-  const c=el("div","card"); c.appendChild(el("h3",null,"Objectifs de mission"));
-  M.win.goals = M.win.goals || [];
-  if(!M.win.goals.length)
-    c.appendChild(el("div","hint","Aucun objectif : la mission se gagne par la seule sortie."));
+/* Les déclencheurs affichés à gauche du graphe. On les choisit ici : tout
+   afficher rendrait la colonne illisible dès qu'une carte porte plusieurs
+   Objectifs. Un déclencheur déjà branché reste visible même s'il n'est plus
+   coché — sinon on perdrait de vue un lien existant. */
+function carteDeclencheurs(p){
+  const c=el("div","card"); c.appendChild(el("h3",null,"Déclencheurs"));
+  c.appendChild(el("div","hint",
+    "Ce qui apparaît dans la colonne de gauche du graphe. Ajoute ceux dont tu as besoin, "+
+    "puis relie-les à une porte, une Zone d'Invasion ou la Victoire."));
+  M.triggers = M.triggers || [];
+  const possibles = declencheursPossibles();
+  const affiches = possibles.filter(n=>M.triggers.includes(n.id) || declencheurUtilise(n.id));
 
-  M.win.goals.forEach((g,i)=>{
+  if(!affiches.length) c.appendChild(el("div","hint","Aucun pour l'instant."));
+  M.trigNames = M.trigNames || {};
+  affiches.forEach(n=>{
     const bloc=el("div"); bloc.style.cssText=
-      "margin-top:8px;padding:7px 8px;border:1px solid var(--line);border-radius:6px";
+      "margin-top:6px;padding:6px 7px;border:1px solid var(--line);border-radius:6px";
     const r=el("div","row");
+    r.appendChild(el("span","hint","• "+n.titre+" — "+n.detail
+      +(declencheurUtilise(n.id)?" · branché":"")));
+    r.appendChild(btn("✕", ()=>{
+      M.triggers = M.triggers.filter(x=>x!==n.id);
+      if(declencheurUtilise(n.id))
+        say("Ce déclencheur reste affiché : il est encore branché.","err");
+      render(); },"danger"));
+    bloc.appendChild(r);
+    /* L'intitulé est celui que le joueur lira : « Terrasser la bête et son
+       maître ». Deux déclencheurs de même nom forment UN objectif exigeant les
+       deux — c'est ce qui donne le ET à l'intérieur d'un OU. */
+    const ri=el("div","row"); ri.style.marginTop="3px";
     const inp=document.createElement("input"); inp.style.flex="1";
     inp.placeholder="Intitulé — ex. « Terrasser la bête et son maître »";
-    inp.value=g.label||"";
-    inp.oninput=e=>{ g.label=e.target.value; };
-    r.appendChild(inp);
-    r.appendChild(btn("✕", ()=>{ M.win.goals.splice(i,1); render(); },"danger"));
-    bloc.appendChild(r);
-
-    (g.need||[]).forEach((cond,k)=>{
-      const rc=el("div","row"); rc.style.marginTop="3px";
-      rc.appendChild(el("span","hint","• "+condTexte(cond)));
-      rc.appendChild(btn("✕", ()=>{ g.need.splice(k,1);
-        if(!g.need.length) M.win.goals.splice(i,1); render(); },"danger"));
-      bloc.appendChild(rc);
-    });
-
-    const ra=el("div","row"); ra.style.marginTop="4px";
-    const sel=document.createElement("select"); sel.style.flex="1";
-    condsDisponibles().forEach(([v,t])=>{ const o=document.createElement("option");
-      o.value=v; o.textContent=t; sel.appendChild(o); });
-    ra.appendChild(sel);
-    ra.appendChild(btn("+ Condition", ()=>{
-      if(!g.need.includes(sel.value)) g.need.push(sel.value);
-      render(); }));
-    bloc.appendChild(ra);
-    if((g.need||[]).length>1)
-      bloc.appendChild(el("div","hint","Toutes ces conditions sont nécessaires."));
+    inp.value=M.trigNames[n.id]||"";
+    inp.oninput=e=>{ const v=e.target.value.trim();
+                     if(v) M.trigNames[n.id]=v; else delete M.trigNames[n.id];
+                     majIntitules(); };
+    inp.onblur=()=>render();
+    ri.appendChild(inp);
+    bloc.appendChild(ri);
     c.appendChild(bloc);
   });
 
-  const rn=el("div","row"); rn.style.marginTop="8px";
-  rn.appendChild(btn("+ Ajouter un objectif", ()=>{
-    M.win.goals.push({label:"", need:["objectives:all"]}); render(); },"prim"));
-  c.appendChild(rn);
-
-  const re=el("div","row"); re.style.marginTop="8px";
-  re.appendChild(el("label",null,"Sortie :"));
-  [["all","Tous"],["any","Un seul"],["none","Aucune"]].forEach(([k,lab])=>
-    re.appendChild(btn(lab, ()=>{M.win.exit=k; render();}, M.win.exit===k?"on":"")));
-  c.appendChild(re);
-  c.appendChild(el("div","hint","Tous les objectifs doivent être accomplis, dans l'ordre que veulent les joueurs. La sortie s'ajoute par-dessus."));
-  c.appendChild(el("div","hint","Mission : "+missionTexte()));
+  const reste = possibles.filter(n=>!M.triggers.includes(n.id) && !declencheurUtilise(n.id));
+  if(reste.length){
+    const ra=el("div","row"); ra.style.marginTop="6px";
+    const sel=document.createElement("select"); sel.style.flex="1";
+    reste.forEach(n=>{ const o=document.createElement("option");
+      o.value=n.id; o.textContent=n.titre+" — "+n.detail; sel.appendChild(o); });
+    ra.appendChild(sel);
+    ra.appendChild(btn("+ Ajouter", ()=>{
+      if(!M.triggers.includes(sel.value)) M.triggers.push(sel.value);
+      render(); },"prim"));
+    c.appendChild(ra);
+  }
   p.appendChild(c);
 }
 
-/* Règles spéciales de la quête : globales, puis effets par couleur d'Objectif. */
 function carteReglesSpeciales(p){
   const c=el("div","card"); c.appendChild(el("h3",null,"Règles spéciales"));
   c.appendChild(el("div","hint","Ce que la fiche de quête ajoute aux règles de base."));
@@ -1608,7 +1660,7 @@ function renderPanel(){
     const cl=el("div","card"); cl.appendChild(el("h3",null,"Logique de quête"));
     cl.appendChild(el("div","hint",
       "À gauche, les conditions : chaque couleur d'Objectif présente sur la carte, plus « Tous les Objectifs ». "+
-      "À droite, ce qu'elles commandent : les portes de couleur, les Zones d'Invasion et la Mission."));
+      "À droite, ce qu'elles commandent : les portes de couleur, les Zones d'Invasion et la Victoire."));
     cl.appendChild(el("div","hint",
       "Clique un nœud de gauche, puis une entrée à droite. Une cible n'accepte qu'une condition : "+
       "relier une nouvelle source remplace la précédente. Clique un lien pour le couper."));
@@ -1620,13 +1672,13 @@ function renderPanel(){
     r.appendChild(btn("Tout délier", ()=>{
       M.locks={spawns:{},doors:{},spawnsOff:{}}; M.win.goals=[]; render(); say("Tous les liens retirés."); },"danger"));
     cl.appendChild(r);
-    cl.appendChild(el("div","hint","Mission : "+missionTexte()+"."));
+    cl.appendChild(el("div","hint","Victoire : "+missionTexte()+"."));
     const bMaj=btn("Recopier dans le texte d'objectif", ()=>{
       M.goal = missionTexte().charAt(0).toUpperCase()+missionTexte().slice(1)+".";
       render(); say("Texte d'objectif mis à jour.","ok"); });
     cl.appendChild(bMaj);
     p.appendChild(cl);
-    carteObjectifsMission(p);
+    carteDeclencheurs(p);
     carteReglesSpeciales(p);
     ajouterCartesCommunes(p);
     return;
@@ -1721,6 +1773,27 @@ function renderPanel(){
           " — mélangée et distribuée aux Objectifs cachés en début de partie ; les cachés sans verso restent rouges."));
     }
     c1.appendChild(el("div","hint","Un Objectif caché montre toujours un recto ROUGE ; sa vraie couleur n'est révélée qu'à sa récupération."));
+
+    /* Nommer un Objectif permet à la quête de le viser SANS dépendre de sa
+       case : « Voler le Livre Noir » reste valable si on le déplace. */
+    if(M.objectives.length){
+      c1.appendChild(el("div","hr"));
+      c1.appendChild(el("div","hint",
+        "Nomme un Objectif pour qu'un but de mission le désigne par son nom plutôt que par sa case. "+
+        "Laisse vide si sa position suffit."));
+      M.objectives.forEach(o=>{
+        const r=el("div","row"); r.style.marginTop="4px";
+        r.appendChild(el("label",null,`(${o.x+1},${o.y+1})`+(o.hidden?" caché":" "+colM(o.color||"red"))));
+        const inp=document.createElement("input");
+        inp.style.flex="1"; inp.placeholder="sans nom — ex. « Livre Noir »";
+        inp.value=o.name||"";
+        inp.oninput=e=>{ const v=e.target.value.trim();
+                         if(v) o.name=v; else delete o.name; };
+        inp.onblur=()=>render();
+        r.appendChild(inp);
+        c1.appendChild(r);
+      });
+    }
   }
   if(tool==="tile"){
     const faites=TILE_IDS.filter(tuileDefinie);
@@ -2008,7 +2081,8 @@ function resize(W,H){
   W=Math.max(3,Math.min(20,W)); H=Math.max(3,Math.min(20,H));
   const n=blank(W,H); n.name=M.name; n.goal=M.goal; n.description=M.description;
   n.hiddenBacks=[...M.hiddenBacks]; n.locks=M.locks;
-  n.win={exit:M.win.exit,
+  n.triggers=[...(M.triggers||[])]; n.trigNames={...(M.trigNames||{})};
+  n.win={exit:M.win.exit, mode:M.win.mode||"all",
          goals:(M.win.goals||[]).map(g=>({label:g.label, need:[...g.need]}))};
   n.rules={...(M.rules||{})};
   n.objEffects={}; Object.entries(M.objEffects||{}).forEach(([c,l])=>n.objEffects[c]=l.map(e=>({...e})));
@@ -2293,7 +2367,9 @@ function couleursDisponibles(){
   if(M.objectives.filter(o=>o.hidden).length > M.hiddenBacks.length) d.add("red");
   return d;
 }
-function graphNodes(){
+/* Catalogue des déclencheurs POSSIBLES. Le graphe n'en montre qu'une partie :
+   voir graphNodes(). */
+function declencheursPossibles(){
   const dispo = couleursDisponibles();
   const src = OBJ_COLORS.filter(c=>dispo.has(c)).map(c=>({
     id:"objective:"+c, color:c, titre:"Objectif "+colM(c),
@@ -2304,6 +2380,21 @@ function graphNodes(){
       if(c==="red" && sansVerso>0) cach+=sansVerso;      // versos par défaut
       return `${vis} visible(s), ${cach} caché(s)`;
     })()}));
+  /* Un Objectif NOMMÉ est une condition à part entière : il peut commander une
+     porte ou une Zone d'Invasion, pas seulement la Victoire. */
+  M.objectives.filter(o=>o.name).forEach(o=>src.push({
+    id:"objective:named:"+cleObj(o.name),
+    color:o.hidden ? "grey" : (o.color||"red"),
+    titre:o.name,
+    detail:`Objectif ${o.hidden?"caché":colM(o.color||"red")} en (${o.x+1},${o.y+1})`}));
+  /* Chaque Objectif POSÉ est un déclencheur à part entière : « l'Objectif en
+     (3,3) récupéré ». C'est ce qui manquait à gauche pour pouvoir le brancher
+     sur une porte ou une Zone d'Invasion. */
+  M.objectives.filter(o=>!o.name).forEach(o=>src.push({
+    id:`objective:at:${o.x},${o.y}`,
+    color:o.hidden ? "grey" : (o.color||"red"),
+    titre:`Objectif (${o.x+1},${o.y+1})`,
+    detail:o.hidden ? "caché — récupéré" : colM(o.color||"red")+" — récupéré"}));
   src.push({id:"objectives:all", color:"grey", titre:"Tous les Objectifs",
             detail:M.objectives.length+" au total"});
   /* Récupérer les deux Artefacts est un but atteignable seulement si la carte
@@ -2311,12 +2402,31 @@ function graphNodes(){
   if(cryptColorsUsed().length)
     src.push({id:"vault:all", color:"grey", titre:"Artefacts de crypte",
               detail:"les deux récupérés"});
-  /* Chasse : ces deux-là peuvent toujours entrer en jeu par une carte
-     d'Invasion, on les propose donc sans condition de carte. */
-  src.push({id:"kill:necromancer", color:"grey", titre:"Nécromancien tué",
-            detail:"au moins un"});
-  src.push({id:"kill:abomination", color:"grey", titre:"Abomination tuée",
-            detail:"au moins une"});
+  /* Chasse au Nécromancien / à l'Abomination : toujours proposées, un zombie
+     pouvant arriver par une carte d'Invasion. */
+  [["necromancer","Nécromancien tué","au moins un"],
+   ["abomination","Abomination tuée","au moins une"]].forEach(([t,titre,detail])=>{
+    const pose = M.zombies.some(z=>z.t===t);
+    src.push({id:"kill:"+t, color:"grey", titre,
+              detail: pose ? detail : detail+" — aucun sur la carte"});
+  });
+  /* Niveaux de Danger : atteignables dans toute partie. */
+  [["yellow","Jaune"],["orange","Orange"],["red","Rouge"]].forEach(([k,n])=>
+    src.push({id:"danger:"+k, color:k==="yellow"?"yellow":k,
+              titre:"Niveau "+n, detail:"atteint par un Survivant"}));
+  return src;
+}
+/* Un déclencheur déjà branché quelque part : il reste visible même s'il n'est
+   plus dans la liste choisie, sinon on perdrait de vue un lien existant. */
+const declencheurUtilise = c => (M.win.goals||[]).some(g=>(g.need||[]).includes(c))
+  || ["doors","spawns","spawnsOff"].some(b=>Object.values(M.locks[b]||{}).includes(c));
+
+function graphNodes(){
+  /* Le graphe ne montre PAS tous les déclencheurs possibles — la colonne serait
+     illisible. Seulement ceux ajoutés dans le panneau, plus ceux déjà branchés. */
+  const retenu = id => (M.triggers||[]).includes(id) || declencheurUtilise(id);
+  const src = declencheursPossibles().filter(n=>retenu(n.id));
+
   // cibles : seulement ce qui existe sur la carte
   const tgt = [];
   DOOR_COLORS.filter(c=>c!=="grey").forEach(c=>{
@@ -2329,7 +2439,7 @@ function graphNodes(){
     if(n) tgt.push({id:"spawn:"+c, color:c, titre:"Invasion "+colF(c),
                     detail:n+" pion(s)", ports:2});
   });
-  tgt.push({id:"mission", color:"grey", titre:"MISSION", detail:missionTexte(),
+  tgt.push({id:"mission", color:"grey", titre:"VICTOIRE", detail:missionTexte(),
             ports:1, mission:true});
   return {src, tgt};
 }
@@ -2348,22 +2458,45 @@ function bucketOf(to, kind){
   const t = to.split(":")[0];
   return t==="door" ? "doors" : (kind==="off" ? "spawnsOff" : "spawns");
 }
+/* Un intitulé modifié se répercute sur les objectifs déjà branchés : on les
+   reconstruit depuis les conditions branchées et les noms courants, ce qui
+   regroupe au passage celles qui portent désormais le même nom. */
+function majIntitules(){
+  const conds=[];
+  (M.win.goals||[]).forEach(g=>(g.need||[]).forEach(c=>{ if(!conds.includes(c)) conds.push(c); }));
+  const goals=[];
+  conds.forEach(c=>{
+    const nom=(M.trigNames||{})[c] || "";
+    const jumeau = nom && goals.find(g=>g.label===nom);
+    if(jumeau) jumeau.need.push(c); else goals.push({label:nom, need:[c]});
+  });
+  M.win.goals = goals;
+}
+
 function setLink(from, to, kind){
   if(to==="mission"){
-    // chaque condition branchée sur MISSION devient un objectif à part entière
+    /* Chaque déclencheur branché sur VICTOIRE devient un objectif de quête.
+       Deux déclencheurs de MÊME NOM n'en forment qu'un, exigeant les deux :
+       c'est ainsi qu'on écrit « A OU (B ET C) » sans carte séparée. */
     M.win.goals = M.win.goals || [];
-    if(!M.win.goals.some(g=>(g.need||[]).includes(from)))
-      M.win.goals.push({label:"", need:[from]});
+    if(M.win.goals.some(g=>(g.need||[]).includes(from))) return;
+    const nom = (M.trigNames||{})[from] || "";
+    const jumeau = nom && M.win.goals.find(g=>g.label===nom);
+    if(jumeau) jumeau.need.push(from);
+    else M.win.goals.push({label:nom, need:[from]});
     return;
   }
   const c = to.split(":")[1], b = bucketOf(to,kind);
   M.locks[b] = M.locks[b]||{}; M.locks[b][c] = from;
 }
-function clearLink(to, kind){
-  /* Le graphe ne connaît que la cible, pas la condition à retirer : sur la
-     MISSION il efface donc TOUS les objectifs. Le détail (retirer une seule
-     condition, renommer un objectif) se règle dans la carte dédiée. */
-  if(to==="mission"){ M.win.goals = []; return; }
+function clearLink(to, kind, from){
+  if(to==="mission"){
+    // sans source précisée (clic sur l'entrée), on retire tout
+    if(!from){ M.win.goals = []; return; }
+    M.win.goals = (M.win.goals||[]).map(g=>({...g, need:(g.need||[]).filter(c=>c!==from)}))
+                                   .filter(g=>g.need.length);
+    return;
+  }
   const c = to.split(":")[1], b = bucketOf(to,kind);
   if(M.locks[b]) delete M.locks[b][c];
 }
@@ -2441,6 +2574,20 @@ function renderLogic(){
       if((n.ports||1)>=2){ d.classList.add("two"); mk("on","two1","active"); mk("off","two2","désactive"); }
       else mk("on","","");
       if(n.mission){
+        /* La combinaison des objectifs se règle ici : la carte séparée a
+           disparu, le graphe se suffit à lui-même. */
+        const buts=(M.win.goals||[]).filter(g=>(g.need||[]).length);
+        if(buts.length>1){
+          const rm=el("div","row"); rm.style.cssText="margin-top:4px;gap:3px";
+          [["all","TOUS"],["any","UN SEUL"]].forEach(([k,lab])=>{
+            const b=btn(lab, ev=>{ M.win.mode=k; render(); },
+                        (M.win.mode||"all")===k?"on":"");
+            b.style.cssText="font-size:10px;padding:1px 5px";
+            b.onclick=ev=>{ ev.stopPropagation(); M.win.mode=k; render(); };
+            rm.appendChild(b);
+          });
+          d.appendChild(rm);
+        }
         const sel=document.createElement("select");
         sel.style.cssText="width:100%;font-size:11px;margin-top:4px;padding:1px 3px";
         Object.entries(EXIT_TXT).forEach(([v,t])=>{ const o=document.createElement("option");
@@ -2490,7 +2637,7 @@ function renderLogic(){
     const zone=document.createElementNS(NS,"path");   // zone de clic élargie
     zone.setAttribute("d",d); zone.setAttribute("class","hit");
     zone.style.pointerEvents="stroke";
-    zone.onclick=()=>{ clearLink(l.to,l.kind); say("Lien retiré."); render(); };
+    zone.onclick=()=>{ clearLink(l.to,l.kind,l.from); say("Lien retiré."); render(); };
     svg.appendChild(zone);
   });
 

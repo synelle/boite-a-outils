@@ -275,6 +275,12 @@ body.modeclic .pastille.sv.cliquable.act:hover{
 #side{width:430px;min-width:430px;background:var(--panel);border-left:1px solid var(--line);
   display:flex;flex-direction:column;height:100vh}
 #side header{padding:10px 12px;border-bottom:1px solid var(--line);background:#1a1714}
+/* Rappel des Objectifs encore à trouver, couleur par couleur, avec ce que
+   chacune commande : sans cela, personne ne sait pourquoi chercher les bleus. */
+#objLine{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 8px}
+#objLine .objc{font-size:11px;color:var(--ink);border-left:3px solid var(--oc);
+  padding-left:5px;line-height:1.35}
+#objLine .objc i{color:var(--dim);font-style:normal}
 #side header h1{font-size:15px;letter-spacing:.5px;color:var(--gold)}
 #side header .sub{font-size:11px;color:var(--dim)}
 #scroll{flex:1;overflow-y:auto;padding:10px 12px}
@@ -461,6 +467,7 @@ a.lienpdf:hover{background:#4a3a1c}
   <header>
     <h1>ZOMBICIDE — BLACK PLAGUE</h1>
     <div class="sub" id="questLine"></div>
+    <div class="sub" id="objLine"></div>
   </header>
   <div id="scroll"></div>
   <div id="foot">
@@ -865,7 +872,8 @@ function validateQuest(q){
   if(q.win){
     if(q.win.exit && !["all","any","none"].includes(q.win.exit))
       return "condition de sortie inconnue : "+q.win.exit;
-    const condOK = c => /^(objectives:all|vault:all|never|objective:at:\d+,\d+|objective:\w+|kill:\w+|danger:\w+)$/.test(c);
+    if(q.win.mode && !["all","any"].includes(q.win.mode)) return "mode de victoire inconnu : "+q.win.mode;
+    const condOK = c => /^(objectives:all|vault:all|never|objective:at:\d+,\d+|objective:named:.+|objective:\w+|kill:\w+|danger:\w+)$/.test(c);
     if(q.win.need && !condOK(q.win.need))
       return "condition de victoire inconnue : "+q.win.need;
     if(q.win.goals!==undefined){
@@ -962,6 +970,15 @@ let QUEST = CUSTOM_QUEST || DEFAULT_QUEST;
    (les deux Artefacts de crypte récupérés), "never".
    Une couleur absente de la table n'est soumise à aucune condition.
    ========================================================================== */
+/* Un Objectif peut porter un NOM (« Livre Noir »). La quête le vise alors par
+   ce nom et non par sa case : le déplacer sur la carte ne casse plus la
+   condition, et l'intitulé du but reste lisible. La clé ignore casse, accents
+   et ponctuation. */
+const nomObjectif = cle =>
+  ((G.q.objectives||[]).find(o=>o.name && cleObj(o.name)===cle)||{}).name || cle;
+const cleObj = n => (n||"").toLowerCase().normalize("NFD")
+  .replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+
 function condMet(cond){
   if(!cond) return true;
   if(cond==="never") return false;
@@ -972,6 +989,9 @@ function condMet(cond){
   // un Objectif PRÉCIS, désigné par sa case
   const ma = /^objective:at:(\d+),(\d+)$/.exec(cond);
   if(ma) return !!G.takenAt[ma[1]+","+ma[2]];
+  // un Objectif PRÉCIS, désigné par son nom
+  const mn = /^objective:named:(.+)$/.exec(cond);
+  if(mn) return !!G.takenNames[mn[1]];
   // niveau de danger atteint par AU MOINS un Survivant
   const md = /^danger:(\w+)$/.exec(cond);
   if(md){
@@ -993,6 +1013,8 @@ function condText(cond){
     return `au moins un${e} ${z.n||mk[1]} tué${e}`; }
   const ma = /^objective:at:(\d+),(\d+)$/.exec(cond||"");
   if(ma) return `l'Objectif en (${+ma[1]+1},${+ma[2]+1}) récupéré`;
+  const mn = /^objective:named:(.+)$/.exec(cond||"");
+  if(mn) return `« ${nomObjectif(mn[1])} » récupéré`;
   const md = /^danger:(\w+)$/.exec(cond||"");
   if(md){ const n=(DANGER.find(x=>x.key===md[1])||{}).name || md[1];
     return `niveau ${n} atteint par un Survivant`; }
@@ -1026,10 +1048,17 @@ function winCond(){
         need: Array.isArray(g.need) ? g.need.filter(Boolean) : (g.need?[g.need]:[])
       })).filter(g=>g.need.length)
     : (w.need ? [{label:"", need:[w.need]}] : []);
-  return {goals, exit: w.exit || "all"};
+  /* `mode` combine les buts entre eux : « all » les exige tous, « any » se
+     contente d'un seul. Chaque but reste un ET de ses conditions, ce qui écrit
+     « A OU (B ET C) » avec mode=any, but1=[A], but2=[B,C]. */
+  return {goals, exit: w.exit || "all", mode: w.mode==="any" ? "any" : "all"};
 }
 const objectifAtteint = g => g.need.every(condMet);
-const missionPrete = () => winCond().goals.every(objectifAtteint);
+function missionPrete(){
+  const w = winCond();
+  if(!w.goals.length) return true;
+  return w.mode==="any" ? w.goals.some(objectifAtteint) : w.goals.every(objectifAtteint);
+}
 const EXIT_TXT = {all:"tous les Survivants vivants doivent sortir",
                   any:"au moins un Survivant doit sortir",
                   none:"aucune sortie requise"};
@@ -1038,15 +1067,58 @@ const texteObjectif = g => g.label || g.need.map(condText).join(" et ");
 function missionText(){
   const w = winCond();
   const bouts = w.goals.map(texteObjectif);
-  if(w.exit!=="none") bouts.push(EXIT_TXT[w.exit] || EXIT_TXT.all);
-  return bouts.length ? bouts.join(", puis ") : "aucune condition";
+  let txt = bouts.join(w.mode==="any" ? " OU " : ", puis ");
+  if(w.exit!=="none") txt += (txt?", puis ":"")+(EXIT_TXT[w.exit] || EXIT_TXT.all);
+  return txt || "aucune condition";
 }
 /* Même chose, mais coché : c'est ce qui s'affiche pendant la partie. */
+/* Ce qu'une couleur d'Objectif commande : les joueurs doivent savoir POURQUOI
+   chercher les bleus. On lit les verrous de la quête, pas une note à part. */
+function roleCouleur(c){
+  const L = locks(), r = [], cible = "objective:"+c;
+  Object.entries(L.doors||{}).forEach(([col,cond])=>{
+    if(cond===cible) r.push(`ouvre les portes ${colF(col)}s`); });
+  Object.entries(L.spawns||{}).forEach(([col,cond])=>{
+    if(cond===cible) r.push(`réveille l'Invasion ${colF(col)}`); });
+  Object.entries(L.spawnsOff||{}).forEach(([col,cond])=>{
+    if(cond===cible) r.push(`éteint l'Invasion ${colF(col)}`); });
+  if(winCond().goals.some(g=>g.need.includes(cible))) r.push("objectif de victoire");
+  return r;
+}
+/* Objectifs encore à trouver, par couleur. Les cachés restent secrets : on
+   n'annonce que la RÉSERVE de versos déclarée par la quête — l'information dont
+   les joueurs disposent — sous forme de « ? », retirés au fur et à mesure. */
+function objectifsRestants(){
+  const par = {};
+  const dans = c => (par[c] = par[c] || {vus:0, caches:0});
+  G.zones.forEach(z=>{ if(z.obj && !z.obj.hidden) dans(z.obj.color).vus++; });
+  (G.q.hiddenBacks||[]).forEach(c=>dans(c).caches++);
+  Object.keys(par).forEach(c=>{
+    par[c].caches = Math.max(0, par[c].caches - (G.revealed[c]||0));
+  });
+  return par;
+}
+function ligneObjectifs(){
+  const par = objectifsRestants();
+  const bouts = Object.entries(par)
+    .filter(([c,n])=>n.vus || n.caches)
+    .map(([c,n])=>{
+      const q = [n.vus ? "×"+n.vus : "", "?".repeat(Math.min(n.caches,4))]
+                  .filter(Boolean).join(" ");
+      const role = roleCouleur(c);
+      return `<span class="objc" style="--oc:${colCss(c)}">${colM(c)} ${q}`+
+             (role.length ? ` <i>— ${role.join(", ")}</i>` : "")+`</span>`;
+    });
+  return bouts.length ? bouts.join(" ") : "";
+}
 function missionChecklist(){
   const w = winCond();
   const bouts = w.goals.map(g=>(objectifAtteint(g)?"✓ ":"✗ ")+texteObjectif(g));
-  if(w.exit!=="none") bouts.push(EXIT_TXT[w.exit] || EXIT_TXT.all);
-  return bouts.join(" · ");
+  // « un seul suffit » doit se voir : sinon les croix restantes inquiètent pour rien
+  let txt = bouts.join(w.mode==="any" ? " OU " : " · ");
+  if(w.goals.length>1 && w.mode==="any") txt = "un seul suffit — "+txt;
+  if(w.exit!=="none") txt += (txt?" · ":"")+(EXIT_TXT[w.exit] || EXIT_TXT.all);
+  return txt;
 }
 /* Une Zone d'Invasion est active si sa couleur n'est pas verrouillée (ou l'est
    devenue) et n'a pas été désactivée. */
@@ -1184,7 +1256,8 @@ function buildBoard(q){
   });
   q.objectives.forEach(p=>{
     const z=at(p.x,p.y); if(!z) return;
-    z.obj = {color:p.color||"red", hidden:!!p.hidden, back:p.back||null, revealed:!p.hidden};
+    z.obj = {color:p.color||"red", hidden:!!p.hidden, back:p.back||null,
+             revealed:!p.hidden, name:p.name||null};
   });
   /* ---- Zones : une case de rue est une Zone à elle seule ; un bâtiment peut
      en couvrir plusieurs, tant qu'aucune limite ne les sépare (livret p.10 :
@@ -1467,6 +1540,8 @@ function newGame(ids){
     taken: {},                       // Objectifs récupérés, par couleur
     kills: {},                       // zombies tués, par type
     takenAt: {},                     // Objectifs récupérés, par case "x,y"
+    takenNames: {},                  // Objectifs nommés récupérés, par clé
+    revealed: {},                    // versos d'Objectifs cachés déjà retournés
     customMap: JSON.stringify(q) !== JSON.stringify(DEFAULT_QUEST)
   };
   /* Objectifs cachés : recto toujours rouge, verso tiré au sort dans la réserve
@@ -1622,12 +1697,39 @@ function canPay(s,type){
   if(s.free.some(f=>f.types.includes(type))) return true;
   return s.actions>0;
 }
+const peutAgir = s => !s.dead && !s.escaped && (s.actions>0 || s.free.length>0);
+/* Le Survivant actif vient d'épuiser ses Actions : on annule le mode au clic —
+   sinon le prochain clic sur la carte ne produirait que « Plus d'Action » — et
+   on passe au suivant qui peut encore jouer. */
+function passerLaMain(){
+  const s = UI.epuise; if(!s) return;
+  UI.epuise = null;
+  if(G.over || G.phase!=="players") return;
+  if(G.survivors[UI.tab] !== s) return;        // il n'est plus au premier plan
+  if(UI.mode){ UI.mode = null; }
+  const n = G.survivors.length;
+  for(let k=1;k<=n;k++){
+    const i = (UI.tab + k) % n;
+    if(peutAgir(G.survivors[i])){
+      UI.tab = i;
+      logLine(`${s.n} n'a plus d'Action — au tour de ${G.survivors[i].n}.`,"l-sys");
+      return;
+    }
+  }
+  logLine("Plus aucune Action disponible — termine le Tour.","l-sys");
+}
+/* Un Survivant qui vient d'épuiser ses Actions est noté : le prochain rendu
+   annulera le mode en cours et passera la main. On ne le fait PAS à chaque
+   rendu, sinon on ne pourrait plus sélectionner un Survivant déjà épuisé pour
+   consulter son inventaire. */
+function noterEpuisement(s){ if(s && !peutAgir(s)) UI.epuise = s; }
+
 function pay(s,type){
   // on consomme d'abord l'Action gratuite la plus spécialisée
   const cand = s.free.map((f,i)=>({f,i})).filter(o=>o.f.types.includes(type))
                      .sort((a,b)=>a.f.types.length-b.f.types.length);
-  if(cand.length){ s.free.splice(cand[0].i,1); return true; }
-  if(s.actions>0){ s.actions--; return true; }
+  if(cand.length){ s.free.splice(cand[0].i,1); noterEpuisement(s); return true; }
+  if(s.actions>0){ s.actions--; noterEpuisement(s); return true; }
   return false;
 }
 function refund(s,type){ s.actions++; }
@@ -1675,7 +1777,7 @@ function doMove(s, target, freeMove){
       return toast("Pas assez d'Actions (sortir de cette Zone coûte "+cost+" Actions).");
     }
     if(cost===1){ if(!pay(s,"move")) return; }
-    else s.actions -= cost;
+    else { s.actions -= cost; noterEpuisement(s); }
   }
   s.z = ref(target);
   logLine(`${s.n} se déplace en ${zn(target)}${cost>1?" ("+cost+" Actions)":""}.`);
@@ -1887,6 +1989,8 @@ async function doObjective(s){
   z.obj = null; G.objectivesLeft--;
   G.taken[couleur] = (G.taken[couleur]||0) + 1;
   G.takenAt[z.x+","+z.y] = true;
+  if(o.name) G.takenNames[cleObj(o.name)] = true;
+  if(o.hidden) G.revealed[couleur] = (G.revealed[couleur]||0) + 1;
   gainXP(s, RULES.xpObjective);
   logLine(`${s.n} récupère un Objectif ${colM(couleur)}`+
           (o.hidden ? ` (face cachée retournée !)` : ``) +
@@ -2611,6 +2715,7 @@ function serialize(){
     q:G.q, round:G.round, phase:G.phase, over:G.over,
     nextZid:G.nextZid, objectivesLeft:G.objectivesLeft, firstPlayer:G.firstPlayer,
     taken:{...G.taken}, kills:{...(G.kills||{})}, takenAt:{...(G.takenAt||{})},
+    takenNames:{...(G.takenNames||{})}, revealed:{...(G.revealed||{})},
     pool:{...G.pool}, tab:UI.tab,
     // seul l'état mutable des Zones est stocké : la structure (murs, portes,
     // cryptes) est reconstruite depuis la quête.
@@ -2705,6 +2810,8 @@ function loadState(d){
   G.zombies.forEach(zz=>{ zz.z = ref(zz.z); zz.entry = ref(zz.entry); });
   G.kills = {...(d.kills||{})};
   G.takenAt = {...(d.takenAt||{})};
+  G.takenNames = {...(d.takenNames||{})};
+  G.revealed = {...(d.revealed||{})};
   Object.keys(ZT).forEach(k=>{ if(typeof G.pool[k]!=="number") G.pool[k]=ZT[k].pool; });
 
   UI = {tab: d.tab|0, mode:null, data:null, reorgSel:null};
@@ -3157,6 +3264,7 @@ function actionState(s){
 function renderPanel(){
   const p=document.getElementById("scroll"); p.innerHTML="";
   const pret = missionPrete();
+  document.getElementById("objLine").innerHTML = ligneObjectifs();
   document.getElementById("questLine").textContent =
     `${G.q.name}${G.customMap?" (carte perso)":""} — Round ${G.round} · `+
     `Danger ${DANGER[teamDanger()].name} · Objectifs sur le plateau : ${G.objectivesLeft} · `+
@@ -3296,7 +3404,8 @@ function renderPanel(){
     if(s.actions < cout && !(cout===1 && s.free.some(f=>f.types.includes("move")))){
       toast("Pas assez d'Actions (sortir de cette Zone coûte "+cout+" Actions)."); return false;
     }
-    if(cout===1){ if(!pay(s,"move")) return false; } else s.actions -= cout;
+    if(cout===1){ if(!pay(s,"move")) return false; }
+    else { s.actions -= cout; noterEpuisement(s); }
     return true;
   };
   if(hasSkill(s,"Saut"))
@@ -3486,6 +3595,7 @@ function choose(title, opts){
   });
 }
 function render(){ if(!G) return;
+  passerLaMain();
   /* Un mode au clic est en cours : les figurines rendent la main à la Zone. */
   document.body.classList.toggle("modeclic", !!UI.mode);
   renderBoard(); renderPanel(); majBoutonTuiles();
@@ -3752,7 +3862,14 @@ function resumeObjectifs(q){
   o.forEach(x=>{ if(x.hidden) caches++;
     else { const c=x.color||"red"; parCouleur[c]=(parCouleur[c]||0)+1; } });
   const bouts=Object.entries(parCouleur).map(([c,n])=>`${n} ${colM(c)}`);
-  if(caches) bouts.push(`${caches} face cachée${caches>1?"s":""}`);
+  /* Les versos déclarés sont une information publique : les joueurs savent
+     qu'un bleu se cache parmi les faces cachées. */
+  const versos = {};
+  (q.hiddenBacks||[]).forEach(c=>versos[c]=(versos[c]||0)+1);
+  if(caches){
+    const detail = Object.entries(versos).map(([c,n])=>`${n} ${colM(c)}`).join(", ");
+    bouts.push(`${caches} face cachée${caches>1?"s":""}`+(detail?` (dont ${detail})`:""));
+  }
   return `${o.length} Objectif${o.length>1?"s":""} : ${bouts.join(", ")}`;
 }
 /* Fiche de la mission choisie : description, objectif, et un repère chiffré.

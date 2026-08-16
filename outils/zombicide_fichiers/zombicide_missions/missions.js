@@ -12,5 +12,6 @@
    ========================================================================== */
 window.ZBP_MISSION_FILES = [
   "q00-danse-macabre.js",
-  "q01-chasse-au-gros-gibier.js"
+  "q01-chasse-au-gros-gibier.js",
+  "q03-le-livre-noir.js"
 ];
