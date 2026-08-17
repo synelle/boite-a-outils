@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zombicide — Éditeur de decks</title>
+<style>
+:root{--bg:#151311;--panel:#1f1b18;--line:#3a332c;--ink:#e8e0d2;--dim:#9a9081;
+  --gold:#c9a227;--blood:#8e2b2b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column;
+  height:100vh;overflow:hidden}
+button{background:#2b2521;color:var(--ink);border:1px solid var(--line);border-radius:5px;
+  padding:4px 9px;font-size:12px;cursor:pointer;font-family:inherit}
+button:hover{border-color:var(--gold)}
+button.on{background:#4a3a1c;border-color:var(--gold);font-weight:600}
+/* Boîte prise à moitié : ni éteinte, ni pleinement retenue. */
+button.moitie{background:#2f3a4a;border-color:#6f8fb5;font-weight:600}
+button.prim{background:#2f4a2c;border-color:#4f9d5a}
+button.danger{background:#4a1f1f;border-color:#8e2b2b}
+input,select,textarea{background:#151311;color:var(--ink);border:1px solid var(--line);
+  border-radius:5px;padding:3px 5px;font-family:inherit;font-size:13px}
+textarea{width:100%;font-family:ui-monospace,Consolas,monospace;font-size:11px;resize:vertical}
+label{font-size:11px;color:var(--dim)}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+h1{font-size:15px;color:var(--gold);letter-spacing:.5px;margin:0}
+h3{margin:0 0 6px;font-size:12px;color:var(--gold);letter-spacing:.4px}
+.hint{font-size:11px;color:var(--dim);line-height:1.4;margin-top:4px}
+
+header{padding:10px 14px;border-bottom:1px solid var(--line);background:#1a1714;
+  display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#onglets{display:flex;gap:4px}
+#zone{flex:1;overflow:auto;padding:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:11px 12px;margin-bottom:12px;max-width:1000px}
+
+table{border-collapse:collapse;width:100%;max-width:1000px}
+th,td{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left;font-size:12px}
+th{color:var(--gold);font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+  position:sticky;top:0;background:var(--panel);z-index:1}
+td.num{text-align:right;width:74px}
+td input[type=number]{width:60px;text-align:right}
+tr.zero td{opacity:.45}
+.type{font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:9px;
+  padding:0 6px;white-space:nowrap}
+/* Boîte d'origine : une couleur par boîte, pour se repérer d'un coup d'œil. */
+.boite{font-size:10px;border-radius:9px;padding:0 6px;white-space:nowrap;
+  border:1px solid currentColor}
+.boite + .boite{margin-left:3px}  /* une carte peut venir de plusieurs boîtes */
+.boite.b0{color:#9a9081}          /* Black Plague */
+.boite.b1{color:#7fa6d0}          /* Wulfsburg    */
+.boite.b2{color:#7fbf7f}          /* Green Horde  */
+
+/* Table des cartes d'Invasion : quatre colonnes de Danger */
+.dg{font-weight:700;font-size:10px;padding:0 5px;border-radius:3px}
+.dg.b{background:#3d6fb5;color:#fff}
+.dg.j{background:#c9a227;color:#1a1714}
+.dg.o{background:#c07a34;color:#1a1714}
+.dg.r{background:#8e2b2b;color:#fff}
+td select{width:100%;font-size:12px;padding:2px 3px}
+#msg{min-height:18px;font-size:12px;margin-top:6px}
+#msg.err{color:#e08080} #msg.ok{color:#8fd08f}
+</style>
+</head>
+<body>
+
+<!-- deck existant : une balise de script passe même en file:// -->
+<script src="zombicide_fichiers/decks/decks.js"></script>
+
+<header>
+  <h1>ÉDITEUR DE DECKS</h1>
+  <div id="onglets">
+    <button id="ongEquip" class="on">Équipement</button>
+    <button id="ongZomb">Zombies</button>
+  </div>
+  <div class="hint" id="resume"></div>
+</header>
+
+<div id="zone"></div>
+
+<script>
+/* ==========================================================================
+   ÉDITEUR DE DECKS — Zombicide : Black Plague
+   Produit zombicide_fichiers/decks/decks.js, que le jeu lit au démarrage pour
+   remplacer les decks par défaut. Page autonome : aucune dépendance.
+
+   Deux decks, deux natures différentes :
+   - ÉQUIPEMENT : on choisit COMBIEN d'exemplaires de chaque carte entrent dans
+     la pioche de Fouille, et combien font partie des armes de départ. Les
+     caractéristiques des cartes (dés, précision, dégâts) restent celles du jeu.
+   - ZOMBIES : la table des cartes d'Invasion, une ligne par carte, quatre
+     colonnes — une par niveau de Danger.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. CATALOGUE DES CARTES D'ÉQUIPEMENT — recopié de zombicide.html
+   `start` et `deck` sont les quantités par défaut de la boîte.
+   -------------------------------------------------------------------------- */
+/* Chaque carte porte sa boîte d'origine : les extensions ajoutent leurs
+   cartes à la même pioche, et sans cette mention on ne saurait plus laquelle
+   vient d'où au moment de composer. */
+const BP = "Black Plague", WB = "Wulfsburg", GH = "Green Horde";
+const BOITES = [BP, WB, GH];
+const CARTES = [
+  {id:"shortbow", n:"Arc court", t:"ranged", q:{BP:[1,1,0], WB:[0,1,0]}},
+  {id:"shortsword", n:"Épée courte", t:"melee", q:{BP:[1,3,0], WB:[0,2,0], GH:[1,3,0]}},
+  {id:"manablast", n:"Décharge de mana", t:"spell", q:{BP:[1,1,0], WB:[0,1,0]}},
+  {id:"hammer", n:"Marteau", t:"melee", q:{BP:[1,1,0]}},
+  {id:"aaahh", n:"Aaahh !!", t:"aaahh", q:{BP:[4,0,0]}},
+  {id:"apples", n:"Pommes", t:"item", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"meat", n:"Viande salée", t:"item", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"water", n:"Eau", t:"item", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"axe", n:"Hache", t:"melee", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"dagger", n:"Dague", t:"melee", q:{BP:[4,0,0]}},
+  {id:"sword", n:"Épée", t:"melee", q:{BP:[2,0,0]}},
+  {id:"greatsword", n:"Épée à deux mains", t:"melee", q:{BP:[2,0,0]}},
+  {id:"crossbow", n:"Arbalète", t:"ranged", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"handxbow", n:"Arbalète de poing", t:"ranged", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"repxbow", n:"Arbalète à répétition", t:"ranged", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"longbow", n:"Arc long", t:"ranged", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"deathstrike", n:"Frappe mortelle", t:"spell", q:{BP:[2,0,0]}},
+  {id:"fireball", n:"Boule de feu", t:"spell", q:{BP:[2,0,0]}},
+  {id:"lightning", n:"Éclair", t:"spell", q:{BP:[2,0,0]}},
+  {id:"leather", n:"Armure de cuir", t:"armor", q:{BP:[2,0,0]}},
+  {id:"chainmail", n:"Cotte de mailles", t:"armor", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"plate", n:"Armure de plates", t:"armor", q:{BP:[1,0,0], GH:[1,0,0]}},
+  {id:"shield", n:"Bouclier", t:"shield", q:{BP:[2,0,0], GH:[2,0,0]}},
+  {id:"arrows", n:"Provision de flèches", t:"item", q:{BP:[3,0,0], GH:[3,0,0]}},
+  {id:"bolts", n:"Provision de carreaux", t:"item", q:{BP:[3,0,0], GH:[3,0,0]}},
+  {id:"torch", n:"Torche", t:"item", q:{BP:[4,0,0], GH:[4,0,0]}},
+  {id:"bile", n:"Bile de dragon", t:"item", q:{BP:[4,0,0], GH:[4,0,0]}},
+  {id:"healing", n:"Soins", t:"ench", q:{BP:[1,0,0], GH:[1,0,0]}},
+  {id:"invisibility", n:"Invisibilité", t:"ench", q:{BP:[1,0,0]}},
+  {id:"repulse", n:"Repousser", t:"ench", q:{BP:[1,0,0], GH:[1,0,0]}},
+  {id:"speed", n:"Vitesse", t:"ench", q:{BP:[1,0,0], GH:[1,0,0]}},
+  {id:"inferno", n:"Enfer", t:"spell", vault:1, q:{BP:[0,0,1]}},
+  {id:"orcxbow", n:"Arbalète orque", t:"ranged", vault:1, q:{BP:[0,0,1]}},
+  {id:"axecarnage", n:"Hache du Carnage", t:"melee", q:{WB:[1,0,0]}},
+  {id:"bastardsword", n:"Épée bâtarde", t:"melee", q:{WB:[2,0,0]}},
+  {id:"chainlightning", n:"Éclair en chaîne", t:"spell", q:{WB:[2,0,0]}},
+  {id:"chaoslongbow", n:"Arc long du Chaos", t:"ranged", q:{WB:[1,0,0]}},
+  {id:"deflectdagger", n:"Dague de parade", t:"melee", q:{WB:[1,0,0]}},
+  {id:"disintegrate", n:"Désintégration", t:"spell", q:{WB:[2,0,0]}},
+  {id:"dragonblade", n:"Lame de Feu du Dragon", t:"melee", q:{WB:[1,0,0]}},
+  {id:"quakehammer", n:"Marteau sismique", t:"melee", q:{WB:[1,0,0]}},
+  {id:"flamingsword", n:"Épée à deux mains enflammée", t:"melee", q:{WB:[1,0,0]}},
+  {id:"ironclad", n:"Blindé : Loups zombies", t:"ench", q:{WB:[1,0,0]}},
+  {id:"quicksilver", n:"Épée de vif-argent", t:"melee", q:{WB:[1,0,0]}},
+  {id:"shieldages", n:"Bouclier des Âges", t:"shield", q:{WB:[1,0,0]}},
+  {id:"stormbow", n:"Arc de tempête", t:"ranged", q:{WB:[1,0,0]}},
+  {id:"transmut", n:"Transmutation", t:"ench", q:{WB:[1,0,0]}},
+  {id:"vampxbow", n:"Arbalète vampirique", t:"ranged", q:{WB:[1,0,0]}},
+  {id:"aaahhorc", n:"Aaahh !! (Orc marcheur)", t:"aaahh", q:{GH:[4,0,0]}},
+  {id:"bonekukri", n:"Kukri d'os", t:"melee", vault:1, q:{GH:[0,0,1]}},
+  {id:"bonesword", n:"Épée d'os", t:"melee", vault:1, q:{GH:[0,0,1]}},
+  {id:"curveddagger", n:"Dague courbe", t:"melee", q:{GH:[4,0,0]}},
+  {id:"deathgale", n:"Souffle de mort", t:"spell", q:{GH:[2,0,0]}},
+  {id:"dwarfaxe", n:"Hache naine", t:"melee", vault:1, q:{GH:[0,0,1]}},
+  {id:"dwarfhammer", n:"Marteau nain", t:"melee", q:{GH:[2,0,0]}},
+  {id:"falchion", n:"Fauchon", t:"melee", q:{GH:[2,0,0]}},
+  {id:"ghostsight", n:"Vision spectrale", t:"ench", q:{GH:[1,0,0]}},
+  {id:"greataxe", n:"Grande hache", t:"melee", q:{GH:[2,0,0]}},
+  {id:"lavaburst", n:"Explosion de lave", t:"spell", vault:1, q:{GH:[0,0,1]}},
+  {id:"lightningball", n:"Boule d'éclairs", t:"spell", q:{GH:[2,0,0]}},
+  {id:"norseshield", n:"Bouclier nordique", t:"shield", q:{GH:[2,0,0]}},
+  {id:"norsesword", n:"Épée nordique", t:"melee", q:{GH:[1,1,0]}},
+  {id:"scimitar", n:"Cimeterre", t:"melee", q:{GH:[2,0,0]}},
+  {id:"spikedbow", n:"Arc à pointes", t:"ranged", q:{GH:[1,1,0]}},
+  {id:"steelbow", n:"Arc d'acier", t:"ranged", vault:1, q:{GH:[0,0,1]}},
+  {id:"telekblast", n:"Décharge télékinésique", t:"spell", q:{GH:[1,1,0]}},
+  {id:"tremor", n:"Tremblement", t:"ench", q:{GH:[1,0,0]}},
+  {id:"warcleaver", n:"Couperet de guerre", t:"melee", vault:1, q:{GH:[0,0,1]}}
+  /* Une carte ajoutée ici doit l'être aussi dans EQUIP de zombicide.html :
+     le moteur ne peut pas distribuer ce qu'il ne connaît pas.
+     outils-controle.py compare les deux listes. */
+];
+const TYPE_NOM = {melee:"Mêlée", ranged:"Distance", spell:"Magie", ench:"Enchantement",
+                  armor:"Armure", shield:"Bouclier", item:"Divers", aaahh:"Aaahh !!"};
+
+/* --------------------------------------------------------------------------
+   2. VOCABULAIRE DES CARTES D'INVASION
+   W=Walker R=Runner B=Fatty A=Abomination · !X=Activation supplémentaire
+   N=Nécromancien · D=Double Invasion · -=Rien
+   -------------------------------------------------------------------------- */
+const CELLULES = ["-"];
+["W","R","B"].forEach(l=>{ for(let n=1;n<=8;n++) CELLULES.push(n+l); });
+CELLULES.push("1A","2A");
+["W","R","B"].forEach(l=>CELLULES.push("!"+l));
+CELLULES.push("N","D");
+const LIB_Z = {W:"Walker", R:"Runner", B:"Fatty", A:"Abomination"};
+function libCellule(c){
+  if(c==="-") return "rien";
+  if(c==="N") return "Nécromancien";
+  if(c==="D") return "Double Invasion";
+  if(c[0]==="!") return "Activation suppl. — "+LIB_Z[c[1]];
+  const n=+c[0], t=LIB_Z[c[1]];
+  return n+" "+t+(n>1?"s":"");
+}
+
+/* Table officielle des 54 cartes, servant de point de départ. */
+const TABLE_DEFAUT = [
+ ["-","2R","5W","2B"], ["-","2B","5W","5W"], ["-","4W","3R","2R"],
+ ["1W","1R","3B","3B"],["1W","1B","4W","5W"],["1W","2W","1R","3R"],
+ ["2W","1R","1B","3B"],["3W","1B","4W","6W"],["1B","2W","2R","3R"],
+ ["1B","2W","2B","5W"],["1R","3W","3W","6W"],["1R","3W","3W","5W"],
+ ["1A","1R","5W","2B"],["2W","1A","1B","3R"],["2W","1B","1A","6W"],
+ ["1W","3W","2R","1A"],["1W","2R","3B","6W"],["1R","1B","4W","5W"],
+ ["1W","4W","2R","3B"],["1B","1R","6W","2R"],["1W","2B","2R","8W"],
+ ["1B","2W","2B","7W"],["1R","4W","4W","3B"],["1B","3W","5W","3R"],
+ ["1A","1R","5W","2B"],["2W","1A","1B","3R"],["2W","1B","1A","6W"],
+ ["1W","3W","2R","1A"],["1W","2R","3B","6W"],["1R","1B","4W","5W"],
+ ["1W","4W","2R","3B"],["1B","1R","6W","2R"],["1W","2B","2R","8W"],
+ ["1W","2B","2W","7B"],["1R","4W","4W","3B"],["1B","3W","5W","3R"],
+ ["-","!W","!W","!W"], ["-","!W","!W","!W"], ["-","!B","!B","!B"],
+ ["-","!R","!R","!R"],
+ ["N","N","N","N"],["N","N","N","N"],["N","N","N","N"],
+ ["N","N","N","N"],["N","N","N","N"],["N","N","N","N"],
+ ["D","D","D","D"],["D","D","D","D"],["D","D","D","D"],["D","D","D","D"],
+ ["D","D","D","D"],["D","D","D","D"],["D","D","D","D"],["D","D","D","D"]
+];
+
+/* --------------------------------------------------------------------------
+   3. ÉTAT
+   -------------------------------------------------------------------------- */
+let vue = "equip";
+const CLE = ["BP","WB","GH"];          // clés des quantités, dans l'ordre de BOITES
+
+/* Plusieurs decks nommés dans un même fichier : on en choisit un au lancement
+   d'une partie. `courant` est celui qu'on édite. */
+let decks = [];
+let courant = 0;
+const D = () => decks[courant] || {nom:"", equip:{}, spawn:[], boites:{}};
+
+/* Chaque boîte contribue de trois façons possibles. « Départ seulement » sert
+   les mélanges du genre « Black Plague + les armes de départ de Wulfsburg » :
+   on veut les personnages armés par l'extension, sans sa pioche. */
+const ETATS = {rien:"—", depart:"départ seulement", tout:"tout"};
+const SUITE = {rien:"tout", tout:"depart", depart:"rien"};
+const etatBoite = b => (D().boites || {})[b] || "rien";
+
+/* Quantités déduites des boîtes retenues, additionnées carte par carte. */
+function quantitesBoites(boites){
+  const eq = {};
+  CARTES.forEach(c=>{
+    let d=0, st=0, v=0;
+    BOITES.forEach((b,k)=>{
+      const q = c.q[CLE[k]]; if(!q) return;
+      const e = boites[b] || "rien";
+      if(e === "tout"){ d += q[0]; st += q[1]; v += q[2]; }
+      else if(e === "depart"){ st += q[1]; }
+    });
+    eq[c.id] = {deck:d, start:st, vault:v};
+  });
+  return eq;
+}
+function deckNeuf(nom, boites){
+  const b = boites || {[BP]:"tout"};
+  return {nom: nom || "Sans nom", boites: {...b},
+          equip: quantitesBoites(b), spawn: TABLE_DEFAUT.map(r=>[...r])};
+}
+function parDefaut(){ return deckNeuf("Boîte de base"); }
+/* Une carte se montre si elle appartient à une boîte retenue, ou si on lui a
+   donné une quantité — sinon un réglage deviendrait invisible et impossible à
+   défaire. */
+function visible(c){
+  const q = D().equip[c.id] || {};
+  if(q.deck || q.start || q.vault) return true;
+  return BOITES.some((b,k)=> etatBoite(b) !== "rien" && c.q[CLE[k]]);
+}
+/* Un deck fourni ne décrit peut-être qu'une partie des cartes : le reste garde
+   la quantité de ses boîtes, sinon un fichier partiel viderait la pioche. */
+function chargerUn(src, k){
+  const boites = (src && src.boites) ? src.boites : {[BP]:"tout"};
+  const base = deckNeuf((src && src.nom) || ("Deck "+(k+1)), boites);
+  if(!src) return base;
+  if(src.equip) Object.entries(src.equip).forEach(([id,v])=>{
+    if(!base.equip[id]) return;              // carte inconnue du jeu : ignorée
+    if(typeof v === "number") base.equip[id].deck = Math.max(0, v|0);
+    else {
+      if(v.deck  != null) base.equip[id].deck  = Math.max(0, v.deck|0);
+      if(v.start != null) base.equip[id].start = Math.max(0, v.start|0);
+      if(v.vault != null) base.equip[id].vault = Math.max(0, v.vault|0);
+    }
+  });
+  if(Array.isArray(src.spawn) && src.spawn.length)
+    base.spawn = src.spawn.filter(r=>Array.isArray(r) && r.length===4).map(r=>r.map(String));
+  return base;
+}
+/* Le fichier porte une LISTE de decks. Un fichier d'avant, qui n'en décrivait
+   qu'un seul à plat, reste lisible : il devient un deck unique. */
+function charger(src){
+  if(!src) return [parDefaut()];
+  const liste = Array.isArray(src.decks) ? src.decks
+              : (src.equip || src.spawn) ? [src] : null;
+  if(!liste || !liste.length) return [parDefaut()];
+  return liste.map(chargerUn);
+}
+
+/* --------------------------------------------------------------------------
+   4. RENDU
+   -------------------------------------------------------------------------- */
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function btn(l,f,c){const b=el("button",c,l);b.onclick=f;return b;}
+function dire(t,c){const m=document.getElementById("msg"); if(m){m.className=c||"";m.textContent=t;}}
+
+function totaux(){
+  const som = cle => CARTES.reduce((n,c)=>n+((D().equip[c.id]||{})[cle]|0),0);
+  return {pioche:som("deck"), depart:som("start"), artefacts:som("vault"),
+          invasion:D().spawn.length};
+}
+function libResume(){
+  const t = totaux();
+  return `« ${D().nom} » — ${t.pioche} cartes de Fouille · ${t.depart} armes de départ · `+
+         `${t.artefacts} Artefact${t.artefacts>1?"s":""} · ${t.invasion} cartes d'Invasion`;
+}
+function rendre(){
+  document.getElementById("resume").textContent = libResume();
+  document.getElementById("ongEquip").className = vue==="equip" ? "on" : "";
+  document.getElementById("ongZomb").className  = vue==="zomb"  ? "on" : "";
+  const z = document.getElementById("zone"); z.innerHTML = "";
+  barreDecks(z);
+  if(vue==="equip") vueEquip(z); else vueZombies(z);
+  carteFichier(z);
+}
+
+/* Choix, nom et gestion des decks. C'est cette liste que le jeu propose au
+   lancement d'une partie. */
+function barreDecks(z){
+  const c = el("div","card");
+  c.appendChild(el("h3",null,"Decks"));
+  const r = el("div","row");
+  decks.forEach((d,k)=>{
+    r.appendChild(btn(d.nom || "Sans nom", ()=>{ courant=k; rendre(); },
+                      k===courant ? "on" : ""));
+  });
+  r.appendChild(btn("+ Nouveau", ()=>{
+    decks.push(deckNeuf("Deck "+(decks.length+1)));
+    courant = decks.length-1; rendre(); dire("Deck ajouté.","ok"); }, "prim"));
+  c.appendChild(r);
+
+  const n = el("div","row"); n.style.marginTop="8px";
+  n.appendChild(el("label",null,"Nom :"));
+  const i = document.createElement("input");
+  i.type="text"; i.value = D().nom; i.style.flex="1"; i.style.maxWidth="340px";
+  i.oninput = e => { D().nom = e.target.value;
+    document.getElementById("resume").textContent = libResume();
+    const t=document.getElementById("sortie"); if(t) t.value = source(); };
+  i.onblur = () => rendre();
+  n.appendChild(i);
+  n.appendChild(btn("Dupliquer", ()=>{
+    const copie = JSON.parse(JSON.stringify(D()));
+    copie.nom = D().nom + " (copie)";
+    decks.splice(courant+1, 0, copie); courant++; rendre();
+    dire("Deck dupliqué.","ok"); }));
+  /* On ne supprime pas le dernier : le fichier doit décrire au moins un deck. */
+  if(decks.length > 1)
+    n.appendChild(btn("Supprimer", ()=>{
+      const nom = D().nom;
+      decks.splice(courant,1); courant = Math.max(0, courant-1); rendre();
+      dire(`« ${nom} » supprimé.`,"ok"); }, "danger"));
+  c.appendChild(n);
+  c.appendChild(el("div","hint",
+    `${decks.length} deck${decks.length>1?"s":""} dans le fichier. Le jeu les proposera par leur `+
+    "nom au lancement d'une partie ; les decks de la boîte restent le choix par défaut."));
+  z.appendChild(c);
+}
+
+function vueEquip(z){
+  const c = el("div","card");
+  c.appendChild(el("h3",null,"Pioche d'Équipement"));
+  c.appendChild(el("div","hint",
+    "Combien d'exemplaires de chaque carte. « Fouille » alimente la pioche, « Départ » le stock "+
+    "d'armes de mise en place, « Crypte » les Artefacts mis de côté. Les caractéristiques des "+
+    "cartes ne changent pas — seule leur quantité."));
+
+  /* Chaque boîte a trois états, qui tournent au clic : rien → tout → départ
+     seulement. Changer un état recalcule les quantités du deck. */
+  const f = el("div","row"); f.style.marginTop="8px";
+  f.appendChild(el("label",null,"Boîtes :"));
+  BOITES.forEach((b,k)=>{
+    const q = x => x.q[CLE[k]];
+    const tot = CARTES.reduce((t,x)=>t + (q(x) ? q(x)[0]+q(x)[1]+q(x)[2] : 0), 0);
+    const dep = CARTES.reduce((t,x)=>t + (q(x) ? q(x)[1] : 0), 0);
+    const e = etatBoite(b);
+    const n = e==="tout" ? tot : e==="depart" ? dep : 0;
+    const bt = btn(`${b} · ${ETATS[e]}${n?" ("+n+")":""}`, ()=>{
+      D().boites = {...(D().boites||{}), [b]: SUITE[e]};
+      D().equip = quantitesBoites(D().boites); rendre();
+      dire(`${b} : ${ETATS[SUITE[e]]}.`,"ok");
+    }, e==="tout" ? "on" : e==="depart" ? "moitie" : "");
+    bt.title = `${b} — cliquer pour passer à « ${ETATS[SUITE[e]]} »`;
+    f.appendChild(bt);
+  });
+  c.appendChild(f);
+  c.appendChild(el("div","hint",
+    "« tout » prend la pioche, les armes de départ et les Artefacts ; « départ seulement » ne "+
+    "prend que les armes de mise en place — de quoi armer les Survivants avec une extension sans "+
+    "mêler sa pioche. Plusieurs boîtes s'additionnent."));
+
+  const r = el("div","row"); r.style.marginTop="6px";
+  r.appendChild(btn("Recalculer d'après les boîtes", ()=>{
+    D().equip = quantitesBoites(D().boites||{}); rendre();
+    dire("Quantités recalculées.","ok"); }));
+  r.appendChild(btn("Tout à zéro", ()=>{
+    CARTES.forEach(x=>{ D().equip[x.id] = {deck:0, start:0, vault:0}; });
+    rendre(); dire("Pioche vidée — à composer.","ok"); },"danger"));
+  c.appendChild(r);
+  c.appendChild(el("div","hint",
+    "Les nombres restent modifiables un par un. Attention : changer l'état d'une boîte, ou "+
+    "« Recalculer », écrase les retouches manuelles."));
+  z.appendChild(c);
+
+  const visibles = CARTES.filter(visible);
+  const tb = document.createElement("table");
+  const th = document.createElement("tr");
+  ["Carte","Boîte","Type","Fouille","Départ","Crypte"].forEach(t=>th.appendChild(el("th",null,t)));
+  tb.appendChild(th);
+  visibles.forEach(x=>{
+    const q = D().equip[x.id];
+    const tr = document.createElement("tr");
+    if(!q.deck && !q.start && !q.vault) tr.className = "zero";
+    tr.appendChild(el("td",null,x.n));
+    /* Une carte peut figurer dans plusieurs boîtes : on les montre toutes. */
+    const tdb = el("td");
+    BOITES.forEach((b,k)=>{ if(x.q[["BP","WB","GH"][k]])
+      tdb.appendChild(el("span","boite b"+k, b)); });
+    tr.appendChild(tdb);
+    const td2 = el("td"); td2.appendChild(el("span","type",TYPE_NOM[x.t]||x.t)); tr.appendChild(td2);
+    const champ = (cle, max, actif, aide) => {
+      const td = el("td","num");
+      const i = document.createElement("input");
+      i.type="number"; i.min="0"; i.max=String(max); i.value = q[cle]|0;
+      if(!actif){ i.disabled = true; i.title = aide; }
+      else {
+        i.oninput = e => { q[cle] = Math.max(0, Math.min(max, parseInt(e.target.value,10)||0));
+                           majResume(); };
+        i.onblur = () => rendre();
+      }
+      td.appendChild(i); return td;
+    };
+    /* Un Artefact ne se fouille pas : il est mis de côté et se trouve en
+       Crypte. Les deux champs restent visibles, l'un bloqué, pour qu'on
+       comprenne où passe la carte. */
+    tr.appendChild(champ("deck",  20, !x.vault, "Artefact : il ne se trouve qu'en Crypte"));
+    tr.appendChild(champ("start", 12, !x.vault, "Artefact : jamais une arme de départ"));
+    tr.appendChild(champ("vault",  6,  x.vault, "Cette carte n'est pas un Artefact"));
+    tb.appendChild(tr);
+  });
+  const carte = el("div","card"); carte.appendChild(tb);
+  z.appendChild(carte);
+}
+
+function vueZombies(z){
+  const c = el("div","card");
+  c.appendChild(el("h3",null,"Cartes d'Invasion"));
+  c.appendChild(el("div","hint",
+    "Une ligne par carte, une colonne par niveau de Danger. Le jeu lit la colonne correspondant "+
+    "au niveau atteint par le Survivant le plus expérimenté."));
+  c.appendChild(el("div","hint",
+    "« Double Invasion » ne fait apparaître personne : c'est la Zone suivante qui tire deux cartes. "+
+    "« Nécromancien » n'en pose qu'un — s'il est déjà en jeu, la carte vaut une Activation."));
+  const r = el("div","row"); r.style.marginTop="6px";
+  r.appendChild(btn("+ Ajouter une carte", ()=>{
+    D().spawn.push(["-","1W","2W","3W"]); rendre(); }, "prim"));
+  r.appendChild(btn("Table officielle (54)", ()=>{
+    D().spawn = TABLE_DEFAUT.map(x=>[...x]); rendre();
+    dire("Table d'origine rétablie.","ok"); }));
+  c.appendChild(r);
+  z.appendChild(c);
+
+  const tb = document.createElement("table");
+  const th = document.createElement("tr");
+  th.appendChild(el("th",null,"Nº"));
+  [["b","Bleu"],["j","Jaune"],["o","Orange"],["r","Rouge"]].forEach(([k,n])=>{
+    const t = el("th"); t.appendChild(el("span","dg "+k,n)); th.appendChild(t);
+  });
+  th.appendChild(el("th",null,""));
+  tb.appendChild(th);
+  D().spawn.forEach((ligne,i)=>{
+    const tr = document.createElement("tr");
+    tr.appendChild(el("td",null,String(i+1)));
+    ligne.forEach((cell,k)=>{
+      const td = el("td");
+      const s = document.createElement("select");
+      /* Une valeur venue d'un fichier et absente du menu ne doit pas disparaître
+         en silence : on l'ajoute en fin de liste. */
+      const liste = CELLULES.includes(cell) ? CELLULES : [...CELLULES, cell];
+      liste.forEach(v=>{ const o=document.createElement("option");
+        o.value=v; o.textContent=libCellule(v)+(CELLULES.includes(v)?"":" (inconnu)");
+        if(v===cell) o.selected=true; s.appendChild(o); });
+      s.onchange = e => { ligne[k] = e.target.value; };
+      td.appendChild(s); tr.appendChild(td);
+    });
+    const td = el("td");
+    td.appendChild(btn("✕", ()=>{ D().spawn.splice(i,1); rendre(); },"danger"));
+    tr.appendChild(td);
+    tb.appendChild(tr);
+  });
+  const carte = el("div","card"); carte.appendChild(tb);
+  z.appendChild(carte);
+}
+function majResume(){
+  document.getElementById("resume").textContent = libResume();
+  const s = document.getElementById("sortie"); if(s) s.value = source();
+}
+
+/* --------------------------------------------------------------------------
+   5. LE FICHIER
+   Même mécanique que l'éditeur de personnages : là où l'API File System Access
+   existe, on désigne decks.js une fois et l'enregistrement le réécrit sur
+   place ; ailleurs, il reste le téléchargement.
+   -------------------------------------------------------------------------- */
+const FSA = typeof window.showOpenFilePicker === "function";
+let fichier = null;
+let origine = "";
+
+function idb(op, val){
+  return new Promise(res=>{
+    let rq; try{ rq=indexedDB.open("zbp-decks",1); }catch(e){ return res(null); }
+    rq.onupgradeneeded = ()=>rq.result.createObjectStore("h");
+    rq.onerror = ()=>res(null);
+    rq.onsuccess = ()=>{
+      let st; try{ st=rq.result.transaction("h", op==="get"?"readonly":"readwrite").objectStore("h"); }
+      catch(e){ return res(null); }
+      const r = op==="get" ? st.get("f") : (val ? st.put(val,"f") : st.delete("f"));
+      r.onsuccess=()=>res(op==="get"?r.result:true);
+      r.onerror=()=>res(null);
+    };
+  });
+}
+function source(){
+  const un = d => {
+    const eq = CARTES.map(c=>{
+      const q = d.equip[c.id] || {};
+      return `      ${JSON.stringify(c.id)}: {deck:${q.deck|0}, start:${q.start|0}, vault:${q.vault|0}}`;
+    }).join(",\n");
+    const sp = d.spawn.map(r=>"      "+JSON.stringify(r)).join(",\n");
+    const bo = JSON.stringify(d.boites || {});
+    return [
+      "  {",
+      `    nom: ${JSON.stringify(d.nom || "Sans nom")},`,
+      `    boites: ${bo},`,
+      "    equip: {", eq, "    },",
+      "    spawn: [", sp, "    ]",
+      "  }"].join("\n");
+  };
+  return [
+    "/* Decks personnalisés — produit par zombicide-decks.html",
+    "   Déposer dans zombicide_fichiers/decks/decks.js",
+    "   `boites` ne sert qu'à l'éditeur : il retient de quelles boîtes les",
+    "   quantités ont été tirées. Le jeu ne lit que `nom`, `equip` et `spawn`. */",
+    "window.ZBP_DECKS = {",
+    "  decks: [",
+    decks.map(un).join(",\n"),
+    "  ]",
+    "};", ""].join("\n");
+}
+/* Contrôles du deck en cours d'édition, plus ce qui vaut pour le fichier. */
+function problemes(){
+  const p = [];
+  const t = totaux();
+  const vus = {};
+  decks.forEach(d=>{ const n=(d.nom||"").trim();
+    if(!n) p.push("Un deck est sans nom : le jeu ne saurait pas comment l'appeler.");
+    else if(vus[n]) p.push(`Deux decks portent le nom « ${n} » : impossible de les distinguer.`);
+    vus[n] = 1; });
+  if(!t.pioche) p.push("La pioche de Fouille est vide : aucune Fouille ne donnerait de carte.");
+  if(!t.depart) p.push("Aucune arme de départ : les Survivants commenceraient les mains nues.");
+  const orphelin = CARTES.find(c=>c.vault && (D().equip[c.id].deck || D().equip[c.id].start));
+  if(orphelin) p.push(`${orphelin.n} est un Artefact : il ne peut ni se fouiller ni s'équiper au départ.`);
+  if(!D().spawn.length) p.push("Aucune carte d'Invasion : la Phase des Zombies ne ferait rien.");
+  const mauvaise = D().spawn.findIndex(r=>r.some(c=>!CELLULES.includes(c)));
+  if(mauvaise>=0) p.push(`La carte nº${mauvaise+1} contient une valeur inconnue du jeu.`);
+  if(D().spawn.length && D().spawn.every(r=>r.every(c=>c==="D")))
+    p.push("Toutes les cartes sont « Double Invasion » : la séquence tournerait à vide.");
+  return p;
+}
+function carteFichier(z){
+  const c = el("div","card"); c.appendChild(el("h3",null,"Fichier"));
+  const pb = problemes();
+  if(!pb.length) c.appendChild(el("div",null,"✓ Deck utilisable."));
+  pb.forEach(t=>{ const d=el("div",null,"• "+t);
+    d.style.color="#e0a060"; d.style.fontSize="12px"; c.appendChild(d); });
+
+  const r = el("div","row"); r.style.marginTop="6px";
+  r.appendChild(btn(fichier ? `Mettre à jour ${fichier.name}` : "Enregistrer decks.js",
+                    enregistrer, "prim"));
+  r.appendChild(btn(FSA ? "Lier un fichier…" : "Ouvrir un fichier…", FSA ? lier : importer));
+  if(fichier) r.appendChild(btn("Délier", delier));
+  r.appendChild(btn("Copier", async ()=>{
+    try{ await navigator.clipboard.writeText(source()); dire("Copié.","ok"); }
+    catch(e){ dire("Copie impossible : "+e.message,"err"); } }));
+  c.appendChild(r);
+  c.appendChild(el("div","hint", fichier
+    ? `Lié à « ${fichier.name} » : le bouton réécrit ce fichier directement.`
+    : (FSA
+      ? "Lie zombicide_fichiers/decks/decks.js une bonne fois : ensuite l'enregistrement le réécrit sur place."
+      : "Ce navigateur ne sait pas réécrire un fichier : dépose le fichier téléchargé dans zombicide_fichiers/decks/.")));
+  c.appendChild(el("div","hint","Deck chargé depuis : "+(origine||"les quantités de la boîte")));
+  const ta = document.createElement("textarea");
+  ta.id="sortie"; ta.rows=10; ta.readOnly=true; ta.value=source(); ta.style.marginTop="6px";
+  c.appendChild(ta);
+  c.appendChild(el("div","hint")).id="msg";
+  z.appendChild(c);
+}
+function adopter(txt, nom){
+  const i = txt.indexOf("{"), j = txt.lastIndexOf("}");
+  if(i<0 || j<i) return dire("Fichier illisible : aucun objet trouvé.","err"), false;
+  let o;
+  try{ o = Function("return ("+txt.slice(i,j+1)+")")(); }
+  catch(e){ return dire("Fichier illisible : "+e.message,"err"), false; }
+  if(!o || typeof o!=="object") return dire("Fichier illisible : ce n'est pas un deck.","err"), false;
+  decks = charger(o); courant = 0; origine = nom; rendre();
+  dire(`Deck relu depuis « ${nom} ».`,"ok");
+  return true;
+}
+async function lier(){
+  try{
+    const [h] = await window.showOpenFilePicker({
+      types:[{description:"Decks", accept:{"text/javascript":[".js"]}}]});
+    fichier = h; await idb("put", h);
+    const f = await h.getFile();
+    if(!adopter(await f.text(), h.name)) rendre();
+  }catch(e){
+    if(e.name==="AbortError") return;
+    dire("Liaison impossible : "+e.message,"err");
+  }
+}
+async function delier(){ fichier=null; await idb("put",null); origine=""; rendre();
+  dire("Lien retiré : l'enregistrement repassera par le téléchargement.","ok"); }
+function importer(){
+  const i=document.createElement("input");
+  i.type="file"; i.accept=".js,.json,text/javascript";
+  i.onchange=()=>{ const f=i.files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>adopter(r.result, f.name); r.readAsText(f); };
+  i.click();
+}
+async function enregistrer(){
+  const pb = problemes();
+  if(pb.length && !confirm(pb.join("\n")+"\n\nEnregistrer quand même ?"))
+    { dire("Enregistrement annulé.","err"); return; }
+  if(fichier){
+    try{
+      const ok = await fichier.queryPermission({mode:"readwrite"}) === "granted"
+              || await fichier.requestPermission({mode:"readwrite"}) === "granted";
+      if(!ok) throw new Error("écriture refusée");
+      const w = await fichier.createWritable();
+      await w.write(source()); await w.close();
+      origine = fichier.name; rendre();
+      dire(`« ${fichier.name} » mis à jour — recharge le jeu pour en profiter.`,"ok");
+      return;
+    }catch(e){ dire("Écriture impossible ("+e.message+") — repli sur le téléchargement.","err"); }
+  }
+  const blob=new Blob([source()],{type:"text/javascript"});
+  const u=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=u; a.download="decks.js"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),2000);
+  if(!fichier) dire("« decks.js » téléchargé — dépose-le dans zombicide_fichiers/decks/.","ok");
+}
+
+/* --------------------------------------------------------------------------
+   6. AMORÇAGE
+   -------------------------------------------------------------------------- */
+document.getElementById("ongEquip").onclick = ()=>{ vue="equip"; rendre(); };
+document.getElementById("ongZomb").onclick  = ()=>{ vue="zomb";  rendre(); };
+
+decks = charger(window.ZBP_DECKS);
+if(window.ZBP_DECKS) origine = "zombicide_fichiers/decks/decks.js (balise de script)";
+rendre();
+
+(async ()=>{
+  if(!FSA) return;
+  const h = await idb("get"); if(!h) return;
+  fichier = h;
+  try{
+    if(await h.queryPermission({mode:"read"}) === "granted"){
+      const f = await h.getFile();
+      adopter(await f.text(), h.name);
+    } else { origine = `« ${h.name} » — lien retrouvé, à confirmer à l'enregistrement`; rendre(); }
+  }catch(e){ fichier=null; rendre(); }
+})();
+</script>
+</body>
+</html>

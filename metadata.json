@@ -64,5 +64,11 @@
     "description": "Crée des survivants supplémentaires pour Zombicide: Black Plague et génère le fichier survivants.js utilisé par le jeu.",
     "icone": "🧑‍🤝‍🧑",
     "categorie": "Jeux"
+  },
+  "zombicide-decks.html": {
+    "titre": "Zombicide — Éditeur de decks (BÊTA)",
+    "description": "Crée et personnalise les decks d'équipement de Zombicide: Black Plague et génère le fichier decks.js utilisé par le jeu.",
+    "icone": "🗃️",
+    "categorie": "Jeux"
   }
 }

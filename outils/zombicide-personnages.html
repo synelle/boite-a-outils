@@ -114,6 +114,7 @@ const COMPETENCES = [
   {n:"Charge", en:"Charge", ok:1},
   {n:"Corps de fer", en:"Ironhide", ok:1},
   {n:"Faucheur : Combat", en:"Reaper : Combat", ok:1},
+  {n:"Fureur Guerrière", en:"Battle rage", ok:1},
   {n:"Fuite", en:"Hit & Run", ok:1},
   {n:"Grimoire", en:"Spellbook", ok:1},
   {n:"Insaisissable", en:"Slippery", ok:1},
@@ -133,34 +134,33 @@ const COMPETENCES = [
   {n:"Ange gardien", en:"Lifesaver", ok:0},
   {n:"Blitz", en:"Blitz", ok:0},
   {n:"C'est tout ce que t'as ?", en:"Is that all you have got ?", ok:0},
-  {n:"Chanceux", en:"Lucky", ok:0},
+  {n:"Chanceux", en:"Lucky", ok:1},
   {n:"Charognard", en:"Scavenger", ok:0},
   {n:"Chef né", en:"Born leader", ok:0},
   {n:"Collectionneur [type de Zombie]", en:"Collector", ok:0},
   {n:"Coriace", en:"Tough", ok:0},
   {n:"Cuirassé [type de Zombie]", en:"Ironclad", ok:0},
   {n:"Destinée", en:"Destiny", ok:0},
-  {n:"Double Enchantement", ok:0},
+  {n:"Double Enchantement", en:"Double casting", ok:1},
   {n:"Effraction", en:"Break-in", ok:0},
-  {n:"Faucheur : À distance", en:"Reaper : Ranged", ok:0},
-  {n:"Faucheur : Magie", en:"Reaper : Magic", ok:0},
-  {n:"Faucheur : Mêlée", en:"Reaper : Melee", ok:0},
+  {n:"Faucheur : À distance", en:"Reaper : Ranged", ok:1},
+  {n:"Faucheur : Magie", en:"Reaper : Magic", ok:1},
+  {n:"Faucheur : Mêlée", en:"Reaper : Melee", ok:1},
   {n:"Fouille : +1 carte", en:"Search : +1 card", ok:0},
   {n:"Frénésie : À distance", en:"Frenzy : Ranged", ok:0},
   {n:"Frénésie : Combat", en:"Frenzy : Combat", ok:0},
   {n:"Frénésie : Magie", en:"Frenzy : Magic", ok:0},
   {n:"Frénésie : Mêlée", en:"Frenzy : Melee", ok:0},
   {n:"Frère d'armes [effet de jeu]", ok:0},
-  {n:"Fureur Guerrière", ok:0},
   {n:"Les deux font la paire", en:"Matching set !", ok:0},
-  {n:"Lien Zombie", en:"Zombie link", ok:0},
+  {n:"Lien Zombie", en:"Zombie link", ok:1},
   {n:"Pillard", ok:0},
   {n:"Pluie de mana", en:"Mana rain", ok:0},
   {n:"Possède [Équipement]", en:"Start with a [Equipment]", ok:0},
-  {n:"Poussée", en:"Shove", ok:0},
+  {n:"Poussée", en:"Shove", ok:1},
   {n:"Précision chirurgicale", en:"Steady hand", ok:0},
   {n:"Profil bas", en:"Low profile", ok:0},
-  {n:"Provocation", en:"Taunt", ok:0},
+  {n:"Provocation", en:"Taunt", ok:1},
   {n:"Putréfié", en:"Rotten", ok:0},
   {n:"Rechargement gratuit", en:"Free reload", ok:0},
   {n:"Régénération", en:"Regeneration", ok:0},
@@ -172,54 +172,92 @@ const COMPETENCES = [
   {n:"Super force", en:"Super strength", ok:0},
   {n:"Tacticien", en:"Tactician", ok:0},
   {n:"Tir instinctif", en:"Trick shot", ok:0},
-  {n:"Transmutation", ok:0}
+  {n:"Transmutation", ok:1}
 ];
 const compParNom = Object.fromEntries(COMPETENCES.map(c=>[c.n,c]));
 
-/* Emplacement Corps : la carte nommée sur la fiche, en écho à EQUIP du jeu. */
+/* Emplacement Corps : la carte nommée sur la fiche, en écho à EQUIP du jeu.
+   Recopiée de zombicide.html — outils-controle.py compare les deux listes.
+   `b` = boîte d'origine, `niv` = Niveau de Danger exigé par l'Équipement
+   magique (1 Jaune, 2 Orange). */
 const OBJETS_CORPS = [
-  ["","(aucun)"],
-  /* Melee */
-  ["shortsword","Épée courte"],
-  ["hammer","Marteau"],
-  ["axe","Hache"],
-  ["dagger","Dague"],
-  ["sword","Épée"],
-  ["greatsword","Épée à deux mains"],
-  /* Distance */
-  ["shortbow","Arc court"],
-  ["crossbow","Arbalète"],
-  ["handxbow","Arbalète de poing"],
-  ["repxbow","Arbalète à répétition"],
-  ["longbow","Arc long"],
-  ["orcxbow","Arbalète orque"],
-  /* Magie */
-  ["manablast","Décharge de mana"],
-  ["deathstrike","Frappe mortelle"],
-  ["fireball","Boule de feu"],
-  ["lightning","Éclair"],
-  ["inferno","Enfer"],
-  /* Armure */
-  ["leather","Armure de cuir"],
-  ["chainmail","Cotte de mailles"],
-  ["plate","Armure de plates"],
-  /* Bouclier */
-  ["shield","Bouclier"],
-  /* Divers */
-  ["apples","Pommes"],
-  ["meat","Viande salée"],
-  ["water","Eau"],
-  ["arrows","Provision de flèches"],
-  ["bolts","Provision de carreaux"],
-  ["torch","Torche"],
-  ["bile","Bile de dragon"],
-  /* Enchantement */
-  ["healing","Soins"],
-  ["invisibility","Invisibilité"],
-  ["repulse","Repousser"],
-  ["speed","Vitesse"]
+  {id:"", n:"(aucun)", t:"", b:""},
+  {id: "dagger", n: "Dague", t: "melee", b: "Black Plague"},
+  {id: "axe", n: "Hache", t: "melee", b: "Black Plague"},
+  {id: "hammer", n: "Marteau", t: "melee", b: "Black Plague"},
+  {id: "sword", n: "Épée", t: "melee", b: "Black Plague"},
+  {id: "shortsword", n: "Épée courte", t: "melee", b: "Black Plague"},
+  {id: "greatsword", n: "Épée à deux mains", t: "melee", b: "Black Plague"},
+  {id: "crossbow", n: "Arbalète", t: "ranged", b: "Black Plague"},
+  {id: "handxbow", n: "Arbalète de poing", t: "ranged", b: "Black Plague"},
+  {id: "orcxbow", n: "Arbalète orque", t: "ranged", b: "Black Plague"},
+  {id: "repxbow", n: "Arbalète à répétition", t: "ranged", b: "Black Plague"},
+  {id: "shortbow", n: "Arc court", t: "ranged", b: "Black Plague"},
+  {id: "longbow", n: "Arc long", t: "ranged", b: "Black Plague"},
+  {id: "fireball", n: "Boule de feu", t: "spell", b: "Black Plague"},
+  {id: "manablast", n: "Décharge de mana", t: "spell", b: "Black Plague"},
+  {id: "inferno", n: "Enfer", t: "spell", b: "Black Plague"},
+  {id: "deathstrike", n: "Frappe mortelle", t: "spell", b: "Black Plague"},
+  {id: "lightning", n: "Éclair", t: "spell", b: "Black Plague"},
+  {id: "leather", n: "Armure de cuir", t: "armor", b: "Black Plague"},
+  {id: "plate", n: "Armure de plates", t: "armor", b: "Black Plague"},
+  {id: "chainmail", n: "Cotte de mailles", t: "armor", b: "Black Plague"},
+  {id: "shield", n: "Bouclier", t: "shield", b: "Black Plague"},
+  {id: "bile", n: "Bile de dragon", t: "item", b: "Black Plague"},
+  {id: "water", n: "Eau", t: "item", b: "Black Plague"},
+  {id: "apples", n: "Pommes", t: "item", b: "Black Plague"},
+  {id: "bolts", n: "Provision de carreaux", t: "item", b: "Black Plague"},
+  {id: "arrows", n: "Provision de flèches", t: "item", b: "Black Plague"},
+  {id: "torch", n: "Torche", t: "item", b: "Black Plague"},
+  {id: "meat", n: "Viande salée", t: "item", b: "Black Plague"},
+  {id: "invisibility", n: "Invisibilité", t: "ench", b: "Black Plague"},
+  {id: "repulse", n: "Repousser", t: "ench", b: "Black Plague"},
+  {id: "healing", n: "Soins", t: "ench", b: "Black Plague"},
+  {id: "speed", n: "Vitesse", t: "ench", b: "Black Plague"},
+  {id: "deflectdagger", n: "Dague de parade", t: "melee", b: "Wulfsburg", niv: 1},
+  {id: "axecarnage", n: "Hache du Carnage", t: "melee", b: "Wulfsburg", niv: 2},
+  {id: "dragonblade", n: "Lame de Feu du Dragon", t: "melee", b: "Wulfsburg", niv: 2},
+  {id: "quakehammer", n: "Marteau sismique", t: "melee", b: "Wulfsburg", niv: 2},
+  {id: "bastardsword", n: "Épée bâtarde", t: "melee", b: "Wulfsburg"},
+  {id: "quicksilver", n: "Épée de vif-argent", t: "melee", b: "Wulfsburg", niv: 1},
+  {id: "flamingsword", n: "Épée à deux mains enflammée", t: "melee", b: "Wulfsburg", niv: 1},
+  {id: "vampxbow", n: "Arbalète vampirique", t: "ranged", b: "Wulfsburg", niv: 1},
+  {id: "stormbow", n: "Arc de tempête", t: "ranged", b: "Wulfsburg", niv: 1},
+  {id: "chaoslongbow", n: "Arc long du Chaos", t: "ranged", b: "Wulfsburg", niv: 2},
+  {id: "disintegrate", n: "Désintégration", t: "spell", b: "Wulfsburg"},
+  {id: "chainlightning", n: "Éclair en chaîne", t: "spell", b: "Wulfsburg"},
+  {id: "shieldages", n: "Bouclier des Âges", t: "shield", b: "Wulfsburg", niv: 2},
+  {id: "ironclad", n: "Blindé : Loups zombies", t: "ench", b: "Wulfsburg"},
+  {id: "transmut", n: "Transmutation", t: "ench", b: "Wulfsburg"},
+  {id: "scimitar", n: "Cimeterre", t: "melee", b: "Green Horde"},
+  {id: "warcleaver", n: "Couperet de guerre", t: "melee", b: "Green Horde", niv: 2},
+  {id: "curveddagger", n: "Dague courbe", t: "melee", b: "Green Horde"},
+  {id: "falchion", n: "Fauchon", t: "melee", b: "Green Horde"},
+  {id: "greataxe", n: "Grande hache", t: "melee", b: "Green Horde"},
+  {id: "dwarfaxe", n: "Hache naine", t: "melee", b: "Green Horde", niv: 1},
+  {id: "bonekukri", n: "Kukri d'os", t: "melee", b: "Green Horde", niv: 1},
+  {id: "dwarfhammer", n: "Marteau nain", t: "melee", b: "Green Horde"},
+  {id: "bonesword", n: "Épée d'os", t: "melee", b: "Green Horde", niv: 1},
+  {id: "norsesword", n: "Épée nordique", t: "melee", b: "Green Horde"},
+  {id: "steelbow", n: "Arc d'acier", t: "ranged", b: "Green Horde", niv: 1},
+  {id: "spikedbow", n: "Arc à pointes", t: "ranged", b: "Green Horde"},
+  {id: "lightningball", n: "Boule d'éclairs", t: "spell", b: "Green Horde"},
+  {id: "telekblast", n: "Décharge télékinésique", t: "spell", b: "Green Horde"},
+  {id: "lavaburst", n: "Explosion de lave", t: "spell", b: "Green Horde", niv: 2},
+  {id: "deathgale", n: "Souffle de mort", t: "spell", b: "Green Horde"},
+  {id: "norseshield", n: "Bouclier nordique", t: "shield", b: "Green Horde"},
+  {id: "tremor", n: "Tremblement", t: "ench", b: "Green Horde"},
+  {id: "ghostsight", n: "Vision spectrale", t: "ench", b: "Green Horde"}
 ];
-const corpsConnu = v => !v || OBJETS_CORPS.some(([k])=>k===v);
+const corpsConnu = v => !v || OBJETS_CORPS.some(o=>o.id===v);
+const corps = v => OBJETS_CORPS.find(o=>o.id===v);
+/* Intitulé complet : nom, boîte quand ce n'est pas la base, Niveau exigé. */
+function libCorps(o){
+  if(!o || !o.id) return "(aucun)";
+  return o.n + (o.b && o.b!=="Black Plague" ? "  ["+o.b+"]" : "")
+             + (o.niv ? "  — Niveau "+NIV_CORPS[o.niv] : "");
+}
+const NIV_CORPS = {1:"Jaune", 2:"Orange"};
 
 /* Boîtes proposées en suggestion — le champ reste libre : rien n'oblige à s'y
    tenir, un Survivant d'un Kickstarter ou d'une création maison a sa place. */
@@ -266,7 +304,43 @@ const BASE = [
     red:["+1 Dégât : Mêlée","+1 Action de Combat gratuite","Barbare"]},
  {id:"silas", boite:"Black Plague",   n:"Silas",   c:"#4fb0a0", bodyItem:"sword", blue:["+1 au résultat du dé : À distance"],
     orange:["+1 Action À distance gratuite","À bout portant"],
-    red:["+1 dé : À distance","+1 Action de Combat gratuite","Pluie de fer"]}
+    red:["+1 dé : À distance","+1 Action de Combat gratuite","Pluie de fer"]},
+/* --- Survivants de Green Horde -------------------------------------------
+   Relevés des fiches du wiki (zombicide_fichiers/rip). Les intitulés de
+   compétences sont ceux du livret FR ; « Fureur Guerrière » vient du scan
+   Green Horde p.56. Quatre de ces compétences ne sont pas encore appliquées
+   par le moteur : Provocation, Transmutation, Double Enchantement, Lien
+   Zombie — l'écran de choix des Survivants le signale. */
+ {id:"asim", boite:"Green Horde", n:"Asim", c:"#c2865b", bodyItem:"curveddagger",
+    bio:"Marchand intrépide, Asim courait les terres neuves, les amitiés à nouer et les affaires à conclure. Sept ans lui ont suffi pour que son nom soit connu partout : le sultan en a fait son émissaire auprès des froids pays du Nord.",
+    blue:["Provocation"],
+    orange:["+1 Action de Mêlée gratuite", "+1 Action de Déplacement gratuite"],
+    red:["+1 au résultat du dé : Mêlée", "Soif de sang : Mêlée", "Faucheur : Combat"]},
+ {id:"berin", boite:"Green Horde", n:"Berin", c:"#7c9a4f", bodyItem:"dwarfaxe",
+    bio:"Aventurier dans l'âme, Berin a passé sa vie à chercher la gloire, l'or et les ennuis. Ce qu'il préfère par-dessus tout, c'est explorer les souterrains — malmener les monstres est son passe-temps.",
+    blue:["Poussée"],
+    orange:["+1 dé : Mêlée", "+1 Action de Mêlée gratuite"],
+    red:["+1 Dégât : Mêlée", "+1 Action de Combat gratuite", "Soif de sang : Mêlée"]},
+ {id:"johannes", boite:"Green Horde", n:"Johannes", c:"#5b9ec2", bodyItem:"crossbow",
+    bio:"Trop modeste et trop absorbé pour l'admettre, Johannes est l'un des ingénieurs les plus brillants de ces temps sombres. Sa langue maternelle, c'est la science.",
+    blue:["Transmutation"],
+    orange:["+1 Action À distance gratuite", "+1 au résultat du dé : À distance"],
+    red:["+1 Action À distance gratuite", "+1 Portée max", "Faucheur : À distance"]},
+ {id:"megan", boite:"Green Horde", n:"Megan", c:"#a35bc2", bodyItem:"speed",
+    bio:"Héritière d'une famille de voleurs, Megan a montré très tôt un esprit hors du commun et une soif d'apprendre inextinguible. Elle a choisi la magie et, grâce à la guilde des siens, a eu accès à toutes sortes de livres.",
+    blue:["Double Enchantement"],
+    orange:["+1 Action de Mêlée gratuite", "Grimoire"],
+    red:["+1 Action de Combat gratuite", "+1 au résultat du dé : Magie", "+1 au résultat du dé : Mêlée"]},
+ {id:"rolf", boite:"Green Horde", n:"Rolf", c:"#c25b5b", bodyItem:"greataxe",
+    bio:"Trop impulsif pour faire un bon paysan, trop indiscipliné pour faire un bon soldat, Rolf a pris le chemin des chasseurs d'orcs. Avec d'autres jeunes têtes brûlées, il veillait sur la frontière des terres orques.",
+    blue:["Soif de sang : Mêlée"],
+    orange:["+1 Action de Mêlée gratuite", "Saut"],
+    red:["+1 Action de Combat gratuite", "Fureur Guerrière", "Poussée"]},
+ {id:"seli", boite:"Green Horde", n:"Seli", c:"#5bc2a0", bodyItem:"curveddagger",
+    bio:"Des Survivants ont trouvé Seli inconsciente parmi les cadavres, après une bataille acharnée contre une horde. Tout le monde a d'abord cru que la guerrière elfe avait reçu un mauvais coup sur la tête et perdu la mémoire.",
+    blue:["Saut"],
+    orange:["+1 Action de Mêlée gratuite", "Fuite"],
+    red:["+1 Action de Déplacement gratuite", "Sur un 6 : +1 dé Combat", "Lien Zombie"]}
 ];
 const fichesBase = () => BASE.map(v=>({...v, base:true,
   blue:[...v.blue], orange:[...v.orange], red:[...v.red]}));
@@ -319,6 +393,15 @@ function problemes(g){
     if(!compParNom[c]) p.push(`Compétence hors vocabulaire : « ${c} ».`);
   }));
   if(!corpsConnu(g.bodyItem)) p.push(`Objet de Corps inconnu du jeu : « ${g.bodyItem} ».`);
+  const oc = corps(g.bodyItem);
+  /* Un objet de Corps à Niveau exigé est inutilisable au début de la partie —
+     c'est le propre du départ. La carte reste possible, mais autant le dire. */
+  if(oc && oc.niv)
+    p.push(`« ${oc.n} » exige le Niveau ${NIV_CORPS[oc.niv]} : inutilisable tant que le Survivant est Bleu.`);
+  /* Un Survivant de la boîte de base équipé d'une carte d'extension suppose
+     qu'on joue avec un deck qui la contient. */
+  if(oc && oc.b && oc.b!=="Black Plague" && g.boite && g.boite!==oc.b)
+    p.push(`« ${oc.n} » vient de ${oc.b} : il faudra un deck qui la contienne.`);
   return p;
 }
 function nonAppliquees(g){
@@ -426,13 +509,24 @@ function rendreFiche(){
   const se=document.createElement("select");
   // une valeur venue d'un fichier et inconnue du menu ne doit pas disparaître en silence
   const choix = corpsConnu(g.bodyItem) ? OBJETS_CORPS
-              : [...OBJETS_CORPS, [g.bodyItem, g.bodyItem+"  (inconnu)"]];
-  choix.forEach(([v,t])=>{ const o=document.createElement("option");
-    o.value=v; o.textContent=t; if(g.bodyItem===v) o.selected=true; se.appendChild(o); });
+              : [...OBJETS_CORPS, {id:g.bodyItem, n:g.bodyItem+"  (inconnu du jeu)", b:""}];
+  /* Regroupées par boîte : soixante-sept entrées à plat seraient illisibles. */
+  const grp = {};
+  choix.forEach(o=>{ (grp[o.b || ""] ||= []).push(o); });
+  Object.entries(grp).forEach(([b, liste])=>{
+    const cible = b ? se.appendChild(document.createElement("optgroup")) : se;
+    if(b) cible.label = b;
+    liste.forEach(o=>{ const x=document.createElement("option");
+      x.value=o.id; x.textContent=libCorps(o);
+      if(g.bodyItem===o.id) x.selected=true; cible.appendChild(x); });
+  });
   se.onchange=e=>{ g.bodyItem=e.target.value; };
   r4.appendChild(se);
   c1.appendChild(r4);
   c1.appendChild(el("div","hint","La carte nommée sur la fiche du Survivant, qu'il peut porter sur l'emplacement Corps ; elle compte alors comme tenue en main."));
+  c1.appendChild(el("div","hint",
+    "Les cartes des extensions sont regroupées par boîte. Une carte d'Équipement magique porte le "+
+    "Niveau qu'elle exige : en dessous, le Survivant la transporte sans pouvoir s'en servir."));
 
   const r6=el("div","row"); r6.style.marginTop="5px";
   r6.appendChild(el("label",null,"Boîte de jeu"));
@@ -520,7 +614,7 @@ function ficheBase(g, z){
   nom.appendChild(el("div","sub",g.id));
   t.appendChild(nom);
   c1.appendChild(t);
-  const oc=(OBJETS_CORPS.find(([k])=>k===g.bodyItem)||["","(aucun)"])[1];
+  const oc=libCorps(corps(g.bodyItem));
   c1.appendChild(el("div","hint","Emplacement Corps : "+oc));
   if(g.boite) c1.appendChild(el("div","hint","Boîte de jeu : "+g.boite));
   if(g.bio)   c1.appendChild(el("div","hint",g.bio));

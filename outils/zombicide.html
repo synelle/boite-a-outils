@@ -86,10 +86,10 @@ body.zsmall .zone .lbl{display:none}
 .walls{position:absolute;left:0;top:0;pointer-events:none;z-index:6}
 /* Flèches des déplacements zombies : au-dessus des murs, sous les fenêtres. */
 .traces{position:absolute;left:0;top:0;pointer-events:none;z-index:7}
-.traces .trace{stroke:#d06060;stroke-width:3;opacity:.85;
-  stroke-dasharray:7 5;stroke-linecap:round}
-.traces .tracen{fill:#f0c0c0;font-size:12px;font-weight:700;text-anchor:middle;
-  paint-order:stroke;stroke:#000;stroke-width:3px;stroke-linejoin:round}
+/* La couleur du trait est posée par le rendu : c'est celle du Zombie déplacé.
+   Un liseré sombre garde la flèche lisible sur une tuile claire. */
+.traces .trace{stroke-width:3;opacity:.9;stroke-dasharray:7 5;stroke-linecap:round;
+  paint-order:stroke;filter:drop-shadow(0 0 1.5px #000c)}
 .walls .wall{stroke:#8a7458;stroke-width:7;stroke-linecap:square}
 /* Porte fermée : barre pleine de sa couleur. Porte ouverte : barre coupée en
    deux (tirets larges) — l'icône change donc à l'ouverture. */
@@ -363,7 +363,12 @@ h3 .act-full,h3 .act-some,h3 .act-none,h3 .act-out{font-weight:600}
 .bar div.dim{opacity:.22}
 
 .slots{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:5px}
-.slot{border:1px solid var(--line);border-radius:5px;padding:5px 6px;background:#221e1a;min-height:44px}
+.slot{border:1px solid var(--line);border-radius:5px;padding:5px 6px;background:#221e1a;
+  min-height:44px;display:flex;gap:6px;align-items:flex-start}
+.slot .txt{flex:1;min-width:0}
+/* Illustration détourée : `contain`, sinon une lame en longueur serait rognée. */
+.slot .im{flex:0 0 auto;width:42px;height:42px;background:center/contain no-repeat;
+  filter:drop-shadow(0 1px 2px #0008)}
 .slot.hand{border-color:#6b5c4a}
 .slot.body{grid-column:1/-1;border-color:#4a5c6b}
 .slot .nm{font-weight:600;font-size:12px}
@@ -543,6 +548,7 @@ a.lienpdf:hover{background:#4a3a1c}
 
 <!-- catalogue des missions : une balise de script passe partout, file:// compris -->
 <script src="zombicide_fichiers/survivants/survivants.js"></script>
+<script src="zombicide_fichiers/decks/decks.js"></script>
 <script src="zombicide_fichiers/zombicide_missions/missions.js"></script>
 
 <div id="setup"><div class="bx">
@@ -557,6 +563,12 @@ a.lienpdf:hover{background:#4a3a1c}
   <div id="setupAvert" style="display:none;margin-bottom:10px;padding:8px 10px;
        border:1px solid #7a5a2a;border-radius:6px;background:#2a2015;
        color:#e0a060;font-size:12px;line-height:1.4"></div>
+  <div class="row" id="deckRow" style="display:none;margin-bottom:10px;padding:7px 10px;
+       border:1px solid var(--line);border-radius:6px;background:#221d19;font-size:12px">
+    <label for="deckSel">Decks :</label>
+    <select id="deckSel" style="flex:1;max-width:340px"></select>
+    <span id="deckLib" style="flex:1;min-width:0"></span>
+  </div>
   <div id="missionInfo"></div>
   <div id="effectif" style="display:none;margin:8px 0 0;font-size:12px"></div>
   <div id="missionMsg" style="min-height:16px;font-size:12px;color:#e0a060;margin-bottom:8px"></div>
@@ -620,15 +632,33 @@ const SPRITES = {
 const SPRITE_OK = {};                         // rempli par le préchargement
 const SPRITE_RATIO = {};                      // largeur/hauteur de chaque image
 function preloadSprites(cb){
-  const keys = Object.keys(SPRITES); let left = keys.length;
-  if(!left) return cb();
+  /* Deux vagues. Les figurines et les jetons décident de ce qui s'affiche sur
+     le plateau : on les attend. Les illustrations de cartes ne concernent que
+     le panneau et pèsent une dizaine de mégaoctets : on ne retient pas le
+     démarrage pour elles, on redessine quand elles arrivent. */
+  const differe = k => k.startsWith("eq_");
+  const keys = Object.keys(SPRITES).filter(k=>!differe(k));
+  const suite = () => {
+    const tard = Object.keys(SPRITES).filter(differe);
+    let reste = tard.length, vu = false;
+    tard.forEach(k=>{
+      const im = new Image();
+      const fini = ok => { SPRITE_OK[k]=ok; vu = vu || ok;
+        if(!--reste && vu && typeof render === "function" && G && G.zones) render(); };
+      im.onload = ()=>fini(true); im.onerror = ()=>fini(false);
+      im.src = SPRITE_DIR + SPRITES[k];
+    });
+    cb();
+  };
+  let left = keys.length;
+  if(!left) return suite();
   keys.forEach(k=>{
     const im = new Image();
     im.onload  = ()=>{ SPRITE_OK[k]=true;
       // le ratio réel sert à ne pas déformer les jetons (voir .spw.img)
       if(im.naturalHeight) SPRITE_RATIO[k]=im.naturalWidth/im.naturalHeight;
-      if(!--left) cb(); };
-    im.onerror = ()=>{ SPRITE_OK[k]=false; if(!--left) cb(); };
+      if(!--left) suite(); };
+    im.onerror = ()=>{ SPRITE_OK[k]=false; if(!--left) suite(); };
     im.src = SPRITE_DIR + SPRITES[k];
   });
 }
@@ -742,7 +772,75 @@ const EQUIP = [
 /* --- Coffre (Vault) ---------------------------------------------------- */
  {id:"inferno",   n:"Enfer",             kind:"spell",  dice:4, acc:4, dmg:2, rmin:0, rmax:1, noise:1, dual:1, vault:1},
  {id:"orcxbow",   n:"Arbalète orque",    kind:"ranged", dice:2, acc:3, dmg:2, rmin:1, rmax:2, keyw:"CARREAUX", vault:1,
-    alt:{kind:"melee", dice:2, acc:3, dmg:2, rmin:0, rmax:0}, txt:"Peut aussi servir d'arme de Mêlée (2 dés, 3+, Dégâts 2)."}
+    alt:{kind:"melee", dice:2, acc:3, dmg:2, rmin:0, rmax:0}, txt:"Peut aussi servir d'arme de Mêlée (2 dés, 3+, Dégâts 2)."},
+
+/* --- Wulfsburg ---------------------------------------------------------- */
+ {id:"axecarnage", n:"Hache du Carnage", kind:"melee", dice:4, acc:4, dmg:2, rmin:0, rmax:0, door:1, niv:2, boite:"WB", succes:1,
+    txt:"Ajoute une réussite à chaque Action de Mêlée."},
+ {id:"bastardsword",n:"Épée bâtarde",   kind:"melee", dice:2, acc:4, dmg:2, rmin:0, rmax:0, door:1, boite:"WB"},
+ {id:"chainlightning",n:"Éclair en chaîne",kind:"spell",dice:3, acc:5, dmg:1, rmin:0, rmax:1, noise:1, dual:1, boite:"WB", six:{dice:1},
+    txt:"Résultat 6 : +1 dé."},
+ {id:"chaoslongbow",n:"Arc long du Chaos",kind:"ranged",dice:4, acc:4, dmg:2, rmin:0, rmax:3, keyw:"FLÈCHES", niv:2, boite:"WB", feuSi:4,
+    txt:"4 réussites ou plus : Feu du Dragon dans la Zone visée."},
+ {id:"deflectdagger",n:"Dague de parade",kind:"melee",dice:1, acc:4, dmg:1, rmin:0, rmax:0, door:1, offhandDie:1, niv:1, boite:"WB", aussiBouclier:1,
+    txt:"+1 dé à l'autre arme de Mêlée. Compte aussi comme un Bouclier."},
+ {id:"disintegrate",n:"Désintégration", kind:"spell", dice:3, acc:5, dmg:1, rmin:0, rmax:1, noise:1, dual:1, boite:"WB", six:{dmg:1},
+    txt:"Résultat 6 : +1 Dégât."},
+ {id:"dragonblade",n:"Lame de Feu du Dragon",kind:"melee",dice:2,acc:3,dmg:2, rmin:0, rmax:0, door:1, niv:2, boite:"WB", feuDef:1,
+    txt:"Défaussez : crée un Feu du Dragon à Portée 0-1."},
+ {id:"quakehammer",n:"Marteau sismique", kind:"melee", dice:3, acc:3, dmg:2, rmin:0, rmax:0, door:1, niv:2, boite:"WB", six:{dice:1, dmg:1},
+    txt:"Résultat 6 : +1 dé et +1 Dégât."},
+ {id:"flamingsword",n:"Épée à deux mains enflammée",kind:"melee",dice:5,acc:5,dmg:2,rmin:0,rmax:0,door:1,enflamme:1,niv:1,boite:"WB",
+    txt:"1 Action : enflamme une Bile de Dragon à Portée 0-1."},
+ {id:"ironclad",  n:"Blindé : Loups zombies",kind:"ench",ench:"ironclad", boite:"WB",
+    txt:"1×/Tour. Sans effet ici : les Loups zombies de Wulfsburg ne sont pas dans le moteur.", na:1},
+ {id:"quicksilver",n:"Épée de vif-argent",kind:"melee",dice:4, acc:4, dmg:1, rmin:0, rmax:0, door:1, niv:1, boite:"WB", comp:"Chanceux",
+    txt:"Confère la compétence Chanceux."},
+ {id:"shieldages",n:"Bouclier des Âges", kind:"shield", armor:4, niv:2, boite:"WB", comp:"Poussée",
+    txt:"Armure 4+, ou relance des jets d'Armure. Confère la compétence Poussée."},
+ {id:"stormbow",  n:"Arc de tempête",    kind:"ranged",dice:3, acc:3, dmg:1, rmin:0, rmax:3, keyw:"FLÈCHES", niv:1, boite:"WB", six:{dice:1},
+    txt:"Résultat 6 : +1 dé."},
+ {id:"transmut",  n:"Transmutation",     kind:"ench",  ench:"transmut", boite:"WB",
+    txt:"1×/Tour. Défaussez une carte de l'inventaire, puis piochez-en une."},
+ {id:"vampxbow",  n:"Arbalète vampirique",kind:"ranged",dice:2, acc:4, dmg:3, rmin:1, rmax:2, keyw:"CARREAUX", niv:1, boite:"WB", soigne:1,
+    txt:"Le Survivant récupère 1 Blessure à chaque Zombie tué avec cette arme."},
+/* --- Green Horde -------------------------------------------------------- */
+ {id:"aaahhorc",  n:"Aaahh !! (Orc marcheur)",kind:"aaahh", boite:"GH",
+    txt:"Un Orc marcheur apparaît dans la Zone. Défaussée aussitôt."},
+ {id:"bonekukri", n:"Kukri d'os",        kind:"melee", dice:1, acc:3, dmg:1, rmin:0, rmax:0, dual:1, niv:1, vault:1, boite:"GH", offhandDmg:1,
+    txt:"+1 Dégât à l'autre arme de Mêlée équipée."},
+ {id:"bonesword", n:"Épée d'os",         kind:"melee", dice:2, acc:3, dmg:1, rmin:0, rmax:0, niv:1, vault:1, boite:"GH", paire:{id:"bonekukri", dice:2},
+    txt:"+2 dés si le Kukri d'os est aussi équipé."},
+ {id:"curveddagger",n:"Dague courbe",    kind:"melee", dice:1, acc:4, dmg:1, rmin:0, rmax:0, dual:1, offhandDie:1, boite:"GH",
+    txt:"+1 dé à l'autre arme de Mêlée équipée."},
+ {id:"deathgale", n:"Souffle de mort",   kind:"spell", dice:2, acc:5, dmg:2, rmin:0, rmax:1, noise:1, dual:1, boite:"GH"},
+ {id:"dwarfaxe",  n:"Hache naine",       kind:"melee", dice:6, acc:5, dmg:1, rmin:0, rmax:0, niv:1, vault:1, boite:"GH", six:{dmg:1},
+    txt:"Résultat 6 : +1 Dégât."},
+ {id:"dwarfhammer",n:"Marteau nain",     kind:"melee", dice:2, acc:4, dmg:2, rmin:0, rmax:0, door:1, boite:"GH"},
+ {id:"falchion",  n:"Fauchon",           kind:"melee", dice:3, acc:4, dmg:1, rmin:0, rmax:0, boite:"GH"},
+ {id:"ghostsight",n:"Vision spectrale",  kind:"ench",  ench:"ghostsight", boite:"GH",
+    txt:"1×/Tour. La cible voit et tire à travers les obstacles jusqu'à la fin du Round."},
+ {id:"greataxe",  n:"Grande hache",      kind:"melee", dice:4, acc:5, dmg:2, rmin:0, rmax:0, door:1, boite:"GH"},
+ {id:"lavaburst", n:"Explosion de lave", kind:"spell", dice:3, acc:3, dmg:2, rmin:0, rmax:2, noise:1, dual:1, niv:2, vault:1, boite:"GH", six:{feu:1},
+    txt:"Résultat 6 : la Zone visée subit un Feu du Dragon."},
+ {id:"lightningball",n:"Boule d'éclairs",kind:"spell", dice:2, acc:4, dmg:1, rmin:0, rmax:2, noise:1, dual:1, boite:"GH"},
+ {id:"norseshield",n:"Bouclier nordique",kind:"shield",armor:4, offhandDie:1, boite:"GH",
+    txt:"Armure 4+, ou relance des jets d'Armure. +1 dé à l'arme de Mêlée équipée."},
+ {id:"norsesword",n:"Épée nordique",     kind:"melee", dice:1, acc:4, dmg:2, rmin:0, rmax:0, door:1, boite:"GH", paire:{id:"norseshield", dice:2},
+    txt:"+2 dés si un Bouclier nordique est aussi équipé."},
+ {id:"scimitar",  n:"Cimeterre",         kind:"melee", dice:2, acc:4, dmg:1, rmin:0, rmax:0, door:1, boite:"GH", paire:{id:"curveddagger", dice:1},
+    txt:"+1 dé si une Dague courbe est aussi équipée."},
+ {id:"spikedbow", n:"Arc à pointes",     kind:"ranged",dice:1, acc:4, dmg:1, rmin:0, rmax:1, keyw:"FLÈCHES", boite:"GH",
+    alt:{kind:"melee", dice:1, acc:4, dmg:1, rmin:0, rmax:0},
+    txt:"Peut aussi servir d'arme de Mêlée (1 dé, 4+, Dégâts 1)."},
+ {id:"steelbow",  n:"Arc d'acier",       kind:"ranged",dice:2, acc:3, dmg:1, rmin:1, rmax:3, niv:1, vault:1, boite:"GH",
+    txt:"Sans effet ici : les haies et barrières de Green Horde ne sont pas dans le moteur.", na:1},
+ {id:"telekblast",n:"Décharge télékinésique",kind:"spell",dice:1,acc:4,dmg:1,rmin:0,rmax:1,noise:1,dual:1,door:1,doorNoRoll:1,boite:"GH",porteMagie:1,
+    txt:"1 Action : ouvre une porte sans jet — celles de sa propre Zone."},
+ {id:"tremor",    n:"Tremblement",       kind:"ench",  ench:"tremor", boite:"GH",
+    txt:"1×/Tour. Les Zombies à Dégât 1 de la Zone visée sont couchés et perdent leur prochaine Activation."},
+ {id:"warcleaver",n:"Couperet de guerre",kind:"melee", dice:4, acc:4, dmg:2, rmin:0, rmax:0, door:1, niv:2, vault:1, boite:"GH", six:{dice:1},
+    txt:"Résultat 6 : +1 dé en Mêlée."}
 ];
 const EQ = {}; EQUIP.forEach(e=>EQ[e.id]=e);
 
@@ -771,8 +869,49 @@ const SURVIVORS = [
     red:["+1 Dégât : Mêlée","+1 Action de Combat gratuite","Barbare"]},
  {id:"silas", boite:"Black Plague",   n:"Silas",   c:"#4fb0a0", bodyItem:"sword", blue:["+1 au résultat du dé : À distance"],
     orange:["+1 Action À distance gratuite","À bout portant"],
-    red:["+1 dé : À distance","+1 Action de Combat gratuite","Pluie de fer"]}
+    red:["+1 dé : À distance","+1 Action de Combat gratuite","Pluie de fer"]},
+/* --- Survivants de Green Horde -------------------------------------------
+   Relevés des fiches du wiki (zombicide_fichiers/rip). Les intitulés de
+   compétences sont ceux du livret FR ; « Fureur Guerrière » vient du scan
+   Green Horde p.56. Quatre de ces compétences ne sont pas encore appliquées
+   par le moteur : Provocation, Transmutation, Double Enchantement, Lien
+   Zombie — l'écran de choix des Survivants le signale. */
+ {id:"asim", boite:"Green Horde", n:"Asim", c:"#c2865b", bodyItem:"curveddagger",
+    bio:"Marchand intrépide, Asim courait les terres neuves, les amitiés à nouer et les affaires à conclure. Sept ans lui ont suffi pour que son nom soit connu partout : le sultan en a fait son émissaire auprès des froids pays du Nord.",
+    blue:["Provocation"],
+    orange:["+1 Action de Mêlée gratuite", "+1 Action de Déplacement gratuite"],
+    red:["+1 au résultat du dé : Mêlée", "Soif de sang : Mêlée", "Faucheur : Combat"]},
+ {id:"berin", boite:"Green Horde", n:"Berin", c:"#7c9a4f", bodyItem:"dwarfaxe",
+    bio:"Aventurier dans l'âme, Berin a passé sa vie à chercher la gloire, l'or et les ennuis. Ce qu'il préfère par-dessus tout, c'est explorer les souterrains — malmener les monstres est son passe-temps.",
+    blue:["Poussée"],
+    orange:["+1 dé : Mêlée", "+1 Action de Mêlée gratuite"],
+    red:["+1 Dégât : Mêlée", "+1 Action de Combat gratuite", "Soif de sang : Mêlée"]},
+ {id:"johannes", boite:"Green Horde", n:"Johannes", c:"#5b9ec2", bodyItem:"crossbow",
+    bio:"Trop modeste et trop absorbé pour l'admettre, Johannes est l'un des ingénieurs les plus brillants de ces temps sombres. Sa langue maternelle, c'est la science.",
+    blue:["Transmutation"],
+    orange:["+1 Action À distance gratuite", "+1 au résultat du dé : À distance"],
+    red:["+1 Action À distance gratuite", "+1 Portée max", "Faucheur : À distance"]},
+ {id:"megan", boite:"Green Horde", n:"Megan", c:"#a35bc2", bodyItem:"speed",
+    bio:"Héritière d'une famille de voleurs, Megan a montré très tôt un esprit hors du commun et une soif d'apprendre inextinguible. Elle a choisi la magie et, grâce à la guilde des siens, a eu accès à toutes sortes de livres.",
+    blue:["Double Enchantement"],
+    orange:["+1 Action de Mêlée gratuite", "Grimoire"],
+    red:["+1 Action de Combat gratuite", "+1 au résultat du dé : Magie", "+1 au résultat du dé : Mêlée"]},
+ {id:"rolf", boite:"Green Horde", n:"Rolf", c:"#c25b5b", bodyItem:"greataxe",
+    bio:"Trop impulsif pour faire un bon paysan, trop indiscipliné pour faire un bon soldat, Rolf a pris le chemin des chasseurs d'orcs. Avec d'autres jeunes têtes brûlées, il veillait sur la frontière des terres orques.",
+    blue:["Soif de sang : Mêlée"],
+    orange:["+1 Action de Mêlée gratuite", "Saut"],
+    red:["+1 Action de Combat gratuite", "Fureur Guerrière", "Poussée"]},
+ {id:"seli", boite:"Green Horde", n:"Seli", c:"#5bc2a0", bodyItem:"curveddagger",
+    bio:"Des Survivants ont trouvé Seli inconsciente parmi les cadavres, après une bataille acharnée contre une horde. Tout le monde a d'abord cru que la guerrière elfe avait reçu un mauvais coup sur la tête et perdu la mémoire.",
+    blue:["Saut"],
+    orange:["+1 Action de Mêlée gratuite", "Fuite"],
+    red:["+1 Action de Déplacement gratuite", "Sur un 6 : +1 dé Combat", "Lien Zombie"]}
 ];
+/* Portrait de chaque Survivant intégré : surv_<id>.png, comme pour ceux que
+   survivants.js apporte. `||=` laisse intactes les six entrées écrites plus
+   haut, et rend automatique toute fiche ajoutée ensuite. */
+SURVIVORS.forEach(v=>{ SPRITES[v.id] ||= "surv_" + v.id + ".png"; });
+
 const SKILL_TXT = {
  "+1 Action":"Le Survivant dispose d'une Action supplémentaire par Tour.",
  "Soif de sang : Mêlée":"Dépensez 1 Action : déplacez-vous jusqu'à 2 Zones vers une Zone contenant au moins 1 Zombie, puis gagnez 1 Action de Mêlée gratuite. (Sans limite en Black Plague.)",
@@ -854,7 +993,6 @@ const SKILL_TXT = {
  "Sprint":"1×/Tour. Une Action de Déplacement permet de parcourir jusqu'à 3 Zones. Entrer dans une Zone occupée met fin à la course.",
  "Charge":"Gratuit, autant de fois qu'on veut : se déplace de 2 Zones vers une Zone contenant au moins 1 Zombie.",
  "Tireur d'élite":"Choisit librement ses cibles à Distance et en Magie. Les échecs ne touchent pas les Survivants.",
- "+1 Portée max":"Portée maximale des armes à Distance et des Sorts de Combat augmentée de 1.",
  "Faucheur : Combat":"Un succès de n'importe quelle attaque tue gratuitement un second Zombie identique de la Zone. Une fois par Action.",
  "Soif de sang : Combat":"Dépensez 1 Action : déplacez-vous jusqu'à 2 Zones vers une Zone contenant au moins 1 Zombie, puis gagnez 1 Action de Combat gratuite (Mêlée, Distance ou Magie)."
 };
@@ -885,6 +1023,77 @@ const SPAWN_TABLE = [
  ["D","D","D","D"],["D","D","D","D"],["D","D","D","D"],["D","D","D","D"]
 ];
 const LTR = {W:"walker", R:"runner", B:"brute", A:"abomination"};
+
+/* --------------------------------------------------------------------------
+   6 bis. DECKS PERSONNALISÉS
+   zombicide_fichiers/decks/decks.js, écrit par zombicide-decks.html, remplace
+   les quantités de la boîte et/ou la table d'Invasion. Le fichier est relu ici
+   plutôt que cru sur parole : une carte inconnue ou une case illisible est
+   signalée à la mise en place, pas silencieusement ignorée.
+   -------------------------------------------------------------------------- */
+const CASE_INVASION = /^(-|N|D|![WRB]|[1-9][WRBA])$/;
+let DECKS_LISTE = [], soucisDecks = [];
+(function lireDecks(){
+  const src = window.ZBP_DECKS;
+  if(!src || typeof src !== "object") return;
+  /* Le fichier porte une LISTE de decks nommés. Un fichier d'avant, qui n'en
+     décrivait qu'un seul à plat, reste lisible. */
+  const brut = Array.isArray(src.decks) ? src.decks
+             : (src.equip || src.spawn) ? [src] : [];
+  if(!brut.length){ soucisDecks.push("fichier de decks vide"); return; }
+  const connus = new Set(EQUIP.map(e=>e.id));
+  brut.forEach((d, k)=>{
+    if(!d || typeof d !== "object")
+      return soucisDecks.push(`deck nº${k+1} : illisible`);
+    const nom = String(d.nom || `Deck ${k+1}`);
+    const dire = m => soucisDecks.push(`${nom} — ${m}`);
+    const equip = {};
+    Object.entries(d.equip || {}).forEach(([id, v])=>{
+      if(!connus.has(id)) return dire(`équipement inconnu : ${id}`);
+      const q = (typeof v === "number") ? {deck:v} : (v || {});
+      const e = {};
+      if(q.deck  != null) e.deck  = Math.max(0, q.deck|0);
+      if(q.start != null) e.start = Math.max(0, q.start|0);
+      if(q.vault != null) e.vault = Math.max(0, q.vault|0);
+      equip[id] = e;
+    });
+    let spawn = null;
+    if(Array.isArray(d.spawn) && d.spawn.length){
+      spawn = [];
+      d.spawn.forEach((r, i)=>{
+        if(!Array.isArray(r) || r.length !== 4)
+          return dire(`carte d'Invasion nº${i+1} : il faut 4 colonnes`);
+        const mauvaise = r.find(c=>!CASE_INVASION.test(String(c)));
+        if(mauvaise !== undefined)
+          return dire(`carte d'Invasion nº${i+1} : « ${mauvaise} » incompréhensible`);
+        spawn.push(r.map(String));
+      });
+      if(!spawn.length){ spawn = null; dire("aucune carte d'Invasion exploitable"); }
+    }
+    const rienDEquip = !Object.keys(equip).length;
+    if(rienDEquip && !spawn) return dire("ne définit rien d'exploitable");
+    DECKS_LISTE.push({nom, equip: rienDEquip ? null : equip, spawn});
+  });
+})();
+/* Deck retenu pour la partie : null = les decks de la boîte. Un deck présent
+   est proposé, pas imposé. */
+let deckChoisi = null;
+
+/* Quantité retenue pour une carte d'Équipement : celle du deck si elle y est,
+   celle de la boîte sinon — un fichier partiel ne vide pas la pioche. */
+function quantiteEquip(e, cle){
+  const p = deckChoisi && deckChoisi.equip && deckChoisi.equip[e.id];
+  if(p && p[cle] != null) return p[cle];
+  /* `vault:1` marque l'Artefact ET compte pour un exemplaire ; les cartes des
+     extensions valent 0 tant qu'un deck ne les réclame pas, sinon elles
+     entreraient dans une partie Black Plague. */
+  if(cle === "vault") return e.vault ? (e.boite ? 0 : 1) : 0;
+  if(cle !== "vault" && e.boite) return 0;
+  return e[cle] || 0;
+}
+function tableInvasion(){
+  return (deckChoisi && deckChoisi.spawn) || SPAWN_TABLE;
+}
 
 /* --------------------------------------------------------------------------
    7. QUÊTE  —  « Q00 - Danse macabre »
@@ -1505,8 +1714,23 @@ function noiseOf(i){
 
 /* ---------- niveau de danger & compétences ---------- */
 function dangerIdx(xp){ for(let k=0;k<4;k++) if(xp<=DANGER[k].max) return k; return 3; }
+/* Équipement magique : la carte porte des gemmes indiquant à partir de quel
+   Niveau de Danger elle s'utilise. En dessous, elle se transporte mais ne sert
+   à rien. `niv` absent = utilisable dès le Bleu, comme la majorité des cartes. */
+function niveauOK(s, e){ return !e || !e.niv || dangerIdx(s.xp) >= e.niv; }
+function refusNiveau(e){
+  return `${e.n} demande le Niveau ${DANGER[e.niv].name} : le Survivant ne peut pas encore s'en servir.`;
+}
 function teamDanger(){ return alive().length ? Math.max(...alive().map(s=>dangerIdx(s.xp))) : 0; }
-function hasSkill(s, name){ return s.skills.includes(name); }
+/* Une compétence peut venir de la fiche du Survivant OU d'une carte équipée
+   qui la confère — encore faut-il que la carte soit utilisable à son Niveau. */
+function hasSkill(s, name){
+  if(s.skills.includes(name)) return true;
+  /* On lit `s.hands` et non handCards(), qui consulte lui-même les compétences
+     (Grimoire) : la récursion serait sans fin. Une carte doit de toute façon
+     être vraiment en main pour conférer quoi que ce soit. */
+  return s.hands.some(c=>c && c.e.comp===name && niveauOK(s,c.e));
+}
 /* Nom d'un type de Zombie accordé en nombre. */
 const plurZ = (t,n) => n>1 ? (ZT[t].pl || ZT[t].n+"s") : ZT[t].n;
 
@@ -1599,6 +1823,11 @@ const EFFETS_OBJ = {
 /* Les Artefacts de crypte ne sont pas une récompense mais un BUT : « récupérer
    les deux Artefacts » est une condition, au même titre que « tous les
    Objectifs ». Elle peut donc commander une porte, une Invasion ou la Mission. */
+/* Illustrations des cartes : zombicide_fichiers/sprites/equip_<id>.png, même
+   convention que surv_<id>.png. La clé est préfixée pour ne pas risquer de
+   heurter celle d'un Survivant ou d'un Zombie. */
+EQUIP.forEach(e=>{ SPRITES["eq_"+e.id] = "equip_" + e.id + ".png"; });
+
 const ARTEFACTS = EQUIP.filter(e=>e.vault).map(e=>e.id);
 function artefactsRecuperes(){
   if(!ARTEFACTS.length) return true;
@@ -1657,20 +1886,28 @@ function newGame(ids){
   // decks
   const starters=[];
   EQUIP.forEach(e=>{
-    for(let k=0;k<(e.start||0);k++)  starters.push(mkCard(e.id));
-    for(let k=0;k<(e.deck||0);k++)   G.equipDeck.push(mkCard(e.id));
-    if(e.vault) G.vaultDeck.push(mkCard(e.id));
+    for(let k=0;k<quantiteEquip(e,"start");k++) starters.push(mkCard(e.id));
+    /* Un Artefact reste mis de côté quoi qu'en dise le deck : il ne se trouve
+       qu'en Crypte. */
+    if(!e.vault) for(let k=0;k<quantiteEquip(e,"deck");k++) G.equipDeck.push(mkCard(e.id));
+    /* Les Artefacts se comptent eux aussi : sans quoi ceux des extensions
+       s'inviteraient dans une partie qui n'en veut pas. */
+    if(e.vault) for(let k=0;k<quantiteEquip(e,"vault");k++) G.vaultDeck.push(mkCard(e.id));
   });
   shuffle(G.equipDeck); shuffle(starters); shuffle(G.vaultDeck);
   /* « Mettez de côté les cartes Nécromancien » : elles quittent le paquet,
      elles ne sont pas simplement ignorées à la lecture. */
-  let cartesInv = SPAWN_TABLE.map((r,i)=>({id:i+1, row:r}));
+  G.tableInv = tableInvasion();
+  let cartesInv = G.tableInv.map((r,i)=>({id:i+1, row:r}));
   if((q.rules||{}).necroAside){
     const avant = cartesInv.length;
     cartesInv = cartesInv.filter(c=>!c.row.some(x=>x.indexOf("N")>=0));
     logLine(`Règle spéciale : ${avant-cartesInv.length} carte(s) Nécromancien mises de côté.`,"l-sys");
   }
   G.spawnDeck = shuffle(cartesInv);
+  if(deckChoisi)
+    logLine(`Deck « ${deckChoisi.nom} » : ${G.equipDeck.length} cartes de Fouille, `+
+            `${starters.length} armes de départ, ${G.tableInv.length} cartes d'Invasion.`,"l-sys");
 
   // survivants retenus — on conserve l'index d'origine dans SURVIVORS, dont
   // dépend la relecture des sauvegardes
@@ -1769,23 +2006,44 @@ function refreshSkills(silent){
 /* --------------------------------------------------------------------------
    PHASE DES JOUEURS
    -------------------------------------------------------------------------- */
+/* Ce que reçoit un Survivant au début d'un Tour. Mis en commun : le Tour
+   gratuit du Lien Zombie doit donner exactement la même chose. */
+function dotationTour(s){
+  s.actions = RULES.actionsPerTurn + (hasSkill(s,"+1 Action") ? 1 : 0);
+  s.free = [];
+  const add=(types,label)=>s.free.push({types, label});
+  if(hasSkill(s,"+1 Action de Déplacement gratuite")) add(["move"],"Déplacement");
+  if(hasSkill(s,"+1 Action de Mêlée gratuite"))       add(["melee"],"Mêlée");
+  if(hasSkill(s,"+1 Action À distance gratuite"))    add(["ranged"],"Distance");
+  if(hasSkill(s,"+1 Action de Magie gratuite"))       add(["magic","ench"],"Magie");
+  if(hasSkill(s,"Lanceur de sorts"))               add(["magic","ench"],"Sorts");
+  if(hasSkill(s,"+1 Action de Combat gratuite"))      add(["melee","ranged","magic"],"Combat");
+  s.searched=false; s.reorgFree=true; s.hitRun=false;
+  s.jumped=false; s.sprinted=false; s.ghost=false; s.pousse=false; s.fureur=0;
+  s.provoc=false;
+  Object.keys(s.ench).forEach(k=>s.ench[k]=false);
+}
 function startPlayersPhase(){
   G.phase="players";
-  onBoard().forEach(s=>{
-    s.actions = RULES.actionsPerTurn + (hasSkill(s,"+1 Action") ? 1 : 0);
-    s.free = [];
-    const add=(types,label)=>s.free.push({types, label});
-    if(hasSkill(s,"+1 Action de Déplacement gratuite")) add(["move"],"Déplacement");
-    if(hasSkill(s,"+1 Action de Mêlée gratuite"))       add(["melee"],"Mêlée");
-    if(hasSkill(s,"+1 Action À distance gratuite"))    add(["ranged"],"Distance");
-    if(hasSkill(s,"+1 Action de Magie gratuite"))       add(["magic","ench"],"Magie");
-    if(hasSkill(s,"Lanceur de sorts"))               add(["magic","ench"],"Sorts");
-    if(hasSkill(s,"+1 Action de Combat gratuite"))      add(["melee","ranged","magic"],"Combat");
-    s.searched=false; s.reorgFree=true; s.hitRun=false;
-    s.jumped=false; s.sprinted=false;
-    Object.keys(s.ench).forEach(k=>s.ench[k]=false);
-  });
+  onBoard().forEach(dotationTour);
   UI.tab = onBoard().length ? G.survivors.indexOf(onBoard()[0]) : 0;
+}
+/* Lien Zombie : la Phase des Zombies s'interrompt, le Survivant joue un Tour
+   complet, puis la séquence reprend là où elle en était. */
+function tourGratuit(s){
+  return new Promise(res=>{
+    dotationTour(s);
+    G.phase = "players";
+    UI.tab = G.survivors.indexOf(s);
+    UI.centrer = s;
+    UI.tourGratuit = {s, fin:()=>{
+      UI.tourGratuit = null; UI.mode = null; G.phase = "zombies";
+      logLine(`Tour gratuit de ${s.n} terminé.`,"l-sys");
+      render(); res();
+    }};
+    logLine(`Lien Zombie : ${s.n} joue un Tour gratuit avant la réactivation.`,"l-obj");
+    render();
+  });
 }
 function canPay(s,type){
   if(s.free.some(f=>f.types.includes(type))) return true;
@@ -1907,10 +2165,67 @@ function tryExit(s){
   logLine(`${s.n} quitte le plateau par la Sortie !`,"l-obj");
 }
 
+/* Transmutation : 1 Action, une carte contre une autre. Répétable, et ce n'est
+   pas une Fouille — la limite d'une Fouille par Tour ne s'applique donc pas. */
+async function doTransmuter(s){
+  const cartes = [...s.hands, ...s.back, s.body].filter(Boolean);
+  if(!cartes.length) return toast("Aucun Équipement à transmuter.");
+  if(!canPay(s,"item")) return toast("Plus d'Action disponible.");
+  const k = await choose(`Transmutation — quelle carte ${s.n} défausse-t-il ?`,
+                         cartes.map((c,j)=>({label:c.e.n, v:j})));
+  if(k == null) return render();
+  if(!canPay(s,"item")) return toast("Plus d'Action disponible.");
+  pay(s,"item");
+  const c = cartes[k];
+  discardFrom(s,c);
+  logLine(`${s.n} transmute « ${c.e.n} »…`,"l-obj");
+  const neuf = drawEquip();
+  if(neuf) await giveCard(s,neuf);
+  else logLine("La pioche d'Équipement est vide.","l-sys");
+  render();
+}
+
+/* Provocation : 1×/Tour et gratuit. Tous les Zombies d'une Zone vue gagnent une
+   Activation supplémentaire tournée vers le provocateur — ils l'attaquent s'ils
+   le tiennent, sinon ils s'en rapprochent, en ignorant les autres Survivants. */
+async function provoquer(s, zi){
+  const liste = zombiesIn(zi).slice();
+  if(!liste.length) return;
+  s.provoc = true;
+  logLine(`${s.n} provoque les Zombies de ${zn(zi)} : ils ne cherchent plus que lui.`,"l-bad");
+  for(const zz of liste){
+    if(!G.zombies.includes(zz)) continue;
+    for(let act = 0; act < ZT[zz.t].actions; act++){
+      if(memeZone(zz.z, s.z)){                    // il le tient : il frappe
+        await resolveZombieAttacks(zz.z, [zz]);
+        break;
+      }
+      const d = bfsFrom(s.z);                     // distances VERS le provocateur
+      const ici = d[zz.z] < 0 ? 99 : d[zz.z];
+      const vers = neighbours(zz.z).filter(nb=>d[nb] >= 0 && d[nb] < ici);
+      if(!vers.length) break;                     // aucune route : il reste là
+      (G.traces ||= []).push({de:zz.z, vers:vers[0], t:zz.t, n:1});
+      zz.z = vers[0];
+    }
+  }
+  logLine(`Provocation résolue.`,"l-sys");
+  UI.mode=null; render(); checkEnd();
+}
+
+/* Zones où la Bousculade peut envoyer les Zombies : voisines et franchissables.
+   Une porte fermée ou un mur les arrêterait. */
+function poussees(i){
+  const d = bfsFrom(i);
+  return neighbours(i).filter(nb=>d[nb]===1);
+}
+
 /* ---------- ouvrir une porte ---------- */
 /* « Les armes de MÊLÉE avec le symbole Ouvrir une porte » (p.19). */
 function doorTools(s){
-  return handCards(s).filter(c=>c && c.e.door && c.e.kind==="melee");
+  /* « Les armes de MÊLÉE avec le symbole Ouvrir une porte » — plus les cartes
+     qui l'ouvrent autrement, comme la Décharge télékinésique. */
+  return handCards(s).filter(c=>c && c.e.door
+    && (c.e.kind==="melee" || c.e.porteMagie) && niveauOK(s,c.e));
 }
 /* Portes fermées atteignables. Une porte de crypte peut être ouverte depuis
    l'intérieur de la crypte (p.32) : on renvoie alors la case du plateau. */
@@ -1991,19 +2306,19 @@ async function doOpenDoor(s){
        openBuilding() s'arrête de lui-même. */
     z.cryptOpen = true;
     logLine(`La trappe de crypte ${cryptNom(z.cryptDoor)} de ${zn(z.i)} est ouverte.`,"l-obj");
-    if(z.building) openBuilding(z);
+    if(z.building) await openBuilding(z);
   } else {
     z.door[side]=true;
     const nb=AT(z.x+DXY[side][0], z.y+DXY[side][1]);
     if(nb) nb.door[OPP[side]]=true;
-    if(nb && nb.building) openBuilding(nb);
-    if(z.building) openBuilding(z);
+    if(nb && nb.building) await openBuilding(nb);
+    if(z.building) await openBuilding(z);
   }
   render(); checkEnd();
 }
 /* Invasion dans les bâtiments (p.19) : ouvrir une porte sur un bâtiment encore
    clos déclenche une Invasion dans CHACUNE de ses Zones, l'une après l'autre. */
-function openBuilding(z){
+async function openBuilding(z){
   if(!z || !z.room || z.crypt) return;
   /* Le complexe entier s'ouvre : les Ouvertures ne sont pas des cloisons. */
   const cells = G.zones.filter(o=>!o.crypt && o.cplx===z.cplx);
@@ -2014,7 +2329,7 @@ function openBuilding(z){
   const zones = [...new Set(cells.map(c=>ref(c.i)))];
   const nom = [...new Set(cells.map(c=>c.building))].join("+");
   logLine(`Bâtiment « ${nom} » ouvert : Invasion dans ${zones.length===1?"sa Zone":`ses ${zones.length} Zones`}.`,"l-bad");
-  runSpawnSequence(zones);
+  await runSpawnSequence(zones);
 }
 
 /* ---------- fouiller ---------- */
@@ -2132,7 +2447,7 @@ async function effetsObjectif(s, couleur){
          réutilise la séquence du jeu : elle gère la « double invasion » et le
          remélange de la pioche. */
       logLine(`Règle spéciale : ${s.n} tire une carte d'Invasion.`,"l-bad");
-      runSpawnSequence([ref(s.z)]);
+      await runSpawnSequence([ref(s.z)]);
     }
     else if(ef.t==="draw"){
       // une carte tirée au hasard dans la liste décrite par la quête
@@ -2234,10 +2549,24 @@ function weaponProfile(s, c, useAlt){
   if(kind==="melee" && !twin){
     const dag = handCards(s).filter(x=>x && x.e.offhandDie && x!==c).length;
     if(dag) dice += 1;
+    // Kukri d'os : même principe, mais sur les Dégâts
+    if(handCards(s).some(x=>x && x.e.offhandDmg && x!==c && niveauOK(s,x.e))) dmg += 1;
+  }
+  /* Bonus de paire : « +2 dés si le Kukri d'os est aussi équipé ». La carte
+     nommée doit être équipée ET utilisable — un Artefact de Niveau Jaune ne
+     confère rien à un Survivant encore Bleu. */
+  if(e.paire){
+    const autre = handCards(s).concat([s.body])
+      .find(x=>x && x!==c && x.id===e.paire.id && niveauOK(s,x.e));
+    if(autre){ dice += (e.paire.dice||0); dmg += (e.paire.dmg||0); }
   }
   // Compétences « +1 dé » : l'arme gagne un dé, donc DEUX dés avec une paire
   // d'armes Ambidextres identiques (p.37).
   const per = twin ? 2 : 1;
+  /* Fureur Guerrière : les tueries en Mêlée de l'Activation en cours donnent
+     chacune un dé de plus, jusqu'à la fin de cette Activation. */
+  if(kind==="melee" && hasSkill(s,"Fureur Guerrière") && s.fureur)
+    dice += s.fureur;
   if(kind==="melee"){
     if(hasSkill(s,"+1 dé : Mêlée"))          dice += per;
     if(hasSkill(s,"+1 au résultat du dé : Mêlée"))acc--;
@@ -2261,7 +2590,19 @@ function weaponProfile(s, c, useAlt){
 }
 function targetZones(s, p){
   if(p.kind==="melee") return [s.z];
-  const seen = los(s.z), dist = bfsFrom(s.z), out=[];
+  const dist = bfsFrom(s.z), out=[];
+  /* Vision spectrale : plus de Ligne de vue à respecter, seule la Portée
+     compte — et les murs ne rallongent plus le chemin. */
+  if(s.ghost){
+    const d2 = bfsFrom(s.z, true);
+    G.zones.forEach(z=>{
+      if(z.crypt || ref(z.i)!==z.i) return;
+      const d = d2[z.i] < 0 ? 99 : d2[z.i];
+      if(d>=p.rmin && d<=p.rmax) out.push(z.i);
+    });
+    return out;
+  }
+  const seen = los(s.z);
   seen.forEach(i=>{
     let d = dist[i]; if(d<0) d = 99;
     if(d>=p.rmin && d<=p.rmax) out.push(i);
@@ -2298,11 +2639,31 @@ async function doAttack(s, c, targetZ, useAlt){
       rolls = nr;
     }
   }
+  /* Chanceux : un second jet, gardé tel quel. On ne relance que si le premier
+     n'a pas déjà tout touché — même convention que les Provisions ci-dessus. */
+  if(hasSkill(s,"Chanceux") && countHits(rolls, p.acc) < dice){
+    const nr = rollDice(dice);
+    logLine(`Chanceux : relance [${rolls.join(" ")}] → [${nr.join(" ")}]`,"l-dice");
+    rolls = nr;
+  }
+  /* « Résultat 6 : +1 dé » porté par la CARTE. Chaque 6 rend un dé, qui peut
+     lui-même faire 6 : la chaîne se poursuit. */
+  if(p.e.six && p.e.six.dice){
+    let sixes = rolls.filter(r=>r===6).length, tours = 0;
+    /* La chaîne s'arrête d'elle-même en pratique, mais rien ne le garantit :
+       une série de 6 la relancerait indéfiniment. On la borne. */
+    while(sixes>0 && tours++ < 20){
+      const extra = rollDice(sixes * p.e.six.dice);
+      logLine(`${p.e.n} — Résultat 6 : ${extra.length} dé(s) de plus → [${extra.join(" ")}]`,"l-dice");
+      rolls = rolls.concat(extra);
+      sixes = extra.filter(r=>r===6).length;
+    }
+  }
   let hits = countHits(rolls, p.acc);
   // « Sur un 6 : +1 dé Combat »
   if(hasSkill(s,"Sur un 6 : +1 dé Combat")){
-    let sixes = rolls.filter(r=>r===6).length;
-    while(sixes>0){
+    let sixes = rolls.filter(r=>r===6).length, tours = 0;   // même garde-fou
+    while(sixes>0 && tours++ < 20){
       const extra = rollDice(sixes);
       logLine(`Résultat 6 : ${sixes} dé(s) supplémentaire(s) → [${extra.join(" ")}]`,"l-dice");
       hits += countHits(extra, p.acc);
@@ -2310,15 +2671,49 @@ async function doAttack(s, c, targetZ, useAlt){
       rolls = rolls.concat(extra);
     }
   }
-  const misses = rolls.length - hits;
+  // Hache du Carnage : une réussite offerte, sans dé
+  if(p.e.succes){ hits += p.e.succes;
+    logLine(`${p.e.n} : +${p.e.succes} réussite offerte.`,"l-dice"); }
+  const misses = rolls.length - countHits(rolls, p.acc);
   logLine(`${s.n} — Action de ${ATK[p.kind].n} · ${p.e.n}${p.twin?" ×2":""} sur ${zn(targetZ)} : `+
           `${dice} dé(s), ${p.acc}+ → [${rolls.join(" ")}] = ${hits} succès, ${misses} échec(s).`,"l-dice");
+
+  /* Feu du Dragon déclenché par l'arme. Il détruit TOUT dans la Zone, sans jet :
+     répartir des succès ensuite n'aurait plus de sens, et il n'y a plus personne
+     à blesser par tir ami. */
+  const feu = (p.e.six && p.e.six.feu && rolls.includes(6)) ? "un 6"
+            : (p.e.feuSi && hits >= p.e.feuSi) ? `${hits} réussites` : null;
+  if(feu){
+    logLine(`${p.e.n} — ${feu} : Feu du Dragon sur ${zn(targetZ)} !`,"l-bad");
+    dragonFire(targetZ, s);
+    UI.mode=null; render(); checkEnd(); return;
+  }
 
   /* Choix libre des cibles, et échecs sans tir ami : « À bout portant » l'offre
      à Portée 0, « Tireur d'élite » pour toute attaque à Distance ou de Magie. */
   const libre = p.kind!=="melee" &&
     (hasSkill(s,"Tireur d'élite") || (hasSkill(s,"À bout portant") && targetZ===s.z));
-  resolveHits(s, targetZ, hits, p.dmg, p.kind, libre);
+  /* « Résultat 6 : +1 Dégât ». Les succès obtenus sur un 6 frappent plus fort :
+     on les résout d'abord, à Dégâts majorés, puis les autres. Les résoudre
+     séparément est la seule façon de donner deux valeurs de Dégâts dans une
+     même Action ; l'ordre favorise le joueur, la cible coriace tombant en
+     premier. */
+  let tues = 0;
+  if(p.e.six && p.e.six.dmg){
+    const forts = Math.min(hits, rolls.filter(r=>r===6).length);
+    if(forts){
+      logLine(`${p.e.n} — ${forts} réussite(s) sur un 6 : Dégâts ${p.dmg + p.e.six.dmg}.`,"l-dice");
+      tues += resolveHits(s, targetZ, forts, p.dmg + p.e.six.dmg, p.kind, libre);
+      hits -= forts;
+    }
+  }
+  if(hits > 0) tues += resolveHits(s, targetZ, hits, p.dmg, p.kind, libre);
+  /* Arbalète vampirique : 1 Blessure récupérée par Zombie tué avec elle. */
+  if(p.e.soigne && tues && s.wounds > 0){
+    const soin = Math.min(s.wounds, tues * p.e.soigne);
+    s.wounds -= soin;
+    logLine(`${p.e.n} : ${s.n} récupère ${soin} Blessure(s).`,"l-kill");
+  }
   if(p.kind!=="melee") await friendlyFire(s, targetZ, misses, p.dmg, libre);
   UI.mode=null; render(); checkEnd();
 }
@@ -2330,6 +2725,7 @@ function countHits(rolls, acc){ return rolls.filter(r=> r===6 || (r!==1 && r>=ac
    l'éliminer, le succès est PERDU — il ne se reporte pas sur une cible de
    priorité inférieure. « À bout portant » à Portée 0 lève cette contrainte :
    le Survivant choisit librement ses cibles. */
+/* Renvoie le nombre de Zombies tués — l'Arbalète vampirique en a besoin. */
 function resolveHits(s, zi, hits, dmg, kind, pointBlank){
   let killed=0, wasted=0, moisson=false;
   while(hits>0){
@@ -2353,7 +2749,13 @@ function resolveHits(s, zi, hits, dmg, kind, pointBlank){
       killZombie(target, s); killed++;
       /* Reaper : un succès tue gratuitement un second Zombie IDENTIQUE de la
          Zone. Une seule fois par Action ; l'XP du bonus revient au Survivant. */
-      if(!moisson && hasSkill(s,"Faucheur : Combat")){
+      /* Faucheur : « Combat » couvre les trois types ; les variantes ne valent
+         que pour le leur. */
+      const faucheur = hasSkill(s,"Faucheur : Combat")
+        || (kind==="melee"  && hasSkill(s,"Faucheur : Mêlée"))
+        || (kind==="ranged" && hasSkill(s,"Faucheur : À distance"))
+        || (kind==="spell"  && hasSkill(s,"Faucheur : Magie"));
+      if(!moisson && faucheur){
         const jumeau = zombiesIn(zi).find(zz=>zz.t===target.t);
         if(jumeau){
           killZombie(jumeau, s); killed++; moisson=true;
@@ -2365,10 +2767,15 @@ function resolveHits(s, zi, hits, dmg, kind, pointBlank){
   }
   if(killed) logLine(`→ ${killed} Zombie(s) éliminé(s).`,"l-kill");
   if(wasted && !killed) logLine(`→ ${wasted} succès perdu(s).`,"l-bad");
+  /* Le compteur de Fureur Guerrière monte d'un cran par Action de Mêlée ayant
+     tué, pas par Zombie tué. */
+  if(killed && kind==="melee" && hasSkill(s,"Fureur Guerrière"))
+    s.fureur = (s.fureur||0) + 1;
   if(killed && hasSkill(s,"Fuite") && !s.hitRun){
     s.hitRun=true;
     logLine(`${s.n} peut utiliser « Fuite » (Déplacement gratuit).`,"l-obj");
   }
+  return killed;
 }
 /* Tir ami (p.27) — uniquement à Distance et en Magie. Ce sont les ÉCHECS du jet
    qui blessent les Survivants présents dans la Zone visée, chacun infligeant
@@ -2416,7 +2823,7 @@ const hasSpawn = z => z.spawnTokens.length>0;
 /* ---------- blessures / armure ---------- */
 function armorValue(s){
   let v = 99;
-  if(s.body && s.body.e.armor) v = s.body.e.armor;
+  if(s.body && s.body.e.armor && niveauOK(s, s.body.e)) v = s.body.e.armor;
   const sh = s.hands.filter(c=>c && c.e.kind==="shield").length;
   if(sh) v = Math.min(v, 4);
   if(hasSkill(s,"Corps de fer")) v = Math.min(v, 5);
@@ -2431,7 +2838,9 @@ function wound(s, noArmor){
     const bonus = (hasSkill(s,"Corps de fer") && s.body && s.body.e.armor) ? 1 : 0;
     let r = d6(), eff = Math.min(6, r+bonus), ok = eff>=av;
     // Bouclier : relance possible seulement si une armure est portée sur le Corps
-    const canReroll = !ok && s.hands.some(c=>c && c.e.kind==="shield") && s.body && s.body.e.armor;
+    const canReroll = !ok && s.body && s.body.e.armor
+      && (hasSkill(s,"Chanceux") ||
+          s.hands.some(c=>c && (c.e.kind==="shield" || c.e.aussiBouclier) && niveauOK(s,c.e)));
     if(canReroll){
       const r2=d6(), e2=Math.min(6,r2+bonus);
       logLine(`Armure ${av}+ : ${r} → relance (Bouclier) ${r2}`,"l-dice");
@@ -2471,7 +2880,16 @@ function useItem(s, c){
     if(!canPay(s,"item")) return toast("Plus d'Action disponible.");
     UI.mode={t:"bile", s, c}; return render();
   }
-  if(e.torch){
+  /* Lame de Feu du Dragon : se défausse pour allumer un Feu à Portée 0-1, sans
+     avoir besoin d'une Bile posée au sol. */
+  if(e.feuDef){
+    if(!niveauOK(s,e)) return toast(refusNiveau(e));
+    if(!canPay(s,"item")) return toast("Plus d'Action disponible.");
+    const zs = [s.z, ...neighbours(s.z)];
+    UI.mode={t:"feu", s, c, zones:zs}; return render();
+  }
+  if(e.torch || e.enflamme){
+    if(!niveauOK(s,e)) return toast(refusNiveau(e));
     const zs = [s.z, ...neighbours(s.z)].filter(i=>Z(i).bile);
     if(!zs.length) return toast("Aucun jeton Bile de Dragon à Portée 0-1.");
     if(!canPay(s,"item")) return toast("Plus d'Action disponible.");
@@ -2504,9 +2922,11 @@ function dragonFire(zi, by){
     logLine(`💀 ${s.n} périt dans les flammes.`,"l-bad"); });
   logLine("Toutes les figurines de la Zone sont détruites, sans jet de dé.","l-sys");
 }
-function applyEnch(s, c, target){
+/* `gratuit` : seconde cible d'un Double Enchantement — ni Action, ni verrou du
+   « 1×/Tour », l'Enchantement n'ayant été lancé qu'une fois. */
+function applyEnch(s, c, target, gratuit){
   const kind=c.e.ench;
-  pay(s,"ench"); s.ench[kind]=true;
+  if(!gratuit){ pay(s,"ench"); s.ench[kind]=true; }
   if(kind==="heal"){
     if(target.wounds>0){
       target.wounds--;
@@ -2518,6 +2938,38 @@ function applyEnch(s, c, target){
   if(kind==="speed"){
     if(zombiesIn(target.z).length) logLine("Vitesse : la Zone contient des Zombies.","l-bad");
     else { UI.mode={t:"speed", s:target, left:2}; logLine(`${target.n} peut se déplacer de 2 Zones.`,"l-obj"); }
+  }
+  /* Vision spectrale : la cible voit et tire à travers les obstacles jusqu'à la
+     fin du Round. Le drapeau est relevé par targetZones. */
+  if(kind==="ghostsight"){ target.ghost=true;
+    logLine(`${target.n} voit à travers les obstacles jusqu'à la fin du Round.`,"l-obj"); }
+  /* Transmutation : la cible se défausse d'une carte, puis en pioche une. */
+  if(kind==="transmut"){
+    const cartes = handCards(target).concat(target.back.filter(Boolean),
+                                            target.body ? [target.body] : []);
+    if(!cartes.length) logLine("Transmutation : aucun Équipement à échanger.","l-sys");
+    else {
+      UI.mode=null; render();
+      choose(`Transmutation — quelle carte ${target.n} défausse-t-il ?`,
+             cartes.map((c,k)=>({label:c.e.n, v:k}))).then(k=>{
+        const c = cartes[k ?? 0];
+        discardFrom(target, c);
+        logLine(`Transmutation : ${target.n} défausse « ${c.e.n} ».`,"l-obj");
+        const neuf = drawEquip();
+        if(neuf) giveCard(target, neuf).then(()=>render());
+        else render();
+      });
+      return;                                  // le reste se fait au retour du choix
+    }
+  }
+  /* Tremblement : les Zombies à Dégât 1 de la Zone visée sont couchés. Ils
+     perdent leur prochaine Activation, le temps de se relever. */
+  if(kind==="tremor"){
+    const couches = zombiesIn(target.z).filter(zz=>ZT[zz.t].lethal<=1 && !zz.couche);
+    couches.forEach(zz=>{ zz.couche=true; });
+    logLine(couches.length
+      ? `Tremblement en ${zn(target.z)} : ${couches.length} Zombie(s) couché(s), prochaine Activation perdue.`
+      : `Tremblement en ${zn(target.z)} : aucun Zombie à coucher.`, couches.length?"l-obj":"l-sys");
   }
   UI.mode = (kind==="speed") ? UI.mode : null;
   render();
@@ -2571,16 +3023,21 @@ async function zombiePhase(){
   logLine("— Phase des Zombies —","l-sys");
   await activateAll(false);
   await activateAll(true);      // 2e Action des Runners
-  spawnPhase();
+  await spawnPhase();      // attendue : endPhase ne doit pas la doubler
   endPhase();
 }
 /* « Résoudre toutes les attaques d'abord, puis les mouvements » (p.23). */
 async function activateAll(runnersOnly){
   const groups = {};
+  let releves = 0;
   G.zombies.forEach(zz=>{
     if(runnersOnly && ZT[zz.t].actions<2) return;
+    /* Tremblement : le Zombie couché consacre cette Activation à se relever —
+       il ne bouge pas et n'attaque pas. */
+    if(zz.couche){ zz.couche=false; releves++; return; }
     (groups[zz.z] ||= []).push(zz);
   });
+  if(releves) logLine(`${releves} Zombie(s) couché(s) se relèvent au lieu d'agir.`,"l-obj");
   const moves = [], attacks = [];
   Object.keys(groups).forEach(k=>{
     const zi = +k, list = groups[zi];
@@ -2757,7 +3214,7 @@ function drawSpawn(){
   const c = G.spawnDeck.pop(); G.spawnDiscard.push(c); return c;
 }
 /* Résout UNE carte d'Invasion déjà tirée (hors « double invasion »). */
-function applySpawnCell(cell, zi){
+async function applySpawnCell(cell, zi){
   /* « Les Abominations comptent comme des Fatties à la lecture des cartes » :
      un « A » se lit donc « B ». Utile quand la quête met en scène UNE
      Abomination nommée, qu'on ne veut pas voir se multiplier. */
@@ -2782,7 +3239,7 @@ function applySpawnCell(cell, zi){
       due--;
       const c2 = drawSpawn().row[teamDanger()];
       if(c2==="D"){ due += 2; logLine(`Invasion ${zn(zi)} : DOUBLE INVASION pour le pion du Nécromancien.`,"l-bad"); }
-      else applySpawnCell(c2, zi);
+      else await applySpawnCell(c2, zi);
     }
     return;
   }
@@ -2790,6 +3247,10 @@ function applySpawnCell(cell, zi){
     logLine(`Invasion ${zn(zi)} : double invasion ignorée (hors séquence).`,"l-sys"); return; }
   if(cell[0]==="!"){ const t=LTR[cell[1]];
     logLine(`Invasion ${zn(zi)} : Activation supplémentaire — ${ZT[t].n}.`,"l-bad");
+    /* Lien Zombie : les Survivants qui l'ont jouent AVANT les Zombies
+       réactivés — c'est tout l'intérêt de la Compétence. */
+    for(const sv of onBoard().filter(o=>hasSkill(o,"Lien Zombie")))
+      await tourGratuit(sv);
     activateType(t); return; }
   const n = +cell[0], t = LTR[cell[1]];
   logLine(`Invasion ${zn(zi)} : ${n} ${plurZ(t,n)}.`, "l-bad");
@@ -2799,7 +3260,7 @@ function applySpawnCell(cell, zi){
    Une carte « double invasion » ne fait apparaître personne ici : c'est la Zone
    SUIVANTE qui tire 2 cartes (4 si deux doubles sont tirées sur la même Zone).
    Tirée sur la dernière Zone, elle déborde sur la première. */
-function runSpawnSequence(list){
+async function runSpawnSequence(list){
   if(!list.length) return;
   const n = list.length;
   let k = 0, draws = 1, guard = 0;
@@ -2813,21 +3274,21 @@ function runSpawnSequence(list){
          la pioche n'est pas mélangée. */
       const carte = drawSpawn();
       const cell = carte.row[teamDanger()];
-      logLine(`Carte d'Invasion nº${carte.id} sur ${SPAWN_TABLE.length} `+
+      logLine(`Carte d'Invasion nº${carte.id} sur ${(G.tableInv||SPAWN_TABLE).length} `+
               `(${G.spawnDeck.length} restante(s) avant remélange).`,"l-sys");
       if(cell==="D"){ doubles++; logLine(`Invasion ${zn(zi)} : DOUBLE INVASION → reportée sur la Zone suivante.`,"l-bad"); }
-      else applySpawnCell(cell, zi);
+      else await applySpawnCell(cell, zi);
     }
     draws = doubles ? Math.pow(2, doubles) : 1;
     k++;
   }
 }
-function spawnPhase(){
+async function spawnPhase(){
   const total=spawnTokens(), actifs=activeTokens();
   logLine(`— Invasion (niveau ${DANGER[teamDanger()].name}, ${actifs}/${total} pion(s) actif(s)) —`,"l-sys");
   const list = [];      // 1 carte par pion ACTIF (une Zone peut en porter plusieurs)
   G.zones.forEach(z=>z.spawnTokens.forEach(t=>{ if(spawnActive(t)) list.push(z.i); }));
-  runSpawnSequence(list);
+  await runSpawnSequence(list);
 }
 function endPhase(){
   G.zones.forEach(z=>z.noise=0);
@@ -2908,11 +3369,13 @@ function serialize(){
       skills:[...s.skills], pending:s.pending.map(p=>({choice:[...p.choice], lv:p.lv})),
       actions:s.actions, free:s.free.map(f=>({types:[...f.types], label:f.label})),
       searched:s.searched, reorgFree:s.reorgFree, invisible:s.invisible,
-      ench:{...s.ench}, hitRun:s.hitRun, jumped:s.jumped, sprinted:s.sprinted
+      ench:{...s.ench}, hitRun:s.hitRun, jumped:s.jumped, sprinted:s.sprinted,
+      ghost:!!s.ghost, pousse:!!s.pousse, fureur:s.fureur|0, provoc:!!s.provoc
     })),
-    zombies:G.zombies.map(z=>({id:z.id, t:z.t, z:z.z, entry:z.entry})),
+    zombies:G.zombies.map(z=>({id:z.id, t:z.t, z:z.z, entry:z.entry, couche:!!z.couche})),
     equipDeck:G.equipDeck.map(cardOut), equipDiscard:G.equipDiscard.map(cardOut),
     spawnDeck:G.spawnDeck.map(c=>c.id), spawnDiscard:G.spawnDiscard.map(c=>c.id),
+    tableInv:(G.tableInv||SPAWN_TABLE).map(r=>[...r]),
     log:[...document.querySelectorAll("#log div")].slice(-80)
           .map(d=>({t:d.textContent, c:d.className}))
   };
@@ -2929,6 +3392,11 @@ function loadState(d){
   const zones = buildBoard(d.q);
   if(d.zones.length !== zones.length)
     throw new Error("la carte ne correspond pas au nombre de Zones sauvegardées");
+  /* Table d'Invasion de la partie sauvegardée. Les sauvegardes antérieures aux
+     decks personnalisés n'en portent pas : c'est celle de la boîte. */
+  const TB_SAUV = (Array.isArray(d.tableInv) && d.tableInv.length
+                   && d.tableInv.every(r=>Array.isArray(r) && r.length===4))
+                  ? d.tableInv.map(r=>r.map(String)) : SPAWN_TABLE;
   d.zones.forEach((sz,k)=>{
     const z = zones[k];
     Object.assign(z, {
@@ -2961,19 +3429,23 @@ function loadState(d){
       pending: (ss.pending||[]).map(p=>({...p, choice:(p.choice||[]).map(nomActuel)})),
       actions: ss.actions|0, free: ss.free||[],
       searched: !!ss.searched, reorgFree: ss.reorgFree!==false,
-      invisible: !!ss.invisible, ench: ss.ench||{}, hitRun: !!ss.hitRun,
-      jumped: !!ss.jumped, sprinted: !!ss.sprinted
+      invisible: !!ss.invisible, ghost: !!ss.ghost, ench: ss.ench||{}, hitRun: !!ss.hitRun,
+      jumped: !!ss.jumped, sprinted: !!ss.sprinted, pousse: !!ss.pousse,
+      fureur: ss.fureur|0, provoc: !!ss.provoc
     };
   });
 
   G = {
     q: d.q, zones, survivors,
-    zombies: (d.zombies||[]).map(z=>({id:z.id, t:z.t, z:z.z, entry:z.entry})),
+    zombies: (d.zombies||[]).map(z=>({id:z.id, t:z.t, z:z.z, entry:z.entry, couche:!!z.couche})),
     nextZid: d.nextZid||1, round: d.round||1, phase: "players", over: false,
     equipDeck: (d.equipDeck||[]).map(cardIn).filter(Boolean),
     equipDiscard: (d.equipDiscard||[]).map(cardIn).filter(Boolean),
-    spawnDeck: (d.spawnDeck||[]).map(i=>({id:i, row:SPAWN_TABLE[i-1]})).filter(c=>c.row),
-    spawnDiscard: (d.spawnDiscard||[]).map(i=>({id:i, row:SPAWN_TABLE[i-1]})).filter(c=>c.row),
+    /* La table voyage avec la partie : une sauvegarde faite avec un deck
+       personnalisé se relit même si le fichier a changé depuis. */
+    tableInv: TB_SAUV,
+    spawnDeck: (d.spawnDeck||[]).map(i=>({id:i, row:TB_SAUV[i-1]})).filter(c=>c.row),
+    spawnDiscard: (d.spawnDiscard||[]).map(i=>({id:i, row:TB_SAUV[i-1]})).filter(c=>c.row),
     pool: d.pool || {}, vaultDeck: [], taken: d.taken || {},
     objectivesLeft: d.objectivesLeft|0, firstPlayer: d.firstPlayer|0,
     customMap: JSON.stringify(d.q) !== JSON.stringify(DEFAULT_QUEST)
@@ -3083,6 +3555,9 @@ function ajouterZombies(container, zoneIdx){
     const p=pastille(ZT[t].c, t, ZT[t].ini,
       (n>2?"pile3":(n>1?"pile2":""))+(bouge?" zbouge":""));
     p.style.setProperty("--zc", ZT[t].c);
+    /* Repères pour les flèches de déplacement, qui se mesurent sur le jeton
+       lui-même plutôt que sur le centre de la Zone. */
+    p.dataset.zt = t; p.dataset.zi = ref(zoneIdx);
     p.title = n+" "+plurZ(t,n);
     if(n>1){ const e=document.createElement("div"); e.className="nb"; e.textContent=n; p.appendChild(e); }
     container.appendChild(p);
@@ -3174,6 +3649,9 @@ function renderBoard(){
     if(UI.mode?.t==="attack") UI.mode.zones.forEach(i=>casesZone(i).forEach(c=>legalAtk.add(c.i)));
     if(UI.mode?.t==="bile")   [act.z,...neighbours(act.z)].forEach(i=>legal.add(i));
     if(UI.mode?.t==="torch")  UI.mode.zones.forEach(i=>legal.add(i));
+    if(UI.mode?.t==="pousser") UI.mode.zones.forEach(i=>legal.add(i));
+    if(UI.mode?.t==="provoc")  UI.mode.zones.forEach(i=>legal.add(i));
+    if(UI.mode?.t==="feu")     UI.mode.zones.forEach(i=>legal.add(i));
     if(UI.mode?.t==="repulse")los(act.z).forEach(i=>{ if(zombiesIn(i).length) legalAtk.add(i); });
   }
   G.zones.filter(z=>!z.crypt).forEach(z=>{
@@ -3249,7 +3727,8 @@ function renderBoard(){
     b.appendChild(d);
   });
   b.appendChild(renderWalls());
-  b.appendChild(renderTraces());
+  /* Après les jetons : leur position se mesure, elle ne se devine pas. */
+  b.appendChild(renderTraces(b));
   renderCrypts();
 }
 /* Illustrations des tuiles de terrain, sous la grille. Purement décoratif :
@@ -3280,7 +3759,8 @@ const questAvecTuiles = () => !!(G && G.q.tiles && Object.keys(G.q.tiles).length
 
 /* Flèches des déplacements de la dernière Phase des Zombies : elles répondent
    à « d'où viennent-ils ? » une fois le tour des joueurs commencé, quand le
-   ralenti est déjà passé. Une flèche par trajet, avec l'effectif.
+   ralenti est déjà passé. Une flèche par type et par trajet, à la couleur du
+   Zombie déplacé.
    Les Zones de Crypte sont hors du plateau : leurs trajets ne peuvent pas être
    tracés ici, le journal les mentionne. */
 let voirTraces = true;
@@ -3293,7 +3773,24 @@ function centreZone(i){
   const cy = cs.reduce((a,z)=>a+z.y,0)/cs.length;
   return {x:(cx+.5)*zs, y:(cy+.5)*zs};
 }
-function renderTraces(){
+/* Position réelle du jeton d'un type dans une Zone, en pixels du plateau.
+   Renvoie null si ce type n'y figure pas — c'est le cas courant au départ,
+   puisque les flèches se dessinent une fois les Zombies arrivés. */
+function posJeton(zoneIdx, t, plateau){
+  const p = plateau.querySelector(`.pastille[data-zi="${ref(zoneIdx)}"][data-zt="${t}"]`);
+  if(!p) return null;
+  const r = p.getBoundingClientRect(), b = plateau.getBoundingClientRect();
+  if(!r.width) return null;
+  return {x: r.left - b.left + r.width/2, y: r.top - b.top + r.height/2};
+}
+/* Flèches du dernier déplacement des Zombies.
+   Une flèche par type ET par trajet : la couleur est celle du jeton déplacé,
+   ce qui suppose de ne plus fondre les types ensemble.
+   Les extrémités visent les JETONS, pas le centre des Zones — deux types
+   partant du même endroit ne se recouvrent donc plus. Le jeton de départ,
+   lui, n'existe plus : on reporte à l'identique l'écart mesuré à l'arrivée,
+   ce qui donne des flèches parallèles et lisibles. */
+function renderTraces(plateau){
   const NS="http://www.w3.org/2000/svg";
   const zs = parseInt(getComputedStyle(document.documentElement)
                .getPropertyValue("--zs")) || 92;
@@ -3304,39 +3801,49 @@ function renderTraces(){
   if(!voirTraces || G.phase!=="players" || !(G.traces||[]).length) return svg;
 
   const def=document.createElementNS(NS,"defs");
-  const mk=document.createElementNS(NS,"marker");
-  mk.setAttribute("id","pointe"); mk.setAttribute("viewBox","0 0 10 10");
-  mk.setAttribute("refX","9"); mk.setAttribute("refY","5");
-  mk.setAttribute("markerWidth","5"); mk.setAttribute("markerHeight","5");
-  mk.setAttribute("orient","auto-start-reverse");
-  const tri=document.createElementNS(NS,"path");
-  tri.setAttribute("d","M 0 1 L 10 5 L 0 9 z"); tri.setAttribute("fill","#d06060");
-  mk.appendChild(tri); def.appendChild(mk); svg.appendChild(def);
+  svg.appendChild(def);
+  /* Une pointe par couleur : un marqueur ne tient pas la couleur du trait. */
+  const pointes = {};
+  const pointe = c => {
+    if(pointes[c]) return pointes[c];
+    const id = "pointe"+Object.keys(pointes).length;
+    const mk=document.createElementNS(NS,"marker");
+    mk.setAttribute("id",id); mk.setAttribute("viewBox","0 0 10 10");
+    mk.setAttribute("refX","9"); mk.setAttribute("refY","5");
+    mk.setAttribute("markerWidth","5"); mk.setAttribute("markerHeight","5");
+    mk.setAttribute("orient","auto-start-reverse");
+    const tri=document.createElementNS(NS,"path");
+    tri.setAttribute("d","M 0 1 L 10 5 L 0 9 z"); tri.setAttribute("fill",c);
+    mk.appendChild(tri); def.appendChild(mk);
+    return (pointes[c] = id);
+  };
 
-  /* Trajets identiques cumulés : deux vagues de Runners sur la même route ne
-     doivent pas superposer deux flèches. */
+  /* Trajets identiques cumulés, type par type : deux vagues de Runners sur la
+     même route ne doivent pas superposer deux flèches. */
   const parTrajet = {};
   (G.traces||[]).forEach(tr=>{
-    const k = tr.de+">"+tr.vers;
-    (parTrajet[k] ||= {de:tr.de, vers:tr.vers, n:0}).n += tr.n;
+    parTrajet[tr.de+">"+tr.vers+">"+tr.t] ||= {de:tr.de, vers:tr.vers, t:tr.t};
   });
   Object.values(parTrajet).forEach(tr=>{
-    const a=centreZone(tr.de), b=centreZone(tr.vers);
-    if(!a || !b) return;                              // Crypte : rien à tracer
+    const ca=centreZone(tr.de), cb=centreZone(tr.vers);
+    if(!ca || !cb) return;                            // Crypte : rien à tracer
+    const ja = plateau ? posJeton(tr.de,   tr.t, plateau) : null;
+    const jb = plateau ? posJeton(tr.vers, tr.t, plateau) : null;
+    // écart du jeton au centre de sa Zone, reporté au départ s'il a disparu
+    const ex = jb ? jb.x-cb.x : 0, ey = jb ? jb.y-cb.y : 0;
+    const a = ja || {x:ca.x+ex, y:ca.y+ey};
+    const b = jb || cb;
     const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy) || 1;
-    const marge = zs*.30;                             // on dégage les figurines
-    const x1=a.x+dx/L*marge, y1=a.y+dy/L*marge;
-    const x2=b.x-dx/L*marge, y2=b.y-dy/L*marge;
+    const marge = zs*.16;                             // on dégage les jetons
     const l=document.createElementNS(NS,"line");
-    l.setAttribute("x1",x1); l.setAttribute("y1",y1);
-    l.setAttribute("x2",x2); l.setAttribute("y2",y2);
+    l.setAttribute("x1",a.x+dx/L*marge); l.setAttribute("y1",a.y+dy/L*marge);
+    l.setAttribute("x2",b.x-dx/L*marge); l.setAttribute("y2",b.y-dy/L*marge);
     l.setAttribute("class","trace");
-    l.setAttribute("marker-end","url(#pointe)");
+    l.setAttribute("stroke", ZT[tr.t].c);
+    l.setAttribute("marker-end",`url(#${pointe(ZT[tr.t].c)})`);
+    l.appendChild(document.createElementNS(NS,"title"))
+     .textContent = `${ZT[tr.t].n} : ${zn(tr.de)} → ${zn(tr.vers)}`;
     svg.appendChild(l);
-    const t=document.createElementNS(NS,"text");
-    t.setAttribute("x",(x1+x2)/2); t.setAttribute("y",(y1+y2)/2 - 3);
-    t.setAttribute("class","tracen"); t.textContent = tr.n;
-    svg.appendChild(t);
   });
   return svg;
 }
@@ -3475,9 +3982,30 @@ function onZoneClick(i){
     pay(m.s,"item"); Z(i).bile=true; discardFrom(m.s,m.c);
     logLine(`${m.s.n} lance une Bile de Dragon en ${zn(i)}.`); UI.mode=null; render(); return;
   }
+  if(m.t==="feu"){
+    if(!m.zones.includes(i)) return;
+    pay(m.s,"item"); discardFrom(m.s,m.c);
+    logLine(`${m.s.n} défausse « ${m.c.e.n} » pour allumer un Feu du Dragon.`,"l-bad");
+    dragonFire(i, m.s);
+    UI.mode=null; render(); checkEnd(); return;
+  }
   if(m.t==="torch"){
     if(!m.zones.includes(i)) return;
-    pay(m.s,"item"); discardFrom(m.s,m.c); dragonFire(i, m.s);
+    /* La Torche se consume ; l'Épée enflammée, non. */
+    pay(m.s,"item"); if(m.c.e.torch) discardFrom(m.s,m.c); dragonFire(i, m.s);
+    UI.mode=null; render(); checkEnd(); return;
+  }
+  if(m.t==="provoc"){
+    if(!m.zones.includes(i)) return;
+    provoquer(m.s, i);
+    return;
+  }
+  if(m.t==="pousser"){
+    if(!m.zones.includes(i)) return;
+    const liste = zombiesIn(m.s.z);
+    m.s.pousse = true;                       // gratuit, mais une fois par Tour
+    liste.forEach(zz=>{ (G.traces ||= []).push({de:zz.z, vers:i, t:zz.t, n:1}); zz.z = i; });
+    logLine(`Poussée : ${liste.length} Zombie(s) poussé(s) de ${zn(m.s.z)} en ${zn(i)}.`,"l-obj");
     UI.mode=null; render(); checkEnd(); return;
   }
   if(m.t==="repulse"){
@@ -3703,8 +4231,45 @@ function renderPanel(){
       logLine(`${s.n} : Charge — 2 Zones vers des Zombies.`); render();
     }, UI.mode?.t==="charge"?"prim":""));
   if(s.hitRun) ar.appendChild(btn("Fuite", ()=>{ UI.mode={t:"hitrun",s,left:1}; s.hitRun=false; render(); },"prim"));
+  if(hasSkill(s,"Transmutation"))
+    ar.appendChild(btn("Transmuter", ()=>doTransmuter(s)));
+  /* Provocation : la Zone se choisit sur le plateau, parmi celles qu'il voit. */
+  if(hasSkill(s,"Provocation") && !s.provoc)
+    ar.appendChild(btn(UI.mode?.t==="provoc" ? "Annuler Provocation" : "Provocation", ()=>{
+      if(UI.mode?.t==="provoc"){ UI.mode=null; return render(); }
+      const vues = [...los(s.z)].filter(i=>zombiesIn(i).length);
+      if(!vues.length) return toast("Provocation : aucun Zombie en vue.");
+      UI.mode={t:"provoc", s, zones:vues};
+      logLine(`${s.n} : Provocation — clique la Zone à provoquer.`);
+      render();
+    }, UI.mode?.t==="provoc"?"prim":""));
+  /* Poussée : 1×/Tour et GRATUIT, tous les Zombies de sa Zone sont repoussés
+     dans une Zone voisine. Ce n'est pas un Déplacement. La compétence peut
+     venir de la fiche ou du Bouclier des Âges. */
+  if(hasSkill(s,"Poussée") && !s.pousse)
+    ar.appendChild(btn(UI.mode?.t==="pousser" ? "Annuler Poussée" : "Poussée", ()=>{
+      if(UI.mode?.t==="pousser"){ UI.mode=null; return render(); }
+      if(!zombiesIn(s.z).length) return toast("Poussée : aucun Zombie dans la Zone.");
+      const dests = poussees(s.z);
+      if(!dests.length) return toast("Poussée : aucune Zone où les pousser.");
+      UI.mode={t:"pousser", s, zones:dests};
+      logLine(`${s.n} : Poussée — clique la Zone où pousser les Zombies.`);
+      render();
+    }, UI.mode?.t==="pousser"?"prim":""));
   info.appendChild(ar);
   p.appendChild(info);
+
+  if(UI.tourGratuit){
+    const tg=el("div","card");
+    tg.style.borderColor="#c9a227"; tg.style.background="#33291a";
+    tg.appendChild(el("h3",null,"Lien Zombie — Tour gratuit"));
+    tg.appendChild(el("div","hint",
+      `${UI.tourGratuit.s.n} joue avant que les Zombies réactivés n'agissent.`));
+    const r=el("div","row"); r.style.marginTop="6px";
+    r.appendChild(btn("Terminer le Tour gratuit", ()=>UI.tourGratuit.fin(), "prim"));
+    tg.appendChild(r);
+    p.appendChild(tg);
+  }
 
   // inventaire
   const inv=el("div","card");
@@ -3717,8 +4282,17 @@ function renderPanel(){
     if(UI.reorgSel) d.className+=" pick";
     d.onclick=(ev)=>{ if(ev.target.tagName==="BUTTON") return; onSlotClick(s,area,k); };
     if(!c){ d.textContent=label; return d; }
-    d.appendChild(el("div","nm",(area==="hands"?"✋ ":"🎒 ")+c.e.n));
-    d.appendChild(el("div","st", cardStats(c.e)));
+    /* L'illustration à gauche, le texte à droite : une carte se reconnaît plus
+       vite à son dessin qu'à son intitulé. */
+    if(SPRITE_OK["eq_"+c.id]){
+      const im = el("div","im");
+      im.style.backgroundImage = `url(${SPRITE_DIR + SPRITES["eq_"+c.id]})`;
+      d.appendChild(im);
+    }
+    const t=el("div","txt");
+    t.appendChild(el("div","nm",(area==="hands"?"✋ ":"🎒 ")+c.e.n));
+    t.appendChild(el("div","st", cardStats(c.e)));
+    d.appendChild(t);
     const a=el("div","acts");
     const inHand = area==="hands" || (hasSkill(s,"Grimoire") && (c.e.kind==="spell"||c.e.kind==="ench"));
     if(inHand && (c.e.kind==="melee"||c.e.kind==="ranged"||c.e.kind==="spell")){
@@ -3730,17 +4304,25 @@ function renderPanel(){
     if(inHand && c.e.alt) a.appendChild(btn(ATK[c.e.alt.kind].label, ()=>startAttack(s,c,true), "atk "+c.e.alt.kind));
     if(c.e.reload && !c.loaded) a.appendChild(btn("Recharger", ()=>useItem(s,c)));
     if(bodyAccepts(s,c) && !s.body) a.appendChild(btn(c.e.armor?"Porter":"Au Corps", ()=>useItem(s,c)));
-    if(c.e.kind==="ench"||c.e.xpItem||c.e.bile||c.e.torch) a.appendChild(btn("Utiliser", ()=>useItem(s,c)));
+    if(c.e.kind==="ench"||c.e.xpItem||c.e.bile||c.e.torch||c.e.enflamme||c.e.feuDef)
+      a.appendChild(btn("Utiliser", ()=>useItem(s,c)));
     a.appendChild(btn("×", ()=>{ discardFrom(s,c); logLine(`${s.n} défausse ${c.e.n}.`); render(); },"danger"));
-    d.appendChild(a);
+    t.appendChild(a);
     return d;
   };
   for(let k=0;k<s.hands.length;k++) grid.appendChild(mk("hands",k,"Main "+(k+1)));
   const bodyS=el("div","slot body"+(s.body?"":" empty"));
   if(s.body){
     const inHand = s.body.id===s.bodyItem;
-    bodyS.textContent = (s.body.e.armor?"🛡 ":"✋ ")+s.body.e.n+
-      (s.body.e.armor?" — Armure "+s.body.e.armor+"+":" — Corps, compte comme tenue en main");
+    // même présentation que les autres emplacements : vignette puis texte
+    if(SPRITE_OK["eq_"+s.body.id]){
+      const im = el("div","im");
+      im.style.backgroundImage = `url(${SPRITE_DIR + SPRITES["eq_"+s.body.id]})`;
+      bodyS.appendChild(im);
+    }
+    bodyS.appendChild(el("div","txt",
+      (s.body.e.armor?"🛡 ":"✋ ")+s.body.e.n+
+      (s.body.e.armor?" — Armure "+s.body.e.armor+"+":" — Corps, compte comme tenue en main")));
     bodyS.onclick=()=>{ const c=s.body; s.body=null; giveCard(s,c); render(); };
   } else {
     bodyS.textContent = "Corps — armure, ou « "+(EQ[s.bodyItem]?EQ[s.bodyItem].n:"—")+" » pour "+s.n;
@@ -3792,17 +4374,22 @@ const ATK = {
   spell:  {n:"Magie",    label:"✦ Magie",    css:"#8a6bd8"}
 };
 function cardStats(e){
-  if(e.kind==="armor") return "Armure "+e.armor+"+";
-  if(e.kind==="shield") return e.txt;
+  /* Ce qui s'ajoute à toute carte : le Niveau exigé, et l'aveu que sa règle
+     spéciale n'est pas appliquée. */
+  const sup = (e.niv ? ` · Niveau ${DANGER[e.niv].name} requis` : "")
+            + (e.na  ? " · règle spéciale non appliquée" : "");
+  if(e.kind==="armor")  return "Armure "+e.armor+"+" + sup;
+  if(e.kind==="shield") return (e.txt||"") + sup;
   if(e.kind==="melee"||e.kind==="ranged"||e.kind==="spell"){
     const t = `Portée ${e.rmin}-${e.rmax} · ${e.dice} dé${e.dice>1?"s":""} · ${e.acc}+ · Dégâts ${e.dmg}`;
     const f=[]; if(e.dual)f.push("Ambidextre"); if(e.door)f.push("Porte");
     if(e.noise)f.push("Bruit"); if(e.keyw)f.push(e.keyw);
-    return t + (f.length?" · "+f.join(", "):"") + (e.txt?" — "+e.txt:"");
+    return t + (f.length?" · "+f.join(", "):"") + sup + (e.txt?" — "+e.txt:"");
   }
-  return e.txt||"";
+  return (e.txt||"") + sup;
 }
 function startAttack(s,c,alt){
+  if(!niveauOK(s,c.e)) return toast(refusNiveau(c.e));
   const p=weaponProfile(s,c,alt);
   const zs=targetZones(s,p);
   if(!zs.length) return toast("Aucune Zone à portée.");
@@ -3812,8 +4399,30 @@ function renderEnchTargets(box, s, c){
   const seen = los(s.z);
   const targets = onBoard().filter(o=>seen.has(o.z));
   const r=el("div","row");
-  r.appendChild(el("span","hint","Cible : "));
-  targets.forEach(o=>r.appendChild(btn(o.n, ()=>{ applyEnch(s,c,o); })));
+  /* Double Enchantement : on désigne les DEUX cibles avant de résoudre, comme
+     le livret le demande. La Vitesse fait exception — elle ouvre une Zone de
+     déplacement, et deux ne peuvent pas être ouvertes à la fois. */
+  const double = hasSkill(s,"Double Enchantement") && c.e.ench !== "speed";
+  const dejaChoisie = UI.mode && UI.mode.premiere;
+  r.appendChild(el("span","hint",
+    double ? (dejaChoisie ? `Seconde cible (1ʳᵉ : ${dejaChoisie.n}) : ` : "Première cible : ")
+           : "Cible : "));
+  targets.forEach(o=>r.appendChild(btn(o.n, ()=>{
+    if(double && !dejaChoisie){
+      UI.mode = {...UI.mode, premiere:o};
+      logLine(`Double Enchantement : ${o.n} désigné, choisis la seconde cible.`,"l-obj");
+      return render();
+    }
+    if(dejaChoisie){
+      applyEnch(s, c, dejaChoisie);              // la première paie l'Action
+      logLine(`Double Enchantement : seconde cible ${o.n}.`,"l-obj");
+      applyEnch(s, c, o, true);                  // la seconde est offerte
+      return;
+    }
+    applyEnch(s, c, o);
+  })));
+  if(double && dejaChoisie)
+    r.appendChild(btn("Une seule cible", ()=>{ applyEnch(s, c, dejaChoisie); }, "danger"));
   box.appendChild(r);
 }
 function onSlotClick(s,area,k){
@@ -3893,7 +4502,11 @@ function render(){ if(!G) return;
   /* Un mode au clic est en cours : les figurines rendent la main à la Zone. */
   document.body.classList.toggle("modeclic", !!UI.mode);
   renderBoard(); renderPanel(); majBoutonTuiles();
-  document.getElementById("btnEnd").disabled = G.over || G.phase!=="players";
+  /* Pendant un Tour gratuit, « Fin de tour » relancerait une Phase des Zombies
+     par-dessus celle qui est en cours : c'est le bouton du Tour gratuit qui
+     rend la main. */
+  document.getElementById("btnEnd").disabled =
+    G.over || G.phase!=="players" || !!UI.tourGratuit;
   if(UI.centrer){ const s=UI.centrer; UI.centrer=null; centrerSur(s); }
   autoSave(); }
 
@@ -3921,6 +4534,10 @@ function render(){ if(!G) return;
    capacité.
    -------------------------------------------------------------------------- */
 const ALIAS_COMP = {
+  /* « Double casting » n'est pas ici : ALIAS_COMP ne vise que des compétences
+     APPLIQUÉES — outils-controle.py y veille. Il figure dans COMP_LIVRET, qui
+     recueille les intitulés du livret, et dans le champ `en:` de l'éditeur. */
+  "Battle rage":"Fureur Guerrière",
   "+1 free combat action":"+1 Action de Combat gratuite",
   "+1 free melee action":"+1 Action de Mêlée gratuite",
   "+1 free ranged action":"+1 Action À distance gratuite",
@@ -3945,7 +4562,8 @@ const ALIAS_COMP = {
   "bloodlust : combat":"Soif de sang : Combat"
 };
 /* Compétences du livret que le moteur n'applique pas encore. */
-const COMP_LIVRET = ["+1 Action d'Enchantement gratuite","+1 Action de Fouille gratuite",
+const COMP_LIVRET = ["Double casting","Double Enchantement",
+  "+1 Action d'Enchantement gratuite","+1 Action de Fouille gratuite",
   "+1 Dégât avec [Équipement]","+1 free Enchantment Action","+1 free enchantment action",
   "+1 free search action","+1 free Search Action","+1 Zone par Déplacement",
   "+1 Zone per Move","+1 zone per move","2 Zones par Action de Déplacement","Ambidextre",
@@ -4024,7 +4642,13 @@ const COMP_MOTEUR = [
   "Insaisissable","Barbare","Fuite","Grimoire","Lanceur de sorts",
   "Maître d'Armes","Corps de fer","Pluie de fer","À bout portant",
   "Saut","Sprint","Charge","Tireur d'élite","+1 Portée max",
-  "Faucheur : Combat","Soif de sang : Combat"
+  "Faucheur : Combat","Soif de sang : Combat",
+  /* Appliquées depuis l'arrivée des cartes qui les confèrent. */
+  "Chanceux","Poussée",
+  /* Arrivées avec les Survivants de Green Horde. */
+  "Fureur Guerrière","Faucheur : Mêlée","Faucheur : À distance","Faucheur : Magie",
+  /* Compétences des Survivants de Green Horde. */
+  "Provocation","Transmutation","Double Enchantement","Lien Zombie"
 ];
 function competencesConnues(){ return new Set(COMP_MOTEUR); }
 /* Rend le nom interne d'une compétence écrite en français OU en anglais. */
@@ -4068,10 +4692,15 @@ let soucisSurvivants = [];
 
 /* ---------- écran de sélection des Survivants ---------- */
 let TEAM = SURVIVORS.map(v=>v.id);
-/* Armes de départ : la boîte n'en fournit qu'un nombre limité (champ `start`
-   dans EQUIP — 3 Épées courtes, 1 de chaque autre). Chaque Survivant peut se
-   voir attribuer la sienne ; sans choix, elle est tirée au hasard comme avant. */
-const STARTERS = EQUIP.filter(e=>e.start>0).map(e=>({id:e.id, n:e.n, nb:e.start}));
+/* Armes de départ : le stock est limité (champ `start`), et il DÉPEND DU DECK
+   retenu — Green Horde n'offre pas les mêmes que Black Plague, et « départ
+   seulement » d'une extension n'apporte que celles-là. La liste se recalcule
+   donc à chaque affichage, au lieu d'être figée au chargement.
+   Chaque Survivant peut se voir attribuer la sienne ; sans choix, elle est
+   tirée au hasard. */
+const starterList = () => EQUIP
+  .map(e=>({id:e.id, n:e.n, nb:quantiteEquip(e,"start")}))
+  .filter(x=>x.nb > 0);
 let GEAR = {};                       // id du Survivant → id de l'arme, "" = au hasard
 const gearPris = (id, saufQui) =>
   TEAM.filter(x=>x!==saufQui && GEAR[x]===id).length;
@@ -4081,7 +4710,7 @@ function chargerGear(){
        if(g && typeof g==="object") GEAR=g; }catch(e){}
   // on ne garde que des choix encore valides
   Object.keys(GEAR).forEach(k=>{
-    if(GEAR[k] && !STARTERS.some(st=>st.id===GEAR[k])) delete GEAR[k];
+    if(GEAR[k] && !starterList().some(st=>st.id===GEAR[k])) delete GEAR[k];
   });
 }
 /* --------------------------------------------------------------------------
@@ -4232,8 +4861,62 @@ function renderEffectif(){
     : `⚠ Mission prévue pour ${mn} Survivants minimum — ${TEAM.length} ${TEAM.length>1?"sélectionnés":"sélectionné"}. `+
       `La partie reste jouable, mais l'Invasion ne diminue pas.`;
 }
+/* Choix du deck. Rien ne s'affiche sans fichier de decks : la boîte reste la
+   règle par défaut. Un fichier illisible se dit ici, il ne se devine pas. */
+function renderDecks(){
+  const row=document.getElementById("deckRow"); if(!row) return;
+  if(!DECKS_LISTE.length && !soucisDecks.length){ row.style.display="none"; return; }
+  row.style.display="flex";
+  const sel=document.getElementById("deckSel"), lib=document.getElementById("deckLib");
+  row.style.borderColor = DECKS_LISTE.length ? "" : "#7a5a2a";
+  sel.innerHTML="";
+  /* Première entrée : les decks de la boîte. C'est le choix par défaut — un
+     fichier présent propose, il n'impose pas. */
+  const ajouter=(lib2,v)=>{ const o=document.createElement("option");
+    o.value=v; o.textContent=lib2; sel.appendChild(o); };
+  ajouter("Decks de la boîte (Black Plague)", "");
+  DECKS_LISTE.forEach((d,k)=>ajouter(d.nom, String(k)));
+  sel.disabled = !DECKS_LISTE.length;
+  sel.value = deckChoisi ? String(DECKS_LISTE.indexOf(deckChoisi)) : "";
+
+  const decrire=()=>{
+    const d = deckChoisi;
+    const bouts=[];
+    if(d){
+      if(d.equip){
+        let f=0, dep=0, art=0;
+        EQUIP.forEach(e=>{ if(!e.vault) f+=quantiteEquip(e,"deck");
+          dep+=quantiteEquip(e,"start"); art+=quantiteEquip(e,"vault"); });
+        bouts.push(`${f} Fouille · ${dep} départ · ${art} Artefact${art>1?"s":""}`);
+      }
+      if(d.spawn) bouts.push(`${d.spawn.length} carte${d.spawn.length>1?"s":""} d'Invasion`);
+    }
+    lib.innerHTML = d
+      ? `<span style="color:var(--dim)">${bouts.join(" · ")}</span>`
+      : `<span style="color:var(--dim)">63 Fouille · 6 départ · 2 Artefacts · 54 cartes d'Invasion</span>`;
+    if(soucisDecks.length)
+      lib.innerHTML += `<br><span style="color:#e0a060">`+
+        (DECKS_LISTE.length ? `${soucisDecks.length} entrée(s) ignorée(s) : ` : "Fichier inutilisable — ")+
+        soucisDecks.slice(0,2).join(" · ") +
+        (soucisDecks.length>2 ? ` · et ${soucisDecks.length-2} autre(s)` : "") + `</span>`;
+  };
+  sel.onchange=()=>{
+    deckChoisi = sel.value === "" ? null : DECKS_LISTE[+sel.value] || null;
+    /* Les armes de départ proposées changent avec le deck : on oublie les choix
+       devenus impossibles, puis on redessine les menus. */
+    const dispo = starterList();
+    Object.keys(GEAR).forEach(k=>{
+      if(GEAR[k] && !dispo.some(st=>st.id===GEAR[k])) GEAR[k]="";
+    });
+    sauverGear();
+    renderSetup();
+  };
+  decrire();
+}
+
 function renderSetup(){
   renderEffectif();
+  renderDecks();
   const box=document.getElementById("setupList"); box.innerHTML="";
   /* Un Survivant ajouté dont une compétence est inconnue jouerait sans elle :
      mieux vaut le dire que de laisser une carte silencieusement affaiblie. */
@@ -4288,7 +4971,7 @@ function renderSetup(){
       o0.value=""; o0.textContent="Arme : au hasard";
       if(!GEAR[v.id]) o0.selected=true;
       sel.appendChild(o0);
-      STARTERS.forEach(st=>{
+      starterList().forEach(st=>{
         const reste = st.nb - gearPris(st.id, v.id);
         const o=document.createElement("option");
         o.value=st.id;
@@ -4547,9 +5230,15 @@ document.getElementById("setupStart").onclick = ()=>{
   const mn = minSurv(QUEST), sousEffectif = TEAM.length < mn ? {mn, n:TEAM.length} : null;
   // le stock d'armes de départ doit être respecté (menus déjà bridés, mais un
   // changement d'équipe peut rendre un choix caduc)
-  const trop = STARTERS.find(st=>TEAM.filter(id=>GEAR[id]===st.id).length > st.nb);
+  const dispo = starterList();
+  const trop = dispo.find(st=>TEAM.filter(id=>GEAR[id]===st.id).length > st.nb);
   if(trop){ document.getElementById("setupMsg").textContent =
-    `La boîte ne contient que ${trop.nb} « ${trop.n} ».`; return; }
+    `Le deck ne contient que ${trop.nb} « ${trop.n} ».`; return; }
+  /* Une arme choisie avant un changement de deck peut avoir disparu du stock. */
+  const perdue = TEAM.find(id=>GEAR[id] && !dispo.some(st=>st.id===GEAR[id]));
+  if(perdue){ document.getElementById("setupMsg").textContent =
+    `« ${(EQ[GEAR[perdue]]||{}).n||GEAR[perdue]} » n'existe pas dans ce deck : `+
+    `revois l'arme de départ de ${(SURVIVORS.find(v=>v.id===perdue)||{}).n||perdue}.`; return; }
   // on garde l'ordre de la boîte plutôt que l'ordre des clics
   const ordonne = SURVIVORS.map(v=>v.id).filter(id=>TEAM.includes(id));
   clearSave(); newGame(ordonne); zoomFit();
