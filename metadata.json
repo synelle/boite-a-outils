@@ -70,5 +70,11 @@
     "description": "Crée et personnalise les decks d'équipement de Zombicide: Black Plague et génère le fichier decks.js utilisé par le jeu.",
     "icone": "🗃️",
     "categorie": "Jeux"
+  },
+  "mixeur-musique.html": {
+    "titre": "Mixeur 2 pistes",
+    "description": "Mixeur DJ deux pistes dans le navigateur : détection de tempo, calage, cue points, transposition, automation A/B et export WAV — 100% local.",
+    "icone": "🎧",
+    "categorie": "Outils"
   }
 }
