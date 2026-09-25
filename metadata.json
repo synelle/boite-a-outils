@@ -76,5 +76,11 @@
     "description": "Mixeur DJ deux pistes dans le navigateur : détection de tempo, calage, cue points, transposition, automation A/B et export WAV — 100% local.",
     "icone": "🎧",
     "categorie": "Outils"
+  },
+  "fosse-aux-des.html": {
+    "titre": "Fosse aux Dés",
+    "description": "Lanceur de dés v2, ambiance sombre et dorée : jets multiples, critiques et échecs mis en avant.",
+    "icone": "🎲",
+    "categorie": "Jeux"
   }
 }
