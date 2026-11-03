@@ -57,9 +57,13 @@ details.help p{margin:8px 0}
 .panel h2{margin:0 0 2px;font-size:17px}
 .panel .sub{margin:0 0 12px;font-size:13px;color:var(--muted)}
 .rows{display:flex;flex-direction:column;gap:8px}
-.row{display:grid;grid-template-columns:14px 1fr auto;gap:6px 10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px}
+.row{display:grid;grid-template-columns:24px 1fr auto;gap:6px 10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px}
 .row.sel{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
 .dot{width:14px;height:14px;border-radius:50%}
+input[type=color]{appearance:none;-webkit-appearance:none;width:24px;height:24px;padding:0;border:2px solid var(--line);border-radius:50%;background:none;cursor:pointer;overflow:hidden}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+input[type=color]::-webkit-color-swatch{border:0;border-radius:50%}
+input[type=color]::-moz-color-swatch{border:0;border-radius:50%}
 .row .sl{grid-column:2 / 4;display:grid;grid-template-columns:92px 1fr 34px;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
 .row .sl b{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
 .row .more{grid-column:2 / 4;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
@@ -137,10 +141,11 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
           <button id="mPoly" aria-pressed="true">Toile</button>
           <button id="mSect" aria-pressed="false">Secteurs</button>
         </div>
+        <label id="polyColorWrap" title="Couleur de remplissage de la toile"><input type="color" id="polyColor" value="#1d4f7a"> Couleur</label>
         <label><input type="checkbox" id="showIdeal"> Afficher l'idéal</label>
       </div>
       <div class="legend" id="legend"><span><i></i>Aujourd'hui</span><span><i class="dash"></i>Mon idéal</span></div>
-      <p class="hint">Cliquez ou glissez le long d'un rayon pour régler le niveau. Avec « Afficher l'idéal », maintenez Maj (⇧) pour régler l'idéal.</p>
+      <p class="hint">Cliquez sur la pastille d'un thème pour changer sa couleur. Cliquez ou glissez dans un secteur ou le long d'un rayon pour régler le niveau. Avec « Afficher l'idéal », maintenez Maj (⇧) pour régler l'idéal.</p>
     </div>
 
     <section class="card panel">
@@ -205,7 +210,12 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
   const n = () => S.themes.length;
   const ang = i => -Math.PI / 2 + i * 2 * Math.PI / n();
   const pt = (i, v) => [CX + Math.cos(ang(i)) * R * v / 10, CY + Math.sin(ang(i)) * R * v / 10];
-  const color = i => PALETTE[i % PALETTE.length];
+  const color = i => (S.themes[i] && S.themes[i].color) || PALETTE[i % PALETTE.length];
+  const polyColor = () => S.polyColor || '#1d4f7a';
+  const sect = () => S.mode === 'sect';
+  const aAng = i => sect() ? ang(i) + Math.PI / n() : ang(i);
+  const aLen = () => sect() ? R * Math.cos(Math.PI / n()) : R;
+  const hp = (i, v) => { if (!sect()) return pt(i, v); const a = pt(i, v), b = pt((i + 1) % n(), v); return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; };
   function el(tag, attrs = {}, parent) {
     const e = document.createElementNS(NS, tag);
     for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -227,29 +237,33 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
     const ring = v => S.themes.map((_, i) => pt(i, v).join(',')).join(' ');
     // anneaux
     for (let v = 10; v >= 1; v--) el('polygon', {points: ring(v), fill: v % 2 ? '#ffffff' : '#f6f7f9', stroke: v === 10 ? '#8a94a3' : '#d3d8de', 'stroke-width': v === 10 ? 1.6 : 1}, g);
-    // secteurs (mode secteurs)
-    if (S.mode === 'sect') {
+    // secteurs (mode secteurs) : chaque thème occupe l'espace entre deux rayons, rempli trapèze par trapèze
+    if (sect()) {
       S.themes.forEach((t, i) => {
-        const a0 = ang(i) - Math.PI / N, a1 = ang(i) + Math.PI / N, r = R * t.now / 10;
-        if (r <= 0) return;
-        const p0 = [CX + Math.cos(a0) * r, CY + Math.sin(a0) * r], p1 = [CX + Math.cos(a1) * r, CY + Math.sin(a1) * r];
-        el('path', {d: `M${CX},${CY} L${p0} A${r},${r} 0 0 1 ${p1} Z`, fill: color(i), 'fill-opacity': .78, stroke: '#ffffff', 'stroke-width': 1.5}, g);
+        const j = (i + 1) % N;
+        for (let k = 1; k <= t.now; k++) {
+          const pts = [pt(i, k - 1), pt(j, k - 1), pt(j, k), pt(i, k)];
+          el('polygon', {points: pts.map(q => q.join(',')).join(' '), fill: color(i), 'fill-opacity': .82, stroke: '#ffffff', 'stroke-width': 1.2, 'stroke-linejoin': 'round'}, g);
+        }
       });
     }
     // rayons + graduations
-    S.themes.forEach((_, i) => { const [x, y] = pt(i, 10); el('line', {x1: CX, y1: CY, x2: x, y2: y, stroke: '#c4cad2'}, g); });
+    S.themes.forEach((_, i) => { const [x, y] = pt(i, 10); el('line', {x1: CX, y1: CY, x2: x, y2: y, stroke: sect() ? '#8a94a3' : '#c4cad2', 'stroke-width': sect() ? 1.3 : 1}, g); });
     for (let v = 0; v <= 10; v += 2) {
-      const t = el('text', {x: CX + 4, y: CY - R * v / 10 - 3, 'font-size': 10, fill: '#8a94a3', ...font}, g); t.textContent = v;
+      const t = el('text', {x: CX + 4, y: CY - R * v / 10 - 3, 'font-size': 10, fill: '#8a94a3', 'paint-order': 'stroke', stroke: '#ffffff', 'stroke-width': 2.5, ...font}, g); t.textContent = v;
     }
     // polygone actuel (mode toile)
-    if (S.mode !== 'sect') {
-      el('polygon', {points: S.themes.map((t, i) => pt(i, t.now).join(',')).join(' '), fill: '#1d4f7a', 'fill-opacity': .22, stroke: '#1d4f7a', 'stroke-width': 2.5, 'stroke-linejoin': 'round'}, g);
+    if (!sect()) {
+      el('polygon', {points: S.themes.map((t, i) => pt(i, t.now).join(',')).join(' '), fill: polyColor(), 'fill-opacity': .25, stroke: polyColor(), 'stroke-width': 2.5, 'stroke-linejoin': 'round'}, g);
     }
     // idéal
-    if (S.showIdeal) el('polygon', {points: S.themes.map((t, i) => pt(i, t.ideal).join(',')).join(' '), fill: 'none', stroke: '#e8890c', 'stroke-width': 2.5, 'stroke-dasharray': '7 5', 'stroke-linejoin': 'round'}, g);
-    // libellés
+    if (S.showIdeal) {
+      if (sect()) S.themes.forEach((t, i) => { const a = pt(i, t.ideal), b = pt((i + 1) % N, t.ideal); el('line', {x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: '#e8890c', 'stroke-width': 3, 'stroke-dasharray': '7 5', 'stroke-linecap': 'round'}, g); });
+      else el('polygon', {points: S.themes.map((t, i) => pt(i, t.ideal).join(',')).join(' '), fill: 'none', stroke: '#e8890c', 'stroke-width': 2.5, 'stroke-dasharray': '7 5', 'stroke-linejoin': 'round'}, g);
+    }
+    // libellés : sur le rayon (toile) ou face au bord du secteur (secteurs)
     S.themes.forEach((t, i) => {
-      const a = ang(i), lx = CX + Math.cos(a) * (R + 20), ly = CY + Math.sin(a) * (R + 20);
+      const a = aAng(i), rr = aLen() + 20, lx = CX + Math.cos(a) * rr, ly = CY + Math.sin(a) * rr;
       const c = Math.cos(a), anchor = Math.abs(c) < 0.25 ? 'middle' : c > 0 ? 'start' : 'end';
       const lines = wrap(t.name || 'Thème', 16), s = Math.sin(a);
       const y0 = ly + (s < -0.5 ? -(lines.length - 1) * 15 - 2 : s > 0.5 ? 12 : -(lines.length - 1) * 7.5 + 4);
@@ -259,25 +273,26 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
     });
     // poignées
     S.themes.forEach((t, i) => {
-      if (S.showIdeal) { const [ix, iy] = pt(i, t.ideal); el('circle', {cx: ix, cy: iy, r: 5, fill: '#ffffff', stroke: '#e8890c', 'stroke-width': 2.5}, svg); }
-      const [x, y] = pt(i, t.now), sel = t.id === selected;
-      el('circle', {cx: x, cy: y, r: sel ? 8 : 6.5, fill: S.mode === 'sect' ? color(i) : '#1d4f7a', stroke: '#ffffff', 'stroke-width': 2.5}, svg);
-      const lbl = el('text', {x: x + (Math.cos(ang(i)) >= 0 ? 10 : -10), y: y - 8, 'text-anchor': Math.cos(ang(i)) >= 0 ? 'start' : 'end', 'font-size': 11, 'font-weight': 700, fill: '#1c2430', 'paint-order': 'stroke', stroke: '#ffffff', 'stroke-width': 3, ...font}, svg);
+      if (S.showIdeal) { const [ix, iy] = hp(i, t.ideal); el('circle', {cx: ix, cy: iy, r: 5, fill: '#ffffff', stroke: '#e8890c', 'stroke-width': 2.5}, svg); }
+      const [x, y] = hp(i, t.now), sel = t.id === selected, right = Math.cos(aAng(i)) >= 0;
+      el('circle', {cx: x, cy: y, r: sel ? 8 : 6.5, fill: sect() ? color(i) : polyColor(), stroke: '#ffffff', 'stroke-width': 2.5}, svg);
+      const lbl = el('text', {x: x + (right ? 10 : -10), y: y - 8, 'text-anchor': right ? 'start' : 'end', 'font-size': 11, 'font-weight': 700, fill: '#1c2430', 'paint-order': 'stroke', stroke: '#ffffff', 'stroke-width': 3, ...font}, svg);
       lbl.textContent = t.now;
     });
     el('circle', {cx: CX, cy: CY, r: R + 14, fill: 'transparent', 'data-hit': '1', style: 'cursor:pointer'}, svg);
   }
 
-  // interactions : le rayon le plus proche de l'angle du pointeur
+  // interactions : l'axe (rayon ou milieu de secteur) le plus proche de l'angle du pointeur
   let drag = null;
   const toSvg = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
   function applyPointer(p, idx, field) {
-    const t = S.themes[idx], u = [Math.cos(ang(idx)), Math.sin(ang(idx))];
-    const proj = ((p.x - CX) * u[0] + (p.y - CY) * u[1]) / R * 10;
-    t[field] = clamp(Math.round(proj), 0, 10);
+    const t = S.themes[idx], u = [Math.cos(aAng(idx)), Math.sin(aAng(idx))];
+    const proj = ((p.x - CX) * u[0] + (p.y - CY) * u[1]) / aLen() * 10;
+    t[field] = clamp(sect() ? Math.ceil(proj - 0.15) : Math.round(proj), 0, 10);
   }
   function nearestAxis(p) {
-    let a = Math.atan2(p.y - CY, p.x - CX) + Math.PI / 2; if (a < 0) a += 2 * Math.PI;
+    let a = Math.atan2(p.y - CY, p.x - CX) + Math.PI / 2 - (sect() ? Math.PI / n() : 0);
+    a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     return Math.round(a / (2 * Math.PI / n())) % n();
   }
   svg.addEventListener('pointerdown', e => {
@@ -303,7 +318,8 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
     const L = $('themes'); L.innerHTML = '';
     S.themes.forEach((t, i) => {
       const r = document.createElement('div'); r.className = 'row' + (t.id === selected ? ' sel' : ''); r.dataset.id = t.id;
-      const d = document.createElement('span'); d.className = 'dot'; d.style.background = color(i);
+      const d = document.createElement('input'); d.type = 'color'; d.value = color(i); d.title = 'Couleur de remplissage'; d.setAttribute('aria-label', 'Couleur du thème');
+      d.addEventListener('input', () => { t.color = d.value; save(); renderWheel(); renderGaps(); });
       const name = document.createElement('input'); name.type = 'text'; name.value = t.name; name.setAttribute('list', 'suggest'); name.setAttribute('aria-label', 'Thème'); name.placeholder = 'Nom du thème';
       name.addEventListener('input', () => { t.name = name.value; save(); renderWheel(); renderGaps(); });
       const del = document.createElement('button'); del.className = 'icon'; del.textContent = '✕'; del.title = 'Supprimer le thème'; del.setAttribute('aria-label', 'Supprimer le thème');
@@ -340,6 +356,9 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
     $('title').value = S.title || ''; document.title = S.title || 'Votre monde idéal';
     $('mPoly').setAttribute('aria-pressed', S.mode !== 'sect'); $('mSect').setAttribute('aria-pressed', S.mode === 'sect');
     $('showIdeal').checked = !!S.showIdeal;
+    $('polyColor').value = polyColor(); $('polyColorWrap').style.display = S.mode === 'sect' ? 'none' : '';
+    $('legend').firstElementChild.style.display = S.mode === 'sect' ? 'none' : '';
+    $('legend').querySelector('i').style.borderTopColor = polyColor();
     $('legend').style.display = S.showIdeal ? '' : 'none';
     $('r1').value = S.r1 || ''; $('r2').value = S.r2 || '';
   }
@@ -349,6 +368,7 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
   $('title').addEventListener('input', e => { S.title = e.target.value; document.title = S.title || 'Votre monde idéal'; save(); });
   $('mPoly').addEventListener('click', () => { S.mode = 'poly'; syncControls(); commit(); });
   $('mSect').addEventListener('click', () => { S.mode = 'sect'; syncControls(); commit(); });
+  $('polyColor').addEventListener('input', e => { S.polyColor = e.target.value; syncControls(); save(); renderWheel(); });
   $('showIdeal').addEventListener('change', e => { S.showIdeal = e.target.checked; syncControls(); commit(); });
   $('r1').addEventListener('input', e => { S.r1 = e.target.value; save(); });
   $('r2').addEventListener('input', e => { S.r2 = e.target.value; save(); });
@@ -372,7 +392,7 @@ footer{margin-top:20px;font-size:13px;color:var(--muted)}
     f.text().then(t => {
       const x = JSON.parse(t);
       if (!x || !Array.isArray(x.themes) || x.themes.length < 3) throw new Error();
-      x.themes = x.themes.slice(0, 12).map(t => ({id: t.id || uid(), name: t.name || '', now: clamp(+t.now || 0, 0, 10), ideal: clamp(+t.ideal || 0, 0, 10), time: t.time || '', action: t.action || ''}));
+      x.themes = x.themes.slice(0, 12).map(t => ({id: t.id || uid(), name: t.name || '', now: clamp(+t.now || 0, 0, 10), ideal: clamp(+t.ideal || 0, 0, 10), time: t.time || '', action: t.action || '', ...(t.color ? {color: t.color} : {})}));
       loadState(x);
     }).catch(() => alert('Fichier non reconnu.')).finally(() => { e.target.value = ''; });
   });
