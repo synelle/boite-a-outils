@@ -4,18 +4,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Boîte à outils</title>
+<script>try { const t = localStorage.getItem('toolbox_theme_v1'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1216; --ink: #e6e8eb; --ink-2: #c7cbd1; --muted: #8b9099; --faint: #5c626b;
+    --card: #171b21; --line: #262b33; --line-hover: #37414f; --input-line: #2c313a;
+    --btn: #1f2733; --btn-hover: #2a3444;
+    --accent: #6fe3ab; --accent-bg: #16412f; --accent-line: #1f6b4c;
+    --pos: #3ecf8e; --neg: #ef5a6f; --warn: #ffb454;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f4f5f7; --ink: #1c2430; --ink-2: #2b3440; --muted: #5d6878; --faint: #8a919b;
+      --card: #ffffff; --line: #dde1e7; --line-hover: #b9c0ca; --input-line: #cfd5dc;
+      --btn: #eef0f3; --btn-hover: #e2e6eb;
+      --accent: #127a4b; --accent-bg: #dcf5e8; --accent-line: #8fd3b0;
+      --pos: #16834f; --neg: #c0293f; --warn: #a85f00;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f4f5f7; --ink: #1c2430; --ink-2: #2b3440; --muted: #5d6878; --faint: #8a919b;
+    --card: #ffffff; --line: #dde1e7; --line-hover: #b9c0ca; --input-line: #cfd5dc;
+    --btn: #eef0f3; --btn-hover: #e2e6eb;
+    --accent: #127a4b; --accent-bg: #dcf5e8; --accent-line: #8fd3b0;
+    --pos: #16834f; --neg: #c0293f; --warn: #a85f00;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #0f1216;
-    color: #e6e8eb;
+    background: var(--bg);
+    color: var(--ink);
     font-family: 'Segoe UI', system-ui, sans-serif;
     padding: 24px;
     max-width: 980px;
     margin: 0 auto;
   }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-  .sub { color: #8b9099; font-size: 13px; margin-bottom: 20px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
   .filters {
     display: flex;
     gap: 8px;
@@ -24,9 +52,9 @@
   }
   .filter-btn {
     cursor: pointer;
-    background: #171b21;
-    border: 1px solid #262b33;
-    color: #8b9099;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--muted);
     border-radius: 999px;
     padding: 6px 14px;
     font-size: 12px;
@@ -34,8 +62,8 @@
     font-weight: 500;
     transition: background .15s, color .15s, border-color .15s;
   }
-  .filter-btn:hover { border-color: #37414f; color: #c7cbd1; }
-  .filter-btn.active { background: #16412f; border-color: #1f6b4c; color: #6fe3ab; }
+  .filter-btn:hover { border-color: var(--line-hover); color: var(--ink-2); }
+  .filter-btn.active { background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent); }
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -43,8 +71,8 @@
     margin-bottom: 24px;
   }
   .card {
-    background: #171b21;
-    border: 1px solid #262b33;
+    background: var(--card);
+    border: 1px solid var(--line);
     border-radius: 10px;
     padding: 16px;
     text-decoration: none;
@@ -52,26 +80,26 @@
     display: block;
     transition: border-color .15s, transform .1s;
   }
-  .card:hover { border-color: #37414f; transform: translateY(-1px); }
+  .card:hover { border-color: var(--line-hover); transform: translateY(-1px); }
   .card .icon { font-size: 24px; margin-bottom: 8px; }
   .card .titre { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-  .card .desc { font-size: 12px; color: #8b9099; line-height: 1.4; }
-  .card .cat { display: inline-block; margin-top: 8px; font-size: 11px; color: #6fe3ab; background: #16412f; border-radius: 4px; padding: 2px 6px; }
-  .empty { color: #5c626b; font-style: italic; padding: 20px 0; }
+  .card .desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .card .cat { display: inline-block; margin-top: 8px; font-size: 11px; color: var(--accent); background: var(--accent-bg); border-radius: 4px; padding: 2px 6px; }
+  .empty { color: var(--faint); font-style: italic; padding: 20px 0; }
 
   .panel {
-    background: #171b21;
-    border: 1px solid #262b33;
+    background: var(--card);
+    border: 1px solid var(--line);
     border-radius: 10px;
     padding: 16px;
   }
-  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #c7cbd1; }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--ink-2); }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   button {
     cursor: pointer;
-    background: #1f2733;
-    border: 1px solid #37414f;
-    color: #e6e8eb;
+    background: var(--btn);
+    border: 1px solid var(--line-hover);
+    color: var(--ink);
     border-radius: 6px;
     padding: 8px 12px;
     font-size: 13px;
@@ -79,18 +107,25 @@
     font-weight: 500;
     transition: background .15s;
   }
-  button:hover { background: #2a3444; }
-  .status { font-size: 12px; color: #8b9099; margin-top: 10px; }
-  .status.pos { color: #3ecf8e; }
-  .status.neg { color: #ef5a6f; }
+  button:hover { background: var(--btn-hover); }
+  #themeBtn { white-space: nowrap; }
+  #ownerRepo { background: var(--bg); border: 1px solid var(--input-line); color: var(--ink); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; width: 200px; }
+  .status { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .status.pos { color: var(--pos); }
+  .status.neg { color: var(--neg); }
   ul.unref { margin-top: 8px; padding-left: 18px; font-size: 13px; }
-  ul.unref li { color: #ffb454; margin-bottom: 4px; font-family: monospace; }
+  ul.unref li { color: var(--warn); margin-bottom: 4px; font-family: monospace; }
 </style>
 </head>
 <body>
 
-<h1>Boîte à outils</h1>
-<div class="sub">Simulateurs, jeux et mini-outils — vanilla JS, hébergés via GitHub Pages</div>
+<header>
+  <div>
+    <h1>Boîte à outils</h1>
+    <div class="sub">Simulateurs, jeux et mini-outils — vanilla JS, hébergés via GitHub Pages</div>
+  </div>
+  <button id="themeBtn"></button>
+</header>
 
 <div class="filters" id="filtersContainer"></div>
 <div class="cards" id="cardsContainer"></div>
@@ -99,7 +134,7 @@
 <div class="panel">
   <h2>Configuration</h2>
   <div class="row">
-    <input type="text" id="ownerRepo" placeholder="owner/repo" style="background:#0f1216;border:1px solid #2c313a;color:#e6e8eb;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;width:200px">
+    <input type="text" id="ownerRepo" placeholder="owner/repo">
     <button id="detectBtn">Détecter</button>
     <button id="clearCacheBtn">Vider le cache</button>
   </div>
@@ -111,9 +146,28 @@ const METADATA_URL = 'metadata.json';
 const OUTILS_DIR = 'outils';
 const CACHE_KEY = 'toolbox_detect_cache_v1';
 const REPO_KEY = 'toolbox_owner_repo_v1';
+const THEME_KEY = 'toolbox_theme_v1';
 
 let metadata = {};
 let activeCategory = 'Toutes';
+
+function currentTheme() {
+  return document.documentElement.dataset.theme
+    || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+}
+
+function renderThemeBtn() {
+  document.getElementById('themeBtn').textContent = currentTheme() === 'light' ? '🌙 Mode sombre' : '☀️ Mode clair';
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const next = currentTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* stockage indisponible */ }
+  renderThemeBtn();
+});
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', renderThemeBtn);
+renderThemeBtn();
 
 async function loadMetadata() {
   try {
@@ -183,13 +237,14 @@ async function detectFiles() {
     return;
   }
   localStorage.setItem(REPO_KEY, ownerRepoInput);
+  const subRefs = await loadSubPageRefs();
 
   const cacheRaw = localStorage.getItem(CACHE_KEY);
   if (cacheRaw) {
     try {
       const cache = JSON.parse(cacheRaw);
       if (cache.ownerRepo === ownerRepoInput && Date.now() - cache.timestamp < 1000 * 60 * 60) {
-        showDetectionResult(cache.files, true);
+        showDetectionResult(cache.files, true, subRefs);
         return;
       }
     } catch (e) { /* ignore corrupt cache */ }
@@ -205,14 +260,32 @@ async function detectFiles() {
       .map(item => item.name);
 
     localStorage.setItem(CACHE_KEY, JSON.stringify({ ownerRepo: ownerRepoInput, files, timestamp: Date.now() }));
-    showDetectionResult(files, false);
+    showDetectionResult(files, false, subRefs);
   } catch (e) {
     setDetectStatus(`Erreur lors de la détection : ${e.message}`, 'neg');
   }
 }
 
-function showDetectionResult(files, fromCache) {
-  const known = new Set(Object.keys(metadata));
+// Fichiers de outils/ référencés par le metadata.json d'une sous-page (clés "Dossier/index.html")
+async function loadSubPageRefs() {
+  const refs = new Set();
+  const dirs = Object.keys(metadata).filter(f => f.endsWith('/index.html')).map(f => f.slice(0, -'/index.html'.length));
+  await Promise.all(dirs.map(async dir => {
+    try {
+      const res = await fetch(`${OUTILS_DIR}/${dir}/metadata.json`, { cache: 'no-cache' });
+      const sub = await res.json();
+      Object.keys(sub).forEach(file => {
+        const parts = dir.split('/');
+        file.split('/').forEach(p => { if (p === '..') parts.pop(); else if (p && p !== '.') parts.push(p); });
+        refs.add(parts.join('/'));
+      });
+    } catch (e) { /* sous-page sans metadata.json */ }
+  }));
+  return refs;
+}
+
+function showDetectionResult(files, fromCache, subRefs) {
+  const known = new Set([...Object.keys(metadata), ...subRefs]);
   const unref = files.filter(f => !known.has(f));
   const el = document.getElementById('detectStatus');
   const prefix = fromCache ? '(depuis le cache) ' : '';

@@ -1,0 +1,27 @@
+{
+  "../zombicide.html": {
+    "titre": "Zombicide: Black Plague (BÊTA)",
+    "description": "Version jouable de Zombicide: Black Plague — survivants, zombies, équipement, compétences et campagne de quêtes. En cours de développement.",
+    "icone": "🧟"
+  },
+  "../zombicide-editor.html": {
+    "titre": "Éditeur de carte (BÊTA)",
+    "description": "Éditeur de plans de quêtes pour Zombicide: Black Plague — zones, murs, portes, apparitions et objectifs.",
+    "icone": "🗺️"
+  },
+  "../zombicide-personnages.html": {
+    "titre": "Éditeur de personnages (BÊTA)",
+    "description": "Crée des survivants supplémentaires pour Zombicide: Black Plague et génère le fichier survivants.js utilisé par le jeu.",
+    "icone": "🧑‍🤝‍🧑"
+  },
+  "../zombicide-decks.html": {
+    "titre": "Éditeur de decks (BÊTA)",
+    "description": "Crée et personnalise les decks d'équipement de Zombicide: Black Plague et génère le fichier decks.js utilisé par le jeu.",
+    "icone": "🗃️"
+  },
+  "../zombicide-regles.pdf": {
+    "titre": "Règles (PDF)",
+    "description": "Livret de règles de Zombicide: Black Plague.",
+    "icone": "📖"
+  }
+}

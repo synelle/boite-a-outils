@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zombicide — Boîte à outils</title>
+<script>try { const t = localStorage.getItem('toolbox_theme_v1'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f1216; --ink: #e6e8eb; --muted: #8b9099; --faint: #5c626b;
+    --card: #171b21; --line: #262b33; --line-hover: #37414f;
+    --btn: #1f2733; --btn-hover: #2a3444; --accent: #6fe3ab;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f4f5f7; --ink: #1c2430; --muted: #5d6878; --faint: #8a919b;
+      --card: #ffffff; --line: #dde1e7; --line-hover: #b9c0ca;
+      --btn: #eef0f3; --btn-hover: #e2e6eb; --accent: #127a4b;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f4f5f7; --ink: #1c2430; --muted: #5d6878; --faint: #8a919b;
+    --card: #ffffff; --line: #dde1e7; --line-hover: #b9c0ca;
+    --btn: #eef0f3; --btn-hover: #e2e6eb; --accent: #127a4b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 24px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .back {
+    display: inline-block;
+    color: var(--muted);
+    font-size: 13px;
+    text-decoration: none;
+    margin-bottom: 12px;
+  }
+  .back:hover { color: var(--accent); }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  button {
+    cursor: pointer;
+    background: var(--btn);
+    border: 1px solid var(--line-hover);
+    color: var(--ink);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background .15s;
+  }
+  button:hover { background: var(--btn-hover); }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: border-color .15s, transform .1s;
+  }
+  .card:hover { border-color: var(--line-hover); transform: translateY(-1px); }
+  .card .icon { font-size: 24px; margin-bottom: 8px; }
+  .card .titre { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .card .desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .empty { color: var(--faint); font-style: italic; padding: 20px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <a class="back" href="../../index.html">← Boîte à outils</a>
+    <h1>Zombicide: Black Plague</h1>
+    <div class="sub">Jeu, éditeurs et règles — en cours de développement (BÊTA)</div>
+  </div>
+  <button id="themeBtn"></button>
+</header>
+
+<div class="cards" id="cardsContainer"></div>
+<div class="empty" id="cardsEmpty" style="display:none">Aucun outil référencé pour l'instant.</div>
+
+<script>
+const METADATA_URL = 'metadata.json';
+const THEME_KEY = 'toolbox_theme_v1';
+
+function currentTheme() {
+  return document.documentElement.dataset.theme
+    || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+}
+
+function renderThemeBtn() {
+  document.getElementById('themeBtn').textContent = currentTheme() === 'light' ? '🌙 Mode sombre' : '☀️ Mode clair';
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const next = currentTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* stockage indisponible */ }
+  renderThemeBtn();
+});
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', renderThemeBtn);
+renderThemeBtn();
+
+async function loadMetadata() {
+  let metadata = {};
+  try {
+    const res = await fetch(METADATA_URL, { cache: 'no-cache' });
+    metadata = await res.json();
+  } catch (e) {
+    metadata = {};
+  }
+  const entries = Object.entries(metadata);
+  document.getElementById('cardsEmpty').style.display = entries.length ? 'none' : 'block';
+  document.getElementById('cardsContainer').innerHTML = entries.map(([file, meta]) => `
+    <a class="card" href="${file.split('/').map(encodeURIComponent).join('/')}">
+      <div class="icon">${meta.icone || '🔧'}</div>
+      <div class="titre">${meta.titre || file}</div>
+      <div class="desc">${meta.description || ''}</div>
+    </a>
+  `).join('');
+}
+
+loadMetadata();
+</script>
+</body>
+</html>

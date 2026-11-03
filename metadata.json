@@ -47,28 +47,10 @@
     "icone": "🐛",
     "categorie": "Jeux"
   },
-  "zombicide.html": {
+  "Zombicide/index.html": {
     "titre": "Zombicide: Black Plague (BÊTA)",
-    "description": "Version jouable de Zombicide: Black Plague — survivants, zombies, équipement, compétences et campagne de quêtes. En cours de développement.",
+    "description": "Sous-page regroupant le jeu, les éditeurs de carte, de personnages et de decks, et les règles.",
     "icone": "🧟",
-    "categorie": "Jeux"
-  },
-  "zombicide-editor.html": {
-    "titre": "Zombicide — Éditeur de carte (BÊTA)",
-    "description": "Éditeur de plans de quêtes pour Zombicide: Black Plague — zones, murs, portes, apparitions et objectifs.",
-    "icone": "🗺️",
-    "categorie": "Jeux"
-  },
-  "zombicide-personnages.html": {
-    "titre": "Zombicide — Éditeur de personnages (BÊTA)",
-    "description": "Crée des survivants supplémentaires pour Zombicide: Black Plague et génère le fichier survivants.js utilisé par le jeu.",
-    "icone": "🧑‍🤝‍🧑",
-    "categorie": "Jeux"
-  },
-  "zombicide-decks.html": {
-    "titre": "Zombicide — Éditeur de decks (BÊTA)",
-    "description": "Crée et personnalise les decks d'équipement de Zombicide: Black Plague et génère le fichier decks.js utilisé par le jeu.",
-    "icone": "🗃️",
     "categorie": "Jeux"
   },
   "mixeur-musique.html": {
