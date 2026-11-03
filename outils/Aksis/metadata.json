@@ -1,0 +1,12 @@
+{
+  "ligne-de-vie.html": {
+    "titre": "Ma ligne de vie",
+    "description": "Trace la courbe de ta vie : étapes du parcours, événements marquants et niveau de satisfaction. Export JSON, PNG et impression.",
+    "icone": "📉"
+  },
+  "monde-ideal.html": {
+    "titre": "Votre monde idéal",
+    "description": "Roue de satisfaction sur 8 sphères de vie, comparaison avec l'idéal, plus grands écarts et pistes d'action. Export JSON, PNG et impression.",
+    "icone": "🎯"
+  }
+}

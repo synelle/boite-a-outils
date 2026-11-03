@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aksis — Boîte à outils</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f1216;
+    color: #e6e8eb;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 24px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .back {
+    display: inline-block;
+    color: #8b9099;
+    font-size: 13px;
+    text-decoration: none;
+    margin-bottom: 12px;
+  }
+  .back:hover { color: #6fe3ab; }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .sub { color: #8b9099; font-size: 13px; margin-bottom: 20px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #171b21;
+    border: 1px solid #262b33;
+    border-radius: 10px;
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: border-color .15s, transform .1s;
+  }
+  .card:hover { border-color: #37414f; transform: translateY(-1px); }
+  .card .icon { font-size: 24px; margin-bottom: 8px; }
+  .card .titre { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .card .desc { font-size: 12px; color: #8b9099; line-height: 1.4; }
+  .empty { color: #5c626b; font-style: italic; padding: 20px 0; }
+</style>
+</head>
+<body>
+
+<a class="back" href="../../index.html">← Boîte à outils</a>
+<h1>Aksis</h1>
+<div class="sub">Fiches outil interactives — les données restent dans le navigateur</div>
+
+<div class="cards" id="cardsContainer"></div>
+<div class="empty" id="cardsEmpty" style="display:none">Aucun outil référencé pour l'instant.</div>
+
+<script>
+const METADATA_URL = 'metadata.json';
+
+async function loadMetadata() {
+  let metadata = {};
+  try {
+    const res = await fetch(METADATA_URL, { cache: 'no-cache' });
+    metadata = await res.json();
+  } catch (e) {
+    metadata = {};
+  }
+  const entries = Object.entries(metadata);
+  document.getElementById('cardsEmpty').style.display = entries.length ? 'none' : 'block';
+  document.getElementById('cardsContainer').innerHTML = entries.map(([file, meta]) => `
+    <a class="card" href="${encodeURIComponent(file)}">
+      <div class="icon">${meta.icone || '🔧'}</div>
+      <div class="titre">${meta.titre || file}</div>
+      <div class="desc">${meta.description || ''}</div>
+    </a>
+  `).join('');
+}
+
+loadMetadata();
+</script>
+</body>
+</html>

@@ -148,7 +148,7 @@ function renderCards() {
   );
   document.getElementById('cardsEmpty').style.display = entries.length ? 'none' : 'block';
   container.innerHTML = entries.map(([file, meta]) => `
-    <a class="card" href="${OUTILS_DIR}/${encodeURIComponent(file)}">
+    <a class="card" href="${OUTILS_DIR}/${file.split('/').map(encodeURIComponent).join('/')}">
       <div class="icon">${meta.icone || '🔧'}</div>
       <div class="titre">${meta.titre || file}</div>
       <div class="desc">${meta.description || ''}</div>

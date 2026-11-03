@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ma ligne de vie</title>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#ffffff; --ink:#1c2430; --muted:#5d6878; --line:#dde1e7;
+  --accent:#e8890c; --accent-ink:#ffffff; --blue:#1d4f7a; --danger:#b42318;
+  --input:#ffffff; --shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181e; --card:#1d232b; --ink:#e7ebf0; --muted:#9aa5b4; --line:#2e3742;
+    --accent:#f29d2e; --accent-ink:#1a1206; --blue:#7fb3e0; --danger:#ff7b6e;
+    --input:#161b22; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181e; --card:#1d232b; --ink:#e7ebf0; --muted:#9aa5b4; --line:#2e3742;
+  --accent:#f29d2e; --accent-ink:#1a1206; --blue:#7fb3e0; --danger:#ff7b6e;
+  --input:#161b22; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Calibri,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{margin:2px 0 0;font-size:28px;line-height:1.2}
+h1 input[type=text]{font:inherit;color:inherit;background:transparent;border:0;border-bottom:2px dashed transparent;border-radius:0;padding:0;width:min(560px,80vw)}
+h1 input[type=text]:hover,h1 input[type=text]:focus{border-bottom-color:var(--line);outline:none}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px}
+button,.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.icon{padding:4px 9px;color:var(--danger);border-color:transparent;background:transparent}
+button.icon:hover{border-color:var(--line)}
+details.help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+details.help summary{cursor:pointer;font-weight:600}
+details.help p{margin:8px 0;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.chart-card{padding:12px;overflow-x:auto}
+.chart-card svg{display:block;width:100%;min-width:760px;height:auto;touch-action:none;user-select:none;border-radius:8px}
+.hint{font-size:13px;color:var(--muted);margin:8px 4px 0}
+.range{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--muted);margin:12px 4px 0}
+.range input[type=number]{width:90px;margin-left:4px}
+.grid{display:grid;grid-template-columns:1fr 1.4fr;gap:16px;margin-top:16px}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{padding:16px}
+.panel h2{margin:0 0 2px;font-size:17px}
+.panel .sub{margin:0 0 12px;font-size:13px;color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px}
+.row.sel{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.row.period{grid-template-columns:1fr 76px 76px auto}
+.row.event{grid-template-columns:78px 1fr auto}
+.row.event .sat{grid-column:1 / -1;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.row.event .sat input{flex:1}
+.row.event .sat span{min-width:132px}
+input[type=text],input[type=number]{font:inherit;font-size:14px;color:var(--ink);background:var(--input);border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%;min-width:0}
+input:focus{outline:2px solid color-mix(in srgb,var(--accent) 60%,transparent);outline-offset:0}
+input[type=range]{accent-color:var(--accent)}
+.empty{color:var(--muted);font-size:14px;padding:8px 2px}
+.add{margin-top:10px}
+footer{margin-top:20px;font-size:13px;color:var(--muted)}
+@media (max-width:520px){
+  .row.period{grid-template-columns:1fr 1fr auto}
+  .row.period .lbl{grid-column:1 / -1}
+}
+@media print{
+  @page{size:A3 landscape;margin:12mm}
+  body{background:#fff;color:#000}
+  .toolbar,details.help,.grid,.hint,.range,footer{display:none!important}
+  .card{box-shadow:none;border:0}
+  .chart-card{padding:0;overflow:visible}
+  .chart-card svg{min-width:0}
+  h1 input{color:#000}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="kicker">Fiche outil</div>
+      <h1><input id="title" type="text" aria-label="Titre" value="Votre ligne de vie"></h1>
+    </div>
+    <div class="toolbar">
+      <button id="bExample">Charger l'exemple</button>
+      <button id="bNew">Nouvelle ligne</button>
+      <button id="bExport">Enregistrer (.json)</button>
+      <label class="btn" for="fImport">Ouvrir…</label>
+      <input id="fImport" type="file" accept=".json,application/json" hidden>
+      <button id="bPng">Image PNG</button>
+      <button class="primary" id="bPrint">Imprimer</button>
+    </div>
+  </header>
+
+  <details class="help">
+    <summary>Comment ça marche ?</summary>
+    <p>Si vous résumiez votre vie en une seule et même courbe, à quoi ressemblerait-elle ? En traçant une ligne temporelle, vous positionnez facilement les périodes et les événements clés. L'idéal est d'inclure à la fois votre parcours personnel et professionnel : certaines phases ou événements personnels peuvent être sources d'enseignement sur vous, sur ce qui vous apporte une satisfaction, au même titre que des éléments liés directement à votre travail.</p>
+    <p><strong>Étape 1 – L'inventaire de vos expériences marquantes :</strong> fixez votre échelle de temps, puis ajoutez vos étapes (périodes) et vos événements marquants.</p>
+    <p><strong>Étape 2 – Votre satisfaction :</strong> dessinez la courbe de motivation en plaçant chaque événement plus ou moins haut, en indiquant brièvement les variations.</p>
+    <p>Cet exercice est personnel et conçu pour vous aider à y voir plus clair. Vos données restent dans ce navigateur ; utilisez « Enregistrer » pour en garder une copie.</p>
+  </details>
+
+  <div class="card chart-card">
+    <svg id="chart" viewBox="0 0 1200 600" role="img" aria-label="Courbe de la ligne de vie"></svg>
+    <p class="hint">Cliquez dans le graphique pour ajouter un événement · glissez un point pour le déplacer · cliquez sur un point pour le modifier.</p>
+    <div class="range">
+      <span>Échelle de temps :</span>
+      <label>de <input id="yStart" type="number" step="1"></label>
+      <label>à <input id="yEnd" type="number" step="1"></label>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="card panel">
+      <h2>Vos étapes</h2>
+      <p class="sub">Les grandes périodes de votre parcours (emplois, formations, lieux de vie…).</p>
+      <div class="rows" id="periods"></div>
+      <button class="add" id="addPeriod">+ Ajouter une étape</button>
+    </section>
+    <section class="card panel">
+      <h2>Vos expériences marquantes</h2>
+      <p class="sub">Chaque événement et votre niveau de satisfaction à ce moment-là.</p>
+      <div class="rows" id="events"></div>
+      <button class="add" id="addEvent">+ Ajouter un événement</button>
+    </section>
+  </div>
+  <footer>Inspiré de la fiche outil « Votre ligne de vie ». Page autonome, fonctionne hors ligne.</footer>
+</div>
+
+<script>
+(() => {
+  const KEY = 'ligneDeVie.v1';
+  const NS = 'http://www.w3.org/2000/svg';
+  const W = 1200, H = 600, X0 = 168, X1 = 1176, TOP = 14, BOT = 586;
+  const MID = (TOP + BOT) / 2, UNIT = (BOT - TOP) / 2 / 2.5; // px par niveau
+  const BAND = 0.42;                                            // demi-hauteur du bandeau (en niveaux)
+  const LEVELS = [
+    {v: 2, txt: 'Très satisfaisant'}, {v: 1, txt: 'Satisfaisant'},
+    {v: -1, txt: 'Insatisfaisant'}, {v: -2, txt: 'Très insatisfaisant'}
+  ];
+  const C = {zoneUp:'#eef5e8', zoneDown:'#f7dede', band:'#dcdfe3', bandInk:'#2b3440',
+    grid:'#9bbf7a', gridDown:'#d9817c', ink:'#1c2430', muted:'#5d6878',
+    curve:'#1d4f7a', point:'#e8890c', sel:'#b85f00', period:['#ffffff','#f1f3f5']};
+
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const blank = () => ({title:'Votre ligne de vie', start:1990, end:new Date().getFullYear(), periods:[], events:[]});
+  const example = () => ({
+    title:'Ligne de vie – exemple', start:1980, end:2008,
+    periods:[
+      {id:uid(), label:'Études', start:1980, end:1984},
+      {id:uid(), label:'Aide-comptable, SM 22', start:1984, end:1990},
+      {id:uid(), label:'Comptable, société Uniel', start:1990, end:1999},
+      {id:uid(), label:'Comptable senior', start:1999, end:2008}
+    ],
+    events:[
+      {id:uid(), year:1981, label:'Obtention de ma maîtrise', v:1.4},
+      {id:uid(), year:1983.5, label:'Stage décevant', v:-0.6},
+      {id:uid(), year:1985, label:'Premier emploi : je me sens utile', v:1.7},
+      {id:uid(), year:1988, label:'Une spécialisation évolutive, je m\'ennuie', v:0.5},
+      {id:uid(), year:1991, label:'Changement d\'organisation et de responsable', v:1.2},
+      {id:uid(), year:1993, label:'Manque d\'évolution, difficultés sur la mission ABC', v:-1.6},
+      {id:uid(), year:1997, label:'Licenciement', v:-2},
+      {id:uid(), year:2002, label:'Nouveau poste, équipe soudée', v:1},
+      {id:uid(), year:2006, label:'Mission de 6 mois en Angleterre', v:2}
+    ]
+  });
+
+  let S;
+  try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
+  if (!S || !Array.isArray(S.events)) S = example();
+  let selected = null;
+
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const span = () => Math.max(1, S.end - S.start);
+  const xOf = y => X0 + (y - S.start) / span() * (X1 - X0);
+  const yOf = v => MID - v * UNIT;
+  const yearOf = x => S.start + (x - X0) / (X1 - X0) * span();
+  const vOf = y => (MID - y) / UNIT;
+  const fmtYear = y => Number.isInteger(y) ? String(y) : (Math.abs(y % 1 - 0.5) < 1e-6 ? 'mi-' + Math.floor(y) : y.toFixed(1));
+  const satLabel = v => v >= 1.5 ? 'Très satisfaisant' : v >= 0.5 ? 'Satisfaisant' : v > -0.5 ? 'Neutre' : v > -1.5 ? 'Insatisfaisant' : 'Très insatisfaisant';
+  const sortedEvents = () => [...S.events].sort((a, b) => a.year - b.year);
+
+  function el(tag, attrs = {}, parent) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function wrapText(s, max) {
+    const words = String(s || '').split(/\s+/).filter(Boolean), lines = [];
+    let cur = '';
+    for (const w of words) {
+      if ((cur + ' ' + w).trim().length > max && cur) { lines.push(cur); cur = w; }
+      else cur = (cur + ' ' + w).trim();
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > 3) { lines.length = 3; lines[2] = lines[2].replace(/.{0,2}$/, '…'); }
+    return lines;
+  }
+  function smiley(g, cx, cy, mood) {
+    el('circle', {cx, cy, r: 11, fill: '#f6c443', stroke: '#b98a12', 'stroke-width': 1.2}, g);
+    el('circle', {cx: cx - 3.8, cy: cy - 3, r: 1.4, fill: '#3b2a05'}, g);
+    el('circle', {cx: cx + 3.8, cy: cy - 3, r: 1.4, fill: '#3b2a05'}, g);
+    const d = mood > 0 ? `M${cx-5} ${cy+2.5} Q${cx} ${cy+7.5} ${cx+5} ${cy+2.5}` : `M${cx-5} ${cy+6} Q${cx} ${cy+1.5} ${cx+5} ${cy+6}`;
+    el('path', {d, fill: 'none', stroke: '#3b2a05', 'stroke-width': 1.5, 'stroke-linecap': 'round'}, g);
+  }
+  function curvePath(pts) {
+    if (pts.length < 2) return '';
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      const t = 0.18;
+      const c1x = p1.x + (p2.x - p0.x) * t, c1y = clamp(p1.y + (p2.y - p0.y) * t, TOP, BOT);
+      const c2x = p2.x - (p3.x - p1.x) * t, c2y = clamp(p2.y - (p3.y - p1.y) * t, TOP, BOT);
+      d += ` C${Math.min(c1x, p2.x)},${c1y} ${Math.max(c2x, p1.x)},${c2y} ${p2.x},${p2.y}`;
+    }
+    return d;
+  }
+
+  const svg = document.getElementById('chart');
+  function renderChart() {
+    svg.innerHTML = '';
+    el('rect', {x: 0, y: 0, width: W, height: H, fill: '#ffffff'}, svg);
+    const font = {'font-family': 'system-ui,-apple-system,Segoe UI,Roboto,Calibri,sans-serif'};
+    const bg = el('g', {}, svg);
+    // zones
+    el('rect', {x: X0, y: TOP, width: X1 - X0, height: yOf(BAND) - TOP, fill: C.zoneUp}, bg);
+    el('rect', {x: X0, y: yOf(-BAND), width: X1 - X0, height: BOT - yOf(-BAND), fill: C.zoneDown}, bg);
+    el('line', {x1: X0, x2: X1, y1: yOf(1.5), y2: yOf(1.5), stroke: C.grid, 'stroke-dasharray': '5 5'}, bg);
+    el('line', {x1: X0, x2: X1, y1: yOf(-1.5), y2: yOf(-1.5), stroke: C.gridDown, 'stroke-dasharray': '5 5'}, bg);
+    el('rect', {x: 0, y: TOP, width: X0 - 8, height: BOT - TOP, fill: '#ffffff'}, bg);
+    // bandeau des étapes
+    el('rect', {x: 0, y: yOf(BAND), width: W, height: 2 * BAND * UNIT, fill: C.band}, bg);
+    const bTop = yOf(BAND), bBot = yOf(-BAND), bMid = MID;
+    const pg = el('g', {}, bg);
+    [...S.periods].sort((a, b) => a.start - b.start).forEach((p, i) => {
+      const a = clamp(xOf(Math.min(p.start, p.end)), X0, X1), b = clamp(xOf(Math.max(p.start, p.end)), X0, X1);
+      if (b - a < 2) return;
+      el('rect', {x: a + 1, y: bTop + 5, width: b - a - 2, height: bMid - bTop - 6, rx: 3, fill: C.period[i % 2], stroke: '#b9bec5'}, pg);
+      const max = Math.floor((b - a - 10) / 6.6);
+      let s = p.label || ''; if (s.length > max) s = s.slice(0, Math.max(0, max - 1)) + '…';
+      const t = el('text', {x: (a + b) / 2, y: bTop + (bMid - bTop) / 2 + 4, 'text-anchor': 'middle', 'font-size': 12, fill: C.bandInk, ...font}, pg);
+      t.textContent = s;
+    });
+    // axe + graduations
+    el('line', {x1: X0, x2: X1 + 10, y1: bMid + 8, y2: bMid + 8, stroke: '#555c66', 'stroke-width': 2}, bg);
+    el('path', {d: `M${X1 + 16},${bMid + 8} l-10,-5 v10 z`, fill: '#555c66'}, bg);
+    const sp = span(), step = sp <= 12 ? 1 : sp <= 30 ? 2 : sp <= 60 ? 5 : 10;
+    for (let y = Math.ceil(S.start / step) * step; y <= S.end; y += step) {
+      const x = xOf(y);
+      el('line', {x1: x, x2: x, y1: bMid + 4, y2: bMid + 12, stroke: '#555c66'}, bg);
+      const t = el('text', {x, y: bBot - 6, 'text-anchor': 'middle', 'font-size': 11, fill: C.bandInk, ...font}, bg);
+      t.textContent = y;
+    }
+    // colonne de libellés
+    LEVELS.forEach(L => {
+      const cy = yOf(L.v * 0.9 + (L.v > 0 ? 0.1 : -0.1));
+      const n = Math.abs(L.v), cx = (X0 - 8) / 2;
+      for (let k = 0; k < n; k++) smiley(bg, cx + (k - (n - 1) / 2) * 26, cy - 10, L.v);
+      const t = el('text', {x: cx, y: cy + 17, 'text-anchor': 'middle', 'font-size': 11.5, 'font-weight': 600, fill: C.ink, ...font}, bg);
+      t.textContent = L.txt;
+    });
+    const tv = el('text', {x: (X0 - 8) / 2, y: bMid + 5, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 700, fill: C.ink, ...font}, bg);
+    tv.textContent = 'Vos étapes';
+    // zone cliquable
+    el('rect', {x: X0, y: TOP, width: X1 - X0, height: BOT - TOP, fill: 'transparent', 'data-hit': 'bg', style: 'cursor:crosshair'}, svg);
+
+    // courbe
+    const evs = sortedEvents();
+    const pts = evs.map(e => ({x: xOf(e.year), y: yOf(e.v), e}));
+    if (pts.length > 1) el('path', {d: curvePath(pts), fill: 'none', stroke: C.curve, 'stroke-width': 3, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'pointer-events': 'none'}, svg);
+
+    // libellés (anti-chevauchement simple)
+    const placed = [];
+    const lg = el('g', {'pointer-events': 'none'}, svg);
+    pts.forEach(p => {
+      const lines = wrapText(p.e.label || '(sans titre)', 22), lh = 14;
+      const up = p.e.v >= 0, w = Math.max(...lines.map(l => l.length)) * 6.4 + 8, h = lines.length * lh + 4;
+      let anchorX = clamp(p.x, X0 + w / 2 + 2, X1 - w / 2 - 2);
+      const tryPlace = side => {
+        let y = side ? p.y - 14 - h : p.y + 14;
+        for (let guard = 0; guard < 14; guard++) {
+          const hit = placed.find(r => Math.abs(r.x - anchorX) < (r.w + w) / 2 + 2 && !(y + h < r.y || y > r.y + r.h));
+          if (!hit) break;
+          y = side ? hit.y - h - 3 : hit.y + hit.h + 3;
+        }
+        return (y >= TOP + 2 && y + h <= BOT - 2) ? y : null;
+      };
+      let y0 = tryPlace(up), sideUp = up;
+      if (y0 === null) { y0 = tryPlace(!up); sideUp = !up; }
+      if (y0 === null) { sideUp = up; y0 = clamp(up ? p.y - 14 - h : p.y + 14, TOP + 2, BOT - h - 2); }
+      placed.push({x: anchorX, y: y0, w, h});
+      el('line', {x1: p.x, y1: p.y, x2: anchorX, y2: sideUp ? y0 + h : y0, stroke: '#8a94a3', 'stroke-width': 1, 'stroke-dasharray': '2 3'}, lg);
+      el('rect', {x: anchorX - w / 2, y: y0, width: w, height: h, rx: 4, fill: 'rgba(255,255,255,.88)'}, lg);
+      const t = el('text', {x: anchorX, y: y0 + 13, 'text-anchor': 'middle', 'font-size': 12, fill: C.ink, ...font}, lg);
+      lines.forEach((l, i) => { const s = el('tspan', {x: anchorX, dy: i ? lh : 0}, t); s.textContent = l; });
+    });
+    // points
+    pts.forEach(p => {
+      const sel = p.e.id === selected;
+      el('circle', {cx: p.x, cy: p.y, r: 16, fill: 'transparent', 'data-id': p.e.id, style: 'cursor:grab'}, svg);
+      el('circle', {cx: p.x, cy: p.y, r: sel ? 8.5 : 7, fill: sel ? C.sel : C.point, stroke: '#ffffff', 'stroke-width': 2.5, 'pointer-events': 'none'}, svg);
+    });
+    if (!pts.length) {
+      const t = el('text', {x: (X0 + X1) / 2, y: yOf(1.1), 'text-anchor': 'middle', 'font-size': 16, fill: C.muted, 'pointer-events': 'none', ...font}, svg);
+      t.textContent = 'Cliquez ici pour placer votre premier événement';
+    }
+  }
+
+  // ----- interactions graphique -----
+  let drag = null;
+  const toSvg = e => { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+  const snapYear = x => clamp(Math.round(yearOf(x) * 2) / 2, S.start, S.end);
+  const snapV = y => clamp(Math.round(vOf(y) * 10) / 10, -2.4, 2.4);
+  svg.addEventListener('pointerdown', e => {
+    const p = toSvg(e), id = e.target.getAttribute('data-id');
+    if (id) { drag = {id, moved: false, sx: p.x, sy: p.y}; selected = id; }
+    else if (e.target.getAttribute('data-hit') === 'bg') drag = {bg: true, sx: p.x, sy: p.y};
+    else return;
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+    if (drag.id) renderChart();
+  });
+  svg.addEventListener('pointermove', e => {
+    if (!drag || !drag.id) return;
+    const p = toSvg(e);
+    if (!drag.moved && Math.hypot(p.x - drag.sx, p.y - drag.sy) < 3) return;
+    drag.moved = true;
+    const ev = S.events.find(x => x.id === drag.id);
+    ev.year = snapYear(p.x); ev.v = snapV(p.y);
+    renderChart();
+  });
+  svg.addEventListener('pointerup', e => {
+    if (!drag) return;
+    const p = toSvg(e);
+    if (drag.bg && Math.hypot(p.x - drag.sx, p.y - drag.sy) < 5) {
+      const ev = {id: uid(), year: snapYear(p.x), label: '', v: snapV(p.y)};
+      S.events.push(ev); selected = ev.id;
+      commit(); focusEvent(ev.id);
+    } else if (drag.id) {
+      commit(); if (!drag.moved) focusEvent(drag.id);
+    }
+    drag = null;
+  });
+
+  // ----- listes -----
+  const $ = id => document.getElementById(id);
+  function input(type, value, attrs, on) {
+    const i = document.createElement('input'); i.type = type;
+    for (const k in attrs) i.setAttribute(k, attrs[k]);
+    i.value = value;
+    i.addEventListener('input', () => on(i)); return i;
+  }
+  function delBtn(label, fn) {
+    const b = document.createElement('button'); b.className = 'icon'; b.title = label; b.setAttribute('aria-label', label); b.textContent = '✕';
+    b.addEventListener('click', fn); return b;
+  }
+  function renderLists() {
+    const P = $('periods'); P.innerHTML = '';
+    if (!S.periods.length) P.innerHTML = '<div class="empty">Aucune étape pour l\'instant.</div>';
+    S.periods.forEach(p => {
+      const r = document.createElement('div'); r.className = 'row period';
+      const lbl = input('text', p.label, {placeholder: 'Ex. : Comptable chez…', 'aria-label': 'Intitulé de l\'étape'}, i => { p.label = i.value; commit(false); });
+      lbl.classList.add('lbl');
+      r.append(lbl,
+        input('number', p.start, {step: 1, 'aria-label': 'Début', title: 'Début'}, i => { if (i.value !== '') { p.start = +i.value; commit(false); } }),
+        input('number', p.end, {step: 1, 'aria-label': 'Fin', title: 'Fin'}, i => { if (i.value !== '') { p.end = +i.value; commit(false); } }),
+        delBtn('Supprimer l\'étape', () => { S.periods = S.periods.filter(x => x !== p); commit(); }));
+      P.appendChild(r);
+    });
+    const E = $('events'); E.innerHTML = '';
+    if (!S.events.length) E.innerHTML = '<div class="empty">Aucun événement. Cliquez dans le graphique ou utilisez le bouton ci-dessous.</div>';
+    sortedEvents().forEach(ev => {
+      const r = document.createElement('div'); r.className = 'row event' + (ev.id === selected ? ' sel' : ''); r.dataset.id = ev.id;
+      const sat = document.createElement('div'); sat.className = 'sat';
+      const lab = document.createElement('span'); lab.textContent = satLabel(ev.v);
+      const rg = input('range', ev.v, {min: -2.4, max: 2.4, step: 0.1, 'aria-label': 'Satisfaction'}, i => { ev.v = +i.value; lab.textContent = satLabel(ev.v); commit(false); });
+      sat.append('😞', rg, '😊', lab);
+      r.append(
+        input('number', ev.year, {step: 0.5, 'aria-label': 'Année', title: 'Année'}, i => { if (i.value !== '') { ev.year = +i.value; commit(false); } }),
+        input('text', ev.label, {placeholder: 'Que s\'est-il passé ?', 'aria-label': 'Événement'}, i => { ev.label = i.value; commit(false); }),
+        delBtn('Supprimer l\'événement', () => { S.events = S.events.filter(x => x !== ev); if (selected === ev.id) selected = null; commit(); }),
+        sat);
+      r.addEventListener('focusin', () => { if (selected !== ev.id) { selected = ev.id; document.querySelectorAll('.row.event.sel').forEach(n => n.classList.remove('sel')); r.classList.add('sel'); renderChart(); } });
+      E.appendChild(r);
+    });
+  }
+  function focusEvent(id) {
+    const r = document.querySelector(`.row.event[data-id="${id}"]`);
+    if (!r) return;
+    r.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    const t = r.querySelector('input[type=text]'); if (t) t.focus({preventScroll: true});
+  }
+  function syncHeader() { $('title').value = S.title || ''; $('yStart').value = S.start; $('yEnd').value = S.end; document.title = S.title || 'Ma ligne de vie'; }
+  function commit(lists = true) { save(); renderChart(); if (lists) renderLists(); }
+  function loadState(n) { S = n; selected = null; syncHeader(); commit(); }
+
+  $('title').addEventListener('input', e => { S.title = e.target.value; document.title = S.title || 'Ma ligne de vie'; save(); });
+  $('yStart').addEventListener('change', e => { const v = Math.round(+e.target.value); if (v < S.end) S.start = v; syncHeader(); commit(false); });
+  $('yEnd').addEventListener('change', e => { const v = Math.round(+e.target.value); if (v > S.start) S.end = v; syncHeader(); commit(false); });
+  $('addPeriod').addEventListener('click', () => {
+    const last = [...S.periods].sort((a, b) => b.end - a.end)[0];
+    const st = last ? last.end : S.start;
+    S.periods.push({id: uid(), label: '', start: st, end: Math.min(S.end, st + 5)}); commit();
+    const ins = $('periods').querySelectorAll('input[type=text]'); ins[ins.length - 1].focus();
+  });
+  $('addEvent').addEventListener('click', () => {
+    const ev = {id: uid(), year: Math.round((S.start + S.end) / 2), label: '', v: 1}; S.events.push(ev); selected = ev.id; commit(); focusEvent(ev.id);
+  });
+  $('bExample').addEventListener('click', () => { if (!S.events.length && !S.periods.length || confirmReplace()) loadState(example()); });
+  $('bNew').addEventListener('click', () => { if (!S.events.length && !S.periods.length || confirmReplace()) loadState(blank()); });
+  function confirmReplace() { return window.confirm('Remplacer la ligne de vie actuelle ? Pensez à l\'enregistrer avant si besoin.'); }
+
+  function download(name, blob) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  const fileBase = () => (S.title || 'ligne-de-vie').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'ligne-de-vie';
+  $('bExport').addEventListener('click', () => download(fileBase() + '.json', new Blob([JSON.stringify(S, null, 2)], {type: 'application/json'})));
+  $('fImport').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(t => {
+      const n = JSON.parse(t);
+      if (!n || !Array.isArray(n.events) || !Array.isArray(n.periods)) throw new Error();
+      n.events.forEach(x => x.id = x.id || uid()); n.periods.forEach(x => x.id = x.id || uid());
+      loadState(n);
+    }).catch(() => alert('Fichier non reconnu.')).finally(() => { e.target.value = ''; });
+  });
+  $('bPng').addEventListener('click', () => {
+    const keep = selected; selected = null; renderChart();
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', NS); clone.setAttribute('width', W * 2); clone.setAttribute('height', (H + 50) * 2);
+    clone.setAttribute('viewBox', `0 -50 ${W} ${H + 50}`);
+    const head = document.createElementNS(NS, 'rect'); head.setAttribute('x', 0); head.setAttribute('y', -50); head.setAttribute('width', W); head.setAttribute('height', 50); head.setAttribute('fill', '#ffffff');
+    const tt = document.createElementNS(NS, 'text'); tt.setAttribute('x', 16); tt.setAttribute('y', -16); tt.setAttribute('font-size', 24); tt.setAttribute('font-weight', 700);
+    tt.setAttribute('font-family', 'system-ui,Segoe UI,Roboto,sans-serif'); tt.setAttribute('fill', '#1c2430'); tt.textContent = S.title || '';
+    clone.insertBefore(tt, clone.firstChild); clone.insertBefore(head, clone.firstChild);
+    selected = keep; renderChart();
+    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = W * 2; c.height = (H + 50) * 2;
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => download(fileBase() + '.png', b), 'image/png');
+    };
+    img.src = url;
+  });
+  $('bPrint').addEventListener('click', () => { const k = selected; selected = null; renderChart(); window.print(); selected = k; renderChart(); });
+
+  syncHeader(); renderChart(); renderLists();
+})();
+</script>
+</body>
+</html>

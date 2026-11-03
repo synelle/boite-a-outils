@@ -82,5 +82,11 @@
     "description": "Lanceur de dés v2, ambiance sombre et dorée : jets multiples, critiques et échecs mis en avant.",
     "icone": "🎲",
     "categorie": "Jeux"
+  },
+  "Aksis/index.html": {
+    "titre": "Aksis — Fiches outil",
+    "description": "Sous-page regroupant les fiches outil interactives Aksis : ligne de vie, roue du monde idéal.",
+    "icone": "🧭",
+    "categorie": "Aksis"
   }
 }

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Votre monde idéal</title>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#ffffff; --ink:#1c2430; --muted:#5d6878; --line:#dde1e7;
+  --accent:#e8890c; --accent-ink:#ffffff; --danger:#b42318; --input:#ffffff;
+  --shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181e; --card:#1d232b; --ink:#e7ebf0; --muted:#9aa5b4; --line:#2e3742;
+    --accent:#f29d2e; --accent-ink:#1a1206; --danger:#ff7b6e; --input:#161b22; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181e; --card:#1d232b; --ink:#e7ebf0; --muted:#9aa5b4; --line:#2e3742;
+  --accent:#f29d2e; --accent-ink:#1a1206; --danger:#ff7b6e; --input:#161b22; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Calibri,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{margin:2px 0 0;font-size:28px;line-height:1.2}
+h1 input[type=text]{font:inherit;color:inherit;background:transparent;border:0;border-bottom:2px dashed transparent;border-radius:0;padding:0;width:min(560px,80vw)}
+h1 input[type=text]:hover,h1 input[type=text]:focus{border-bottom-color:var(--line);outline:none}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px}
+button,.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.icon{padding:4px 9px;color:var(--danger);border-color:transparent;background:transparent}
+button.icon:hover{border-color:var(--line)}
+details.help{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+details.help summary{cursor:pointer;font-weight:600}
+details.help p,details.help li{color:var(--muted)}
+details.help p{margin:8px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:1fr}}
+.chart-card{padding:12px}
+.chart-card svg{display:block;width:100%;max-width:640px;margin:0 auto;height:auto;touch-action:none;user-select:none;border-radius:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:6px 12px}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.opts{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:center;margin:10px 0 2px;font-size:14px;color:var(--muted)}
+.opts label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.legend{display:flex;gap:16px;justify-content:center;font-size:13px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid #1d4f7a;vertical-align:middle;margin-right:6px}
+.legend i.dash{border-top:3px dashed #e8890c}
+.hint{font-size:13px;color:var(--muted);margin:8px 4px 0;text-align:center}
+.panel{padding:16px}
+.panel h2{margin:0 0 2px;font-size:17px}
+.panel .sub{margin:0 0 12px;font-size:13px;color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{display:grid;grid-template-columns:14px 1fr auto;gap:6px 10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px}
+.row.sel{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.dot{width:14px;height:14px;border-radius:50%}
+.row .sl{grid-column:2 / 4;display:grid;grid-template-columns:92px 1fr 34px;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.row .sl b{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.row .more{grid-column:2 / 4;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
+input[type=text],select{font:inherit;font-size:14px;color:var(--ink);background:var(--input);border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%;min-width:0}
+select{width:auto}
+input:focus,select:focus{outline:2px solid color-mix(in srgb,var(--accent) 60%,transparent);outline-offset:0}
+input[type=range]{accent-color:var(--accent);width:100%}
+input[type=checkbox]{accent-color:var(--accent)}
+.add{margin-top:10px}
+.reflect{margin-top:16px;padding:16px}
+.reflect h2{margin:0 0 4px;font-size:17px}
+.gaps{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
+.chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13px}
+.chip .dot{width:10px;height:10px}
+.q{display:block;font-weight:600;font-size:14px;margin:12px 0 6px}
+textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--input);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-height:76px;resize:vertical}
+textarea:focus{outline:2px solid color-mix(in srgb,var(--accent) 60%,transparent)}
+.empty{color:var(--muted);font-size:14px}
+footer{margin-top:20px;font-size:13px;color:var(--muted)}
+.print-only{display:none}
+@media (max-width:520px){
+  .row .sl{grid-template-columns:70px 1fr 30px}
+  .row .more{grid-template-columns:1fr}
+}
+@media print{
+  @page{size:A4 portrait;margin:12mm}
+  body{background:#fff;color:#000;font-size:12px}
+  .toolbar,details.help,.hint,.opts,.panel,footer,.no-print{display:none!important}
+  .main{display:block}
+  .card{box-shadow:none;border:0}
+  .chart-card svg{max-width:150mm}
+  textarea{border:0;padding:0;min-height:0;resize:none}
+  .print-only{display:block}
+  .reflect{padding:0;break-inside:avoid}
+  h1 input{color:#000}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="kicker">Fiche outil</div>
+      <h1><input id="title" type="text" aria-label="Titre" value="Votre monde idéal"></h1>
+    </div>
+    <div class="toolbar">
+      <button id="bExample">Charger l'exemple</button>
+      <button id="bNew">Nouvelle roue</button>
+      <button id="bExport">Enregistrer (.json)</button>
+      <label class="btn" for="fImport">Ouvrir…</label>
+      <input id="fImport" type="file" accept=".json,application/json" hidden>
+      <button id="bPng">Image PNG</button>
+      <button class="primary" id="bPrint">Imprimer</button>
+    </div>
+  </header>
+
+  <details class="help">
+    <summary>Comment ça marche ?</summary>
+    <p>Nos vies sont composées d'un ensemble d'activités relatives à différentes sphères de vie (sociale, professionnelle, développement personnel…). En fonction des époques et des priorités, chacun choisit d'en privilégier certaines. Et vous ? Quelles sont vos thématiques dominantes en ce moment ? Y consacrez-vous le temps que vous voulez ? Trop ? Pas assez ? Faites le point pour y voir plus clair.</p>
+    <ol>
+      <li>Choisissez huit thèmes parmi ceux proposés, ou des thèmes qui vous sont propres.</li>
+      <li>Le centre de la roue correspond à une satisfaction nulle (0), le périmètre à une entière satisfaction (10).</li>
+      <li>Pour chaque domaine, demandez-vous : « Est-ce que je consacre à cette sphère le temps que je souhaite ? Est-ce une activité qui me procure du plaisir ? Me prend-elle trop de temps ? »</li>
+      <li>Placez votre niveau sur chaque rayon : la roue se dessine et se colore toute seule.</li>
+      <li>Option : indiquez aussi votre niveau idéal pour voir où se trouvent les plus grands écarts.</li>
+    </ol>
+    <p>Cet exercice est personnel. Vos données restent dans ce navigateur ; utilisez « Enregistrer » pour en garder une copie.</p>
+  </details>
+
+  <div class="main">
+    <div class="card chart-card">
+      <svg id="wheel" viewBox="0 0 640 640" role="img" aria-label="Roue de satisfaction"></svg>
+      <div class="opts">
+        <div class="seg" role="group" aria-label="Style de la roue">
+          <button id="mPoly" aria-pressed="true">Toile</button>
+          <button id="mSect" aria-pressed="false">Secteurs</button>
+        </div>
+        <label><input type="checkbox" id="showIdeal"> Afficher l'idéal</label>
+      </div>
+      <div class="legend" id="legend"><span><i></i>Aujourd'hui</span><span><i class="dash"></i>Mon idéal</span></div>
+      <p class="hint">Cliquez ou glissez le long d'un rayon pour régler le niveau. Avec « Afficher l'idéal », maintenez Maj (⇧) pour régler l'idéal.</p>
+    </div>
+
+    <section class="card panel">
+      <h2>Vos thèmes</h2>
+      <p class="sub">Huit thèmes conseillés (de 3 à 12). Modifiez les intitulés librement.</p>
+      <div class="rows" id="themes"></div>
+      <button class="add" id="addTheme">+ Ajouter un thème</button>
+      <datalist id="suggest">
+        <option>Famille et amis</option><option>Relations professionnelles</option><option>Finances</option>
+        <option>Développement personnel</option><option>Santé</option><option>Vie de couple</option>
+        <option>Travail – Carrière</option><option>Créativité – Expression de soi</option><option>Spiritualité</option>
+        <option>Style de vie</option><option>Écologie – Environnement</option><option>Monde associatif</option>
+        <option>Sport</option><option>Loisirs</option><option>Projets</option>
+      </datalist>
+    </section>
+  </div>
+
+  <section class="card reflect">
+    <h2>À vous de jouer : prenez le temps de la réflexion</h2>
+    <p class="sub" style="margin:0;color:var(--muted);font-size:13px">Êtes-vous satisfait de cette représentation ? Pas tout à fait ? Ces questions vous aideront à aller plus loin.</p>
+    <div id="gapsWrap"><span class="q">Les plus grands écarts avec votre idéal</span><div class="gaps" id="gaps"></div></div>
+    <label class="q" for="r1">Quels sont les domaines qui requièrent votre attention ? Y consacrez-vous trop ou pas assez de temps ou d'énergie ?</label>
+    <textarea id="r1"></textarea>
+    <label class="q" for="r2">Quelles actions pourriez-vous mettre en œuvre pour créer demain une représentation plus proche de votre monde idéal ?</label>
+    <textarea id="r2"></textarea>
+  </section>
+  <footer>Inspiré de la fiche outil « Votre monde idéal ». Page autonome, fonctionne hors ligne.</footer>
+</div>
+
+<script>
+(() => {
+  const KEY = 'mondeIdeal.v1';
+  const NS = 'http://www.w3.org/2000/svg';
+  const S0 = 640, CX = 320, CY = 322, R = 215;
+  const PALETTE = ['#e23d3d','#f08c00','#f5c400','#7cc142','#1aa37a','#1fa9d6','#3f6fd8','#8a4fd1','#d6409f','#8d6e63','#5b8c3a','#607d8b'];
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const TIME = {'': '—', less: 'Pas assez de temps', ok: 'Temps juste', more: 'Trop de temps'};
+
+  const blank = () => ({title: 'Votre monde idéal', mode: 'poly', showIdeal: false, r1: '', r2: '',
+    themes: ['Famille et amis','Vie de couple','Travail – Carrière','Finances','Santé','Développement personnel','Loisirs','Spiritualité']
+      .map(n => ({id: uid(), name: n, now: 5, ideal: 8, time: '', action: ''}))});
+  const example = () => ({title: 'Votre monde idéal – exemple', mode: 'poly', showIdeal: true, r1: '', r2: '',
+    themes: [
+      {name: 'Famille et amis', now: 8, ideal: 9, time: 'ok', action: ''},
+      {name: 'Vie de couple', now: 6, ideal: 9, time: 'less', action: 'Une soirée à deux par semaine'},
+      {name: 'Travail – Carrière', now: 4, ideal: 8, time: 'more', action: 'Clarifier mon projet professionnel'},
+      {name: 'Finances', now: 5, ideal: 7, time: '', action: ''},
+      {name: 'Santé', now: 6, ideal: 8, time: 'less', action: 'Marcher 30 min par jour'},
+      {name: 'Développement personnel', now: 7, ideal: 8, time: 'ok', action: ''},
+      {name: 'Loisirs', now: 3, ideal: 7, time: 'less', action: 'Reprendre une activité créative'},
+      {name: 'Spiritualité', now: 7, ideal: 8, time: 'ok', action: ''}
+    ].map(t => ({id: uid(), ...t}))});
+
+  let S;
+  try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
+  if (!S || !Array.isArray(S.themes) || S.themes.length < 3) S = example();
+  let selected = null;
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const $ = id => document.getElementById(id);
+
+  const n = () => S.themes.length;
+  const ang = i => -Math.PI / 2 + i * 2 * Math.PI / n();
+  const pt = (i, v) => [CX + Math.cos(ang(i)) * R * v / 10, CY + Math.sin(ang(i)) * R * v / 10];
+  const color = i => PALETTE[i % PALETTE.length];
+  function el(tag, attrs = {}, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function wrap(s, max) {
+    const words = String(s || '').split(/\s+/).filter(Boolean), out = []; let cur = '';
+    for (const w of words) { if ((cur + ' ' + w).trim().length > max && cur) { out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
+    if (cur) out.push(cur); return out.slice(0, 3);
+  }
+  const font = {'font-family': 'system-ui,-apple-system,Segoe UI,Roboto,Calibri,sans-serif'};
+
+  const svg = $('wheel');
+  function renderWheel() {
+    svg.innerHTML = '';
+    el('rect', {x: 0, y: 0, width: S0, height: S0, fill: '#ffffff'}, svg);
+    const N = n(), g = el('g', {}, svg);
+    const ring = v => S.themes.map((_, i) => pt(i, v).join(',')).join(' ');
+    // anneaux
+    for (let v = 10; v >= 1; v--) el('polygon', {points: ring(v), fill: v % 2 ? '#ffffff' : '#f6f7f9', stroke: v === 10 ? '#8a94a3' : '#d3d8de', 'stroke-width': v === 10 ? 1.6 : 1}, g);
+    // secteurs (mode secteurs)
+    if (S.mode === 'sect') {
+      S.themes.forEach((t, i) => {
+        const a0 = ang(i) - Math.PI / N, a1 = ang(i) + Math.PI / N, r = R * t.now / 10;
+        if (r <= 0) return;
+        const p0 = [CX + Math.cos(a0) * r, CY + Math.sin(a0) * r], p1 = [CX + Math.cos(a1) * r, CY + Math.sin(a1) * r];
+        el('path', {d: `M${CX},${CY} L${p0} A${r},${r} 0 0 1 ${p1} Z`, fill: color(i), 'fill-opacity': .78, stroke: '#ffffff', 'stroke-width': 1.5}, g);
+      });
+    }
+    // rayons + graduations
+    S.themes.forEach((_, i) => { const [x, y] = pt(i, 10); el('line', {x1: CX, y1: CY, x2: x, y2: y, stroke: '#c4cad2'}, g); });
+    for (let v = 0; v <= 10; v += 2) {
+      const t = el('text', {x: CX + 4, y: CY - R * v / 10 - 3, 'font-size': 10, fill: '#8a94a3', ...font}, g); t.textContent = v;
+    }
+    // polygone actuel (mode toile)
+    if (S.mode !== 'sect') {
+      el('polygon', {points: S.themes.map((t, i) => pt(i, t.now).join(',')).join(' '), fill: '#1d4f7a', 'fill-opacity': .22, stroke: '#1d4f7a', 'stroke-width': 2.5, 'stroke-linejoin': 'round'}, g);
+    }
+    // idéal
+    if (S.showIdeal) el('polygon', {points: S.themes.map((t, i) => pt(i, t.ideal).join(',')).join(' '), fill: 'none', stroke: '#e8890c', 'stroke-width': 2.5, 'stroke-dasharray': '7 5', 'stroke-linejoin': 'round'}, g);
+    // libellés
+    S.themes.forEach((t, i) => {
+      const a = ang(i), lx = CX + Math.cos(a) * (R + 20), ly = CY + Math.sin(a) * (R + 20);
+      const c = Math.cos(a), anchor = Math.abs(c) < 0.25 ? 'middle' : c > 0 ? 'start' : 'end';
+      const lines = wrap(t.name || 'Thème', 16), s = Math.sin(a);
+      const y0 = ly + (s < -0.5 ? -(lines.length - 1) * 15 - 2 : s > 0.5 ? 12 : -(lines.length - 1) * 7.5 + 4);
+      const tx = el('text', {x: lx, y: y0, 'text-anchor': anchor, 'font-size': 13.5, 'font-weight': 650, fill: '#1c2430', ...font}, g);
+      lines.forEach((l, k) => { const sp = el('tspan', {x: lx, dy: k ? 15 : 0}, tx); sp.textContent = l; });
+      el('circle', {cx: lx - (anchor === 'start' ? 9 : anchor === 'end' ? -9 : 0), cy: anchor === 'middle' ? y0 + (s < 0 ? 12 + (lines.length - 1) * 15 : -18) : y0 - 4.5, r: 4.5, fill: color(i)}, g);
+    });
+    // poignées
+    S.themes.forEach((t, i) => {
+      if (S.showIdeal) { const [ix, iy] = pt(i, t.ideal); el('circle', {cx: ix, cy: iy, r: 5, fill: '#ffffff', stroke: '#e8890c', 'stroke-width': 2.5}, svg); }
+      const [x, y] = pt(i, t.now), sel = t.id === selected;
+      el('circle', {cx: x, cy: y, r: sel ? 8 : 6.5, fill: S.mode === 'sect' ? color(i) : '#1d4f7a', stroke: '#ffffff', 'stroke-width': 2.5}, svg);
+      const lbl = el('text', {x: x + (Math.cos(ang(i)) >= 0 ? 10 : -10), y: y - 8, 'text-anchor': Math.cos(ang(i)) >= 0 ? 'start' : 'end', 'font-size': 11, 'font-weight': 700, fill: '#1c2430', 'paint-order': 'stroke', stroke: '#ffffff', 'stroke-width': 3, ...font}, svg);
+      lbl.textContent = t.now;
+    });
+    el('circle', {cx: CX, cy: CY, r: R + 14, fill: 'transparent', 'data-hit': '1', style: 'cursor:pointer'}, svg);
+  }
+
+  // interactions : le rayon le plus proche de l'angle du pointeur
+  let drag = null;
+  const toSvg = e => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+  function applyPointer(p, idx, field) {
+    const t = S.themes[idx], u = [Math.cos(ang(idx)), Math.sin(ang(idx))];
+    const proj = ((p.x - CX) * u[0] + (p.y - CY) * u[1]) / R * 10;
+    t[field] = clamp(Math.round(proj), 0, 10);
+  }
+  function nearestAxis(p) {
+    let a = Math.atan2(p.y - CY, p.x - CX) + Math.PI / 2; if (a < 0) a += 2 * Math.PI;
+    return Math.round(a / (2 * Math.PI / n())) % n();
+  }
+  svg.addEventListener('pointerdown', e => {
+    if (!e.target.getAttribute('data-hit')) return;
+    const p = toSvg(e), idx = nearestAxis(p), field = (S.showIdeal && e.shiftKey) ? 'ideal' : 'now';
+    drag = {idx, field}; selected = S.themes[idx].id;
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+    applyPointer(p, idx, field); renderWheel();
+  });
+  svg.addEventListener('pointermove', e => { if (!drag) return; applyPointer(toSvg(e), drag.idx, drag.field); renderWheel(); });
+  svg.addEventListener('pointerup', () => { if (!drag) return; drag = null; commit(); });
+
+  // ----- liste des thèmes -----
+  function slider(label, val, on) {
+    const w = document.createElement('div'); w.className = 'sl';
+    const l = document.createElement('span'); l.textContent = label;
+    const r = document.createElement('input'); r.type = 'range'; r.min = 0; r.max = 10; r.step = 1; r.value = val; r.setAttribute('aria-label', label);
+    const b = document.createElement('b'); b.textContent = val;
+    r.addEventListener('input', () => { b.textContent = r.value; on(+r.value); });
+    w.append(l, r, b); return w;
+  }
+  function renderList() {
+    const L = $('themes'); L.innerHTML = '';
+    S.themes.forEach((t, i) => {
+      const r = document.createElement('div'); r.className = 'row' + (t.id === selected ? ' sel' : ''); r.dataset.id = t.id;
+      const d = document.createElement('span'); d.className = 'dot'; d.style.background = color(i);
+      const name = document.createElement('input'); name.type = 'text'; name.value = t.name; name.setAttribute('list', 'suggest'); name.setAttribute('aria-label', 'Thème'); name.placeholder = 'Nom du thème';
+      name.addEventListener('input', () => { t.name = name.value; save(); renderWheel(); renderGaps(); });
+      const del = document.createElement('button'); del.className = 'icon'; del.textContent = '✕'; del.title = 'Supprimer le thème'; del.setAttribute('aria-label', 'Supprimer le thème');
+      del.disabled = n() <= 3;
+      del.addEventListener('click', () => { S.themes = S.themes.filter(x => x !== t); commit(); });
+      const more = document.createElement('div'); more.className = 'more';
+      const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Temps consacré');
+      for (const k in TIME) { const o = document.createElement('option'); o.value = k; o.textContent = k ? TIME[k] : 'Temps consacré…'; sel.appendChild(o); }
+      sel.value = t.time || ''; sel.addEventListener('change', () => { t.time = sel.value; save(); });
+      const act = document.createElement('input'); act.type = 'text'; act.value = t.action || ''; act.placeholder = 'Une action pour m\'en rapprocher'; act.setAttribute('aria-label', 'Action');
+      act.addEventListener('input', () => { t.action = act.value; save(); });
+      more.append(sel, act);
+      r.append(d, name, del,
+        slider('Aujourd\'hui', t.now, v => { t.now = v; save(); renderWheel(); renderGaps(); }),
+        slider('Mon idéal', t.ideal, v => { t.ideal = v; save(); renderWheel(); renderGaps(); }),
+        more);
+      r.addEventListener('focusin', () => { if (selected !== t.id) { selected = t.id; document.querySelectorAll('.row.sel').forEach(x => x.classList.remove('sel')); r.classList.add('sel'); renderWheel(); } });
+      L.appendChild(r);
+    });
+    $('addTheme').disabled = n() >= 12;
+  }
+  function renderGaps() {
+    const G = $('gaps'); G.innerHTML = '';
+    const list = S.themes.map((t, i) => ({t, i, gap: t.ideal - t.now})).filter(x => x.gap > 0).sort((a, b) => b.gap - a.gap).slice(0, 4);
+    if (!list.length) { G.innerHTML = '<span class="empty">Aucun écart : vous êtes au niveau de votre idéal partout.</span>'; return; }
+    list.forEach(x => {
+      const c = document.createElement('span'); c.className = 'chip';
+      c.innerHTML = `<span class="dot" style="background:${color(x.i)}"></span>`;
+      c.append(`${x.t.name || 'Thème'} : ${x.t.now} → ${x.t.ideal} (+${x.gap})`);
+      G.appendChild(c);
+    });
+  }
+  function syncControls() {
+    $('title').value = S.title || ''; document.title = S.title || 'Votre monde idéal';
+    $('mPoly').setAttribute('aria-pressed', S.mode !== 'sect'); $('mSect').setAttribute('aria-pressed', S.mode === 'sect');
+    $('showIdeal').checked = !!S.showIdeal;
+    $('legend').style.display = S.showIdeal ? '' : 'none';
+    $('r1').value = S.r1 || ''; $('r2').value = S.r2 || '';
+  }
+  function commit() { save(); renderWheel(); renderList(); renderGaps(); }
+  function loadState(x) { S = x; selected = null; syncControls(); commit(); }
+
+  $('title').addEventListener('input', e => { S.title = e.target.value; document.title = S.title || 'Votre monde idéal'; save(); });
+  $('mPoly').addEventListener('click', () => { S.mode = 'poly'; syncControls(); commit(); });
+  $('mSect').addEventListener('click', () => { S.mode = 'sect'; syncControls(); commit(); });
+  $('showIdeal').addEventListener('change', e => { S.showIdeal = e.target.checked; syncControls(); commit(); });
+  $('r1').addEventListener('input', e => { S.r1 = e.target.value; save(); });
+  $('r2').addEventListener('input', e => { S.r2 = e.target.value; save(); });
+  $('addTheme').addEventListener('click', () => {
+    if (n() >= 12) return;
+    const t = {id: uid(), name: '', now: 5, ideal: 8, time: '', action: ''}; S.themes.push(t); selected = t.id; commit();
+    const r = document.querySelector(`.row[data-id="${t.id}"] input[type=text]`); if (r) { r.focus(); r.scrollIntoView({block: 'nearest'}); }
+  });
+  const confirmReplace = () => window.confirm('Remplacer la roue actuelle ? Pensez à l\'enregistrer avant si besoin.');
+  $('bExample').addEventListener('click', () => { if (confirmReplace()) loadState(example()); });
+  $('bNew').addEventListener('click', () => { if (confirmReplace()) loadState(blank()); });
+
+  function download(name, blob) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  const fileBase = () => (S.title || 'monde-ideal').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'monde-ideal';
+  $('bExport').addEventListener('click', () => download(fileBase() + '.json', new Blob([JSON.stringify(S, null, 2)], {type: 'application/json'})));
+  $('fImport').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(t => {
+      const x = JSON.parse(t);
+      if (!x || !Array.isArray(x.themes) || x.themes.length < 3) throw new Error();
+      x.themes = x.themes.slice(0, 12).map(t => ({id: t.id || uid(), name: t.name || '', now: clamp(+t.now || 0, 0, 10), ideal: clamp(+t.ideal || 0, 0, 10), time: t.time || '', action: t.action || ''}));
+      loadState(x);
+    }).catch(() => alert('Fichier non reconnu.')).finally(() => { e.target.value = ''; });
+  });
+  $('bPng').addEventListener('click', () => {
+    const k = selected; selected = null; renderWheel();
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', NS); clone.setAttribute('width', 1400); clone.setAttribute('height', 1500); clone.setAttribute('viewBox', '0 -45 640 685');
+    const bg = document.createElementNS(NS, 'rect'); bg.setAttribute('x', 0); bg.setAttribute('y', -45); bg.setAttribute('width', 640); bg.setAttribute('height', 50); bg.setAttribute('fill', '#fff');
+    const tt = document.createElementNS(NS, 'text'); tt.setAttribute('x', 320); tt.setAttribute('y', -12); tt.setAttribute('text-anchor', 'middle'); tt.setAttribute('font-size', 22); tt.setAttribute('font-weight', 700); tt.setAttribute('font-family', 'system-ui,Segoe UI,Roboto,sans-serif'); tt.setAttribute('fill', '#1c2430'); tt.textContent = S.title || '';
+    clone.insertBefore(tt, clone.firstChild); clone.insertBefore(bg, clone.firstChild);
+    selected = k; renderWheel();
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = 1400; c.height = 1500;
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => download(fileBase() + '.png', b), 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+  });
+  $('bPrint').addEventListener('click', () => { const k = selected; selected = null; renderWheel(); window.print(); selected = k; renderWheel(); });
+
+  syncControls(); commit();
+})();
+</script>
+</body>
+</html>
