@@ -65,6 +65,12 @@
     "icone": "🎲",
     "categorie": "Jeux"
   },
+  "croix-de-malte.html": {
+    "titre": "Générateur de croix de Malte",
+    "description": "Croix de Malte paramétrique : mécanisme de Genève animé (croix, disque de verrouillage, manivelle) ou croix décorative, export SVG en millimètres.",
+    "icone": "⚙️",
+    "categorie": "Outils"
+  },
   "Aksis/index.html": {
     "titre": "Aksis — Fiches outil",
     "description": "Sous-page regroupant les fiches outil interactives Aksis : ligne de vie, roue du monde idéal.",

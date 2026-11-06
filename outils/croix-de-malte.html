@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Générateur de croix de Malte</title>
+<style>
+:root{
+  --bg:#f4f3ef; --panel:#ffffff; --ink:#1d1d1f; --muted:#6b6b72; --line:#e3e1db;
+  --accent:#b4432f; --accent2:#2f6db4; --crank:#8a8a90; --pin:#2a2a2e;
+  --canvas:#fbfaf7; --grid:#e6e3db; --constr:#8f8b80;
+  --warn-bg:#fff4df; --warn:#7a5200; --err-bg:#fde9e6; --err:#a3281a; --ok-bg:#e7f5ea; --ok:#1f6b34;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#141518; --panel:#1d1e22; --ink:#ececef; --muted:#9b9ba3; --line:#323339;
+    --accent:#e3765f; --accent2:#72a3e3; --crank:#8d8d96; --pin:#e5e5e8;
+    --canvas:#18191c; --grid:#25262b; --constr:#7d7a72;
+    --warn-bg:#3a2e14; --warn:#f2c46a; --err-bg:#3d1d19; --err:#ff9d8c; --ok-bg:#16301d; --ok:#8fd6a2;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{display:grid;grid-template-columns:370px minmax(0,1fr);height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:18px 18px 28px}
+header h1{font-size:20px;margin:0;letter-spacing:-.01em}
+header p{margin:2px 0 14px;color:var(--muted);font-size:13px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;background:var(--bg);border-radius:10px;margin-bottom:10px}
+.tabs button{border:0;background:transparent;color:var(--muted);padding:7px 6px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer;line-height:1.2}
+.tabs button small{display:block;font-weight:400;font-size:11.5px}
+.tabs button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.intro{color:var(--muted);font-size:12.5px;margin:0 0 6px}
+fieldset{border:0;border-top:1px solid var(--line);margin:8px 0 0;padding:8px 0 0}
+legend{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;padding:0 8px 0 0}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:3px 10px;align-items:center;margin:4px 0 9px}
+.lh{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lh label small{color:var(--muted)}
+.auto{font-size:12px;color:var(--muted);display:inline-flex;gap:4px;align-items:center;cursor:pointer;user-select:none}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+input[type=number],select{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-variant-numeric:tabular-nums}
+input:disabled{opacity:.55}
+.row .help{grid-column:1/-1;font-size:11.5px;color:var(--muted);margin-top:-2px}
+button{font:inherit;cursor:pointer}
+.ghost{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:7px;padding:5px 10px;margin-top:4px}
+.ghost:hover{color:var(--ink)}
+.export{margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+.export h2{font-size:15px;margin:0 0 8px}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-bottom:8px}
+.checks label,.radios label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.radios{display:grid;gap:4px;margin-bottom:10px}
+.inl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;margin-bottom:8px}
+.inl input[type=color]{width:44px;height:28px;border:1px solid var(--line);border-radius:6px;background:none;padding:1px}
+.btns{display:flex;gap:8px;margin-top:10px}
+.primary{flex:1;border:0;background:var(--accent);color:#fff;border-radius:8px;padding:9px 12px;font-weight:600}
+.primary:hover{filter:brightness(1.07)}
+.btns .ghost{margin:0}
+.hint{color:var(--muted);font-size:12px;margin:8px 0 0}
+main{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;min-height:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.toolbar label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.toolbar input[type=range]{width:140px}
+#play{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;padding:5px 12px;font-weight:600;min-width:92px}
+.anim{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+.muted{color:var(--muted);font-size:12.5px}
+.stage{background:var(--canvas);min-height:0;position:relative}
+#view{width:100%;height:100%;display:block}
+.bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px;padding:12px 16px;border-top:1px solid var(--line);background:var(--panel);max-height:34vh;overflow:auto}
+.msg{border-radius:7px;padding:6px 10px;margin:0 0 6px;font-size:13px}
+.msg.err{background:var(--err-bg);color:var(--err)}
+.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}
+dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 18px;margin:0;font-size:13px}
+dl div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed var(--line);padding:2px 0}
+dt{color:var(--muted)} dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+/* éléments du dessin */
+.gridline{stroke:var(--grid)}
+.wheel,.disk,.crank,.pin,.decor{fill-rule:evenodd;vector-effect:non-scaling-stroke;stroke-width:1.4;stroke-linejoin:round}
+.wheel,.decor{fill:var(--accent);fill-opacity:.2;stroke:var(--accent)}
+.disk{fill:var(--accent2);fill-opacity:.22;stroke:var(--accent2)}
+.crank{fill:var(--crank);fill-opacity:.14;stroke:var(--crank);stroke-dasharray:5 3}
+.pin{fill:var(--pin);fill-opacity:.85;stroke:var(--pin)}
+.constr *{fill:none;stroke:var(--constr);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:4 4;opacity:.8}
+.constr .solid{stroke-dasharray:none}
+#measure{position:absolute;left:-9999px;top:0;width:10px;height:10px;visibility:hidden}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.25s}
+.toast.show{opacity:1;transform:translateX(-50%)}
+[hidden]{display:none!important}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;height:auto}
+  main{order:-1;grid-template-rows:auto 62vh auto}
+  aside{border-right:0;border-top:1px solid var(--line);padding:16px}
+  .bottom{grid-template-columns:1fr;max-height:none}
+  .toolbar input[type=range]{width:110px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <header>
+      <h1>Croix de Malte</h1>
+      <p>Générateur paramétrique · export SVG en millimètres</p>
+    </header>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-mode="geneva">Mécanisme<small>roue de Genève</small></button>
+      <button type="button" role="tab" data-mode="decor">Croix<small>décorative</small></button>
+    </div>
+    <p class="intro" id="intro-geneva">La croix (roue menée) avance de 360°/N à chaque tour du menant : le pion l’entraîne par ses fentes, puis le disque de verrouillage la bloque pendant l’arrêt.</p>
+    <p class="intro" id="intro-decor">Croix à branches en V (deux pointes et une encoche par branche), nombre de branches libre.</p>
+    <div id="controls"></div>
+    <button type="button" id="reset" class="ghost">Valeurs par défaut</button>
+
+    <section class="export">
+      <h2>Export SVG</h2>
+      <div id="exp-geneva">
+        <div class="checks">
+          <label><input type="checkbox" id="ex-wheel" checked> Croix</label>
+          <label><input type="checkbox" id="ex-disk" checked> Disque de verrouillage</label>
+          <label><input type="checkbox" id="ex-crank" checked> Manivelle</label>
+          <label><input type="checkbox" id="ex-pin"> Pion</label>
+        </div>
+        <div class="radios">
+          <label><input type="radio" name="layout" value="sheet" checked> Planche : pièces séparées, prêtes à découper</label>
+          <label><input type="radio" name="layout" value="asm"> Assemblage dans la position affichée</label>
+        </div>
+      </div>
+      <div class="inl"><label for="ex-style">Rendu</label>
+        <select id="ex-style">
+          <option value="cut">Contours (découpe laser / CNC)</option>
+          <option value="fill">Formes pleines</option>
+        </select>
+      </div>
+      <div class="inl" id="ex-color-wrap" hidden><label for="ex-color">Couleur</label><input type="color" id="ex-color" value="#b4432f"></div>
+      <div class="btns">
+        <button type="button" id="dl" class="primary">Télécharger le SVG</button>
+        <button type="button" id="copy" class="ghost">Copier le code</button>
+      </div>
+      <p class="hint">1 unité SVG = 1 mm (largeur et hauteur du fichier en mm). Contours : trait noir de 0,1 mm, sans remplissage.</p>
+    </section>
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <div class="anim" id="anim">
+        <button type="button" id="play">▶ Animer</button>
+        <label>Angle du menant <input type="range" id="ang" min="0" max="360" step="0.5" value="0"> <span id="angv">0°</span></label>
+        <label>Vitesse <input type="range" id="spd" min="1" max="60" step="1" value="12"> <span id="spdv">12 tr/min</span></label>
+      </div>
+      <label><input type="checkbox" id="show-constr" checked> Repères</label>
+      <span class="muted" id="gridlbl"></span>
+    </div>
+    <div class="stage"><svg id="view" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Aperçu de la croix"></svg></div>
+    <div class="bottom">
+      <div id="msgs"></div>
+      <dl id="info"></dl>
+    </div>
+  </main>
+</div>
+<svg id="measure" xmlns="http://www.w3.org/2000/svg"></svg>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const TAU = Math.PI * 2, DEG = 180 / Math.PI;
+const $ = s => document.querySelector(s);
+const KEY = 'croixDeMalte.v1';
+
+/* ---------- formatage ---------- */
+const f4 = v => { if (!isFinite(v)) return '0'; if (Math.abs(v) < 5e-5) v = 0; return v.toFixed(4).replace(/\.?0+$/, ''); };
+const fmt = (v, p = 2) => isFinite(v) ? (+v.toFixed(p)).toLocaleString('fr-FR') : '—';
+const mm = (v, p = 2) => fmt(v, p) + ' mm';
+const dg = (r, p = 1) => fmt(r * DEG, p) + '°';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pol = (r, t) => [r * Math.cos(t), r * Math.sin(t)];
+const P = p => f4(p[0]) + ' ' + f4(p[1]);
+const circlePath = (cx, cy, r) => `M${f4(cx + r)} ${f4(cy)}A${f4(r)} ${f4(r)} 0 1 0 ${f4(cx - r)} ${f4(cy)}A${f4(r)} ${f4(r)} 0 1 0 ${f4(cx + r)} ${f4(cy)}Z`;
+const wrapPi = x => x - TAU * Math.round(x / TAU);
+const norm360 = d => ((d % 360) + 360) % 360;
+
+/* ---------- paramètres ---------- */
+const SPEC = {
+  geneva: [
+    {g: 'Géométrie'},
+    {id: 'n',  label: 'Nombre de branches', min: 3, max: 18, step: 1, v: 4},
+    {id: 'C',  label: 'Entraxe', u: 'mm', min: 10, max: 400, step: 0.5, v: 60, help: 'Distance entre l’axe du menant et l’axe de la croix.'},
+    {id: 'd',  label: 'Diamètre du pion', u: 'mm', min: 0.5, max: 40, step: 0.1, v: 6},
+    {g: 'Rayons'},
+    {id: 'Rw', label: 'Rayon extérieur de la croix', u: 'mm', min: 5, max: 400, step: 0.1, v: 42.5, auto: true},
+    {id: 'rL', label: 'Rayon du disque de verrouillage', u: 'mm', min: 1, max: 300, step: 0.1, v: 36, auto: true},
+    {g: 'Jeux'},
+    {id: 'jF', label: 'Jeu pion / fente (sur le Ø)', u: 'mm', min: 0, max: 3, step: 0.05, v: 0.2},
+    {id: 'jB', label: 'Jeu en fond de fente', u: 'mm', min: 0, max: 20, step: 0.1, v: 1},
+    {id: 'jV', label: 'Jeu de verrouillage (radial)', u: 'mm', min: 0, max: 3, step: 0.05, v: 0.2, help: 'Écart entre le disque de verrouillage et les arcs concaves de la croix.'},
+    {id: 'jD', label: 'Jeu de dégagement du disque', u: 'mm', min: 0, max: 20, step: 0.1, v: 1, help: 'Marge du creux du disque autour des cornes de la croix.'},
+    {g: 'Alésages et manivelle'},
+    {id: 'hW', label: 'Alésage de la croix (Ø)', u: 'mm', min: 0, max: 100, step: 0.1, v: 5},
+    {id: 'hD', label: 'Alésage du menant (Ø)', u: 'mm', min: 0, max: 100, step: 0.1, v: 5},
+    {id: 'mC', label: 'Marge de la manivelle', u: 'mm', min: 0.5, max: 40, step: 0.1, v: 4, help: 'Matière autour du pion et de l’alésage du menant.'},
+  ],
+  decor: [
+    {g: 'Branches'},
+    {id: 'n',      label: 'Nombre de branches', min: 3, max: 16, step: 1, v: 4},
+    {id: 'rot',    label: 'Rotation', u: '°', min: 0, max: 360, step: 0.5, v: 0},
+    {g: 'Rayons'},
+    {id: 'R',      label: 'Rayon extérieur (pointes)', u: 'mm', min: 5, max: 500, step: 0.5, v: 50},
+    {id: 'Rn',     label: 'Rayon du fond d’encoche', u: 'mm', min: 0, max: 500, step: 0.5, v: 30},
+    {id: 'r0',     label: 'Rayon de jonction au centre', u: 'mm', min: 0, max: 200, step: 0.1, v: 3, help: '0 = branches jointes en un point.'},
+    {g: 'Forme'},
+    {id: 'spread', label: 'Ouverture des pointes', u: '%', min: 5, max: 100, step: 0.5, v: 74, help: '100 % = les pointes voisines se touchent.'},
+    {id: 'curv',   label: 'Courbure des flancs', u: '%', min: -40, max: 40, step: 1, v: 0, help: 'Positif = flancs creusés, négatif = flancs bombés.'},
+    {id: 'hole',   label: 'Perçage central (Ø)', u: 'mm', min: 0, max: 200, step: 0.1, v: 0},
+  ],
+};
+const defaults = mode => {
+  const o = {};
+  for (const s of SPEC[mode]) if (s.id) { o[s.id] = s.v; if (s.auto) o['auto' + s.id] = true; }
+  return o;
+};
+const state = {mode: 'geneva', geneva: defaults('geneva'), decor: defaults('decor')};
+try {
+  const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (s) {
+    state.mode = s.mode === 'decor' ? 'decor' : 'geneva';
+    for (const m of ['geneva', 'decor']) for (const k in state[m])
+      if (s[m] && typeof s[m][k] === typeof state[m][k]) state[m][k] = s[m][k];
+  }
+} catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+
+/* ---------- contrôles ---------- */
+const ctl = {geneva: {}, decor: {}};
+function buildControls() {
+  const host = $('#controls');
+  for (const mode of ['geneva', 'decor']) {
+    const box = document.createElement('div');
+    box.id = 'ctl-' + mode;
+    let fs = null;
+    for (const s of SPEC[mode]) {
+      if (s.g) { fs = document.createElement('fieldset'); fs.innerHTML = `<legend>${s.g}</legend>`; box.appendChild(fs); continue; }
+      const id = mode + '-' + s.id;
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML =
+        `<div class="lh"><label for="${id}-n">${s.label}${s.u ? ` <small>(${s.u})</small>` : ''}</label>` +
+        (s.auto ? `<label class="auto"><input type="checkbox" id="${id}-a"> auto</label>` : '') + `</div>` +
+        `<input type="range" id="${id}-r" min="${s.min}" max="${s.max}" step="${s.step}" aria-label="${s.label}">` +
+        `<input type="number" id="${id}-n" min="${s.min}" max="${s.max}" step="${s.step}">` +
+        (s.help ? `<div class="help">${s.help}</div>` : '');
+      fs.appendChild(row);
+      const rng = row.querySelector('[type=range]'), num = row.querySelector('[type=number]'), chk = row.querySelector('[type=checkbox]');
+      const st = state[mode];
+      rng.value = st[s.id]; num.value = st[s.id];
+      rng.addEventListener('input', () => { num.value = rng.value; st[s.id] = +rng.value; changed(); });
+      num.addEventListener('input', () => {
+        const v = parseFloat(num.value);
+        if (isFinite(v)) { st[s.id] = v; rng.value = v; changed(); }
+      });
+      if (chk) {
+        chk.checked = st['auto' + s.id];
+        chk.addEventListener('change', () => {
+          st['auto' + s.id] = chk.checked;
+          if (!chk.checked && cur && isFinite(cur[s.id])) st[s.id] = +cur[s.id].toFixed(2);
+          changed();
+        });
+      }
+      ctl[mode][s.id] = {rng, num, chk, s};
+    }
+    host.appendChild(box);
+  }
+}
+function syncAuto(mode, id, value) {
+  const c = ctl[mode][id], on = state[mode]['auto' + id];
+  c.rng.disabled = c.num.disabled = on;
+  if (on) { c.num.value = +value.toFixed(2); c.rng.value = value; }
+}
+function refreshInputs(mode) {
+  for (const id in ctl[mode]) {
+    const c = ctl[mode][id];
+    c.rng.value = c.num.value = state[mode][id];
+    if (c.chk) c.chk.checked = state[mode]['auto' + id];
+  }
+}
+
+/* =========================================================
+   Roue de Genève
+   Repère du menant : centre en (0,0), pion sur l’axe +x.
+   Repère de la croix : centre en (0,0), fente n°0 sur l’axe +x.
+   ========================================================= */
+function computeGeneva(p) {
+  const n = Math.max(3, Math.round(p.n)), step = TAU / n;
+  const C = Math.max(p.C, 0.1), d = Math.max(p.d, 0.01);
+  const a = C * Math.sin(Math.PI / n);           // rayon de manivelle (axe → pion)
+  const b = C * Math.cos(Math.PI / n);           // rayon d’entrée du pion dans la croix
+  const w = d + p.jF, hw = w / 2;                // largeur de fente
+  const RwAuto = Math.hypot(b, hw);
+  const Rw = p.autoRw ? RwAuto : p.Rw;
+  const rLAuto = Math.max(a - d, 0.25 * a);
+  const rL = p.autorL ? rLAuto : p.rL;
+  const Rc = rL + p.jV;                          // rayon des arcs concaves de la croix
+  const rEnd = C - a - p.jB;                     // centre du fond de fente
+  const Rcut = Rw + p.jD;                        // rayon du creux de dégagement du disque
+  const alpha = Math.PI / 2 - Math.PI / n;       // demi-angle d’engrènement
+  const crankR = Math.max(d / 2, p.hD / 2) + p.mC;
+  const g = {n, step, C, d, a, b, w, hw, Rw, RwAuto, rL, rLAuto, Rc, rEnd, Rcut, alpha, crankR, hW: p.hW, hD: p.hD, p};
+  const E = [], W = [];
+
+  /* --- croix --- */
+  const x1 = Math.sqrt(Math.max(Rw * Rw - hw * hw, 0));
+  const phi1 = Math.atan2(hw, x1);
+  const cosG = (Rw * Rw + C * C - Rc * Rc) / (2 * Rw * C);
+  const gam = Math.acos(Math.max(-1, Math.min(1, cosG)));
+  const phi2raw = step / 2 - gam;
+  const phi2 = Math.max(phi2raw, phi1);
+  const largeLock = Rw * Math.cos(gam) > C ? 1 : 0;
+  let wd = '';
+  for (let i = 0; i < n; i++) {
+    const t = i * step, c = Math.cos(t), s = Math.sin(t);
+    const loc = (x, y) => [x * c - y * s, x * s + y * c];
+    if (i === 0) wd += 'M' + P(pol(Rw, t - phi2));
+    wd += `A${f4(Rw)} ${f4(Rw)} 0 0 1 ${P(pol(Rw, t - phi1))}`;
+    wd += 'L' + P(loc(rEnd, -hw));
+    wd += `A${f4(hw)} ${f4(hw)} 0 1 0 ${P(loc(rEnd, hw))}`;
+    wd += 'L' + P(loc(x1, hw));
+    wd += `A${f4(Rw)} ${f4(Rw)} 0 0 1 ${P(pol(Rw, t + phi2))}`;
+    wd += `A${f4(Rc)} ${f4(Rc)} 0 ${largeLock} 0 ${P(pol(Rw, t + step - phi2))}`;
+  }
+  wd += 'Z';
+  if (p.hW > 0) wd += circlePath(0, 0, p.hW / 2);
+  g.wheelD = wd; g.x1 = x1;
+
+  /* --- disque de verrouillage (avec creux de dégagement face au pion) --- */
+  const xi = (rL * rL - Rcut * Rcut + C * C) / (2 * C);
+  let dd, betaC = null;
+  if (C - Rcut < rL && xi > -rL && xi < rL) {
+    const yi = Math.sqrt(rL * rL - xi * xi);
+    betaC = Math.acos(xi / rL);
+    dd = `M${f4(xi)} ${f4(yi)}A${f4(rL)} ${f4(rL)} 0 ${xi > 0 ? 1 : 0} 1 ${f4(xi)} ${f4(-yi)}` +
+         `A${f4(Rcut)} ${f4(Rcut)} 0 ${xi > C ? 1 : 0} 0 ${f4(xi)} ${f4(yi)}Z`;
+  } else {
+    dd = circlePath(0, 0, rL);
+  }
+  if (p.hD > 0) dd += circlePath(0, 0, p.hD / 2);
+  g.diskD = dd; g.betaC = betaC;
+
+  /* --- manivelle (oblong portant le pion) --- */
+  const R = crankR;
+  g.crankD = `M0 ${f4(-R)}L${f4(a)} ${f4(-R)}A${f4(R)} ${f4(R)} 0 0 1 ${f4(a)} ${f4(R)}L0 ${f4(R)}A${f4(R)} ${f4(R)} 0 0 1 0 ${f4(-R)}Z` +
+             (p.hD > 0 ? circlePath(0, 0, p.hD / 2) : '') + circlePath(a, 0, d / 2);
+
+  /* --- contrôles de cohérence --- */
+  if (Rw <= hw) E.push('Le rayon extérieur de la croix est plus petit que la demi-largeur des fentes.');
+  else if (Rw < RwAuto - 1e-6) W.push(`Rayon extérieur inférieur à ${mm(RwAuto)} : le pion entre dans la fente avant d’en toucher les flancs (choc à l’attaque).`);
+  if (rEnd - hw < p.hW / 2) E.push('Le fond des fentes entame l’alésage de la croix : réduire l’alésage ou le jeu en fond de fente, ou augmenter l’entraxe.');
+  else if (rEnd - hw - p.hW / 2 < 1) W.push(`Seulement ${mm(rEnd - hw - p.hW / 2)} de matière entre le fond des fentes et l’alésage de la croix.`);
+  if (Rc >= a - hw) E.push('Les arcs de verrouillage coupent les fentes : réduire le rayon du disque de verrouillage.');
+  if (C - Rc >= Rw) E.push('Le disque de verrouillage n’atteint pas la croix : aucun blocage pendant l’arrêt. Augmenter son rayon.');
+  else if (phi2raw <= phi1) E.push('Plus de corne entre les fentes et les arcs de verrouillage : réduire le disque de verrouillage ou augmenter le rayon extérieur.');
+  else if (Rw * (phi2raw - phi1) < 0.8) W.push(`Cornes très fines (${mm(Rw * (phi2raw - phi1))}) : fragiles.`);
+  if (rL <= p.hD / 2) E.push('Le disque de verrouillage est plus petit que l’alésage du menant.');
+  if (C - Rcut <= p.hD / 2) E.push('Le creux de dégagement atteint l’alésage du menant : augmenter l’entraxe ou réduire les jeux / alésages.');
+  if (betaC !== null && betaC > alpha + 2 / DEG)
+    W.push(`Creux de dégagement plus large que l’engrènement : la croix n’est pas bloquée pendant ${dg(2 * (betaC - alpha))} de rotation du menant.`);
+  if (a + crankR > C - p.hW / 2)
+    W.push('La manivelle balaie l’axe de la croix : elle doit être dans un plan que l’arbre de la croix ne traverse pas.');
+  g.errors = E; g.warns = W;
+  return g;
+}
+
+/* angle de la croix (rad) pour un angle t du menant */
+function wheelAngle(t, g) {
+  const k = Math.round(t / TAU), psi = t - k * TAU;
+  let delta;
+  if (psi < -g.alpha) delta = 0;
+  else if (psi > g.alpha) delta = -g.step;
+  else delta = wrapPi(Math.atan2(g.a * Math.sin(psi), g.a * Math.cos(psi) - g.C) - (Math.PI + g.step / 2));
+  return Math.PI + g.step / 2 - k * g.step + delta;
+}
+
+/* =========================================================
+   Croix décorative
+   ========================================================= */
+function computeDecor(p) {
+  const n = Math.max(3, Math.round(p.n)), step = TAU / n, half = step / 2;
+  const dT = Math.min(p.spread, 100) / 100 * half;
+  const base = -Math.PI / 2 + p.rot / DEG;
+  const k = p.curv / 100;
+  const flank = (A, B, th) => {
+    if (Math.abs(k) < 1e-6) return 'L' + P(B);
+    const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy) || 1;
+    let nx = -dy / L, ny = dx / L;
+    const ux = Math.cos(th), uy = Math.sin(th), pr = mx * ux + my * uy;
+    if (nx * (pr * ux - mx) + ny * (pr * uy - my) < 0) { nx = -nx; ny = -ny; }
+    return `Q${f4(mx + k * L * nx)} ${f4(my + k * L * ny)} ${P(B)}`;
+  };
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const th = base + i * step;
+    const B0 = pol(p.r0, th - half), T1 = pol(p.R, th - dT), N = pol(p.Rn, th), T2 = pol(p.R, th + dT), B1 = pol(p.r0, th + half);
+    if (i === 0) d += 'M' + P(B0);
+    d += flank(B0, T1, th) + 'L' + P(N) + 'L' + P(T2) + flank(T2, B1, th);
+  }
+  d += 'Z';
+  if (p.hole > 0) d += circlePath(0, 0, p.hole / 2);
+  const E = [], W = [];
+  if (p.r0 >= p.R) E.push('Le rayon de jonction dépasse le rayon extérieur.');
+  if (p.Rn >= p.R) W.push('Fond d’encoche au-delà des pointes : branches en fer de lance plutôt qu’en V.');
+  if (p.Rn <= p.r0) W.push('Le fond d’encoche est plus près du centre que la jonction : les branches se croisent.');
+  if (p.hole > 0 && p.hole / 2 >= p.r0 * Math.cos(half)) W.push('Le perçage central sépare les branches les unes des autres.');
+  if (p.spread >= 100) W.push('Les pointes voisines se touchent.');
+  const gapTips = 2 * p.R * Math.sin((step - 2 * dT) / 2);
+  return {n, step, dT, d, gapTips, errors: E, warns: W, p};
+}
+
+/* =========================================================
+   Aperçu
+   ========================================================= */
+const view = $('#view');
+let cur = null, tAng = -Math.PI * 0.75, playing = false, last = 0;
+
+function fitBox(x0, y0, x1, y1) {
+  const w = x1 - x0, h = y1 - y0, pad = 0.07 * Math.max(w, h);
+  const vb = {x: x0 - pad, y: y0 - pad, w: w + 2 * pad, h: h + 2 * pad};
+  view.setAttribute('viewBox', `${f4(vb.x)} ${f4(vb.y)} ${f4(vb.w)} ${f4(vb.h)}`);
+  return vb;
+}
+function gridMarkup(vb) {
+  const span = Math.max(vb.w, vb.h);
+  const st = [1, 2, 5, 10, 20, 50, 100, 200, 500].find(s => span / s <= 32) || 1000;
+  $('#gridlbl').textContent = `Grille : ${st} mm`;
+  const sw = span / 900;
+  return `<defs><pattern id="gp" width="${st}" height="${st}" patternUnits="userSpaceOnUse"><path d="M${st} 0H0V${st}" fill="none" class="gridline" stroke-width="${f4(sw)}"/></pattern></defs>` +
+         `<rect x="${f4(vb.x - 10 * vb.w)}" y="${f4(vb.y - 10 * vb.h)}" width="${f4(21 * vb.w)}" height="${f4(21 * vb.h)}" fill="url(#gp)"/>`;
+}
+const cross = (x, y, s) => `<path class="solid" d="M${f4(x - s)} ${f4(y)}H${f4(x + s)}M${f4(x)} ${f4(y - s)}V${f4(y + s)}"/>`;
+
+function renderGeneva() {
+  const g = cur = computeGeneva(state.geneva);
+  syncAuto('geneva', 'Rw', g.Rw);
+  syncAuto('geneva', 'rL', g.rL);
+  const D = Math.max(g.rL, g.a + g.crankR), Y = Math.max(D, g.Rw);
+  const vb = fitBox(-D, -Y, g.C + g.Rw, Y);
+  let s = gridMarkup(vb);
+  s += `<g class="drv"><path class="crank" d="${g.crankD}"/></g>`;
+  s += `<g id="whl"><path class="wheel" d="${g.wheelD}"/></g>`;
+  s += `<g class="drv"><path class="disk" d="${g.diskD}"/><path class="pin" d="${circlePath(g.a, 0, g.d / 2)}"/></g>`;
+  if ($('#show-constr').checked) {
+    const cs = vb.w * 0.018;
+    s += `<g class="constr"><line x1="0" y1="0" x2="${f4(g.C)}" y2="0"/>` +
+         `<circle cx="0" cy="0" r="${f4(g.a)}"/><circle cx="${f4(g.C)}" cy="0" r="${f4(g.b)}"/>` +
+         cross(0, 0, cs) + cross(g.C, 0, cs) + `</g>`;
+  }
+  view.innerHTML = s;
+  updatePose();
+  renderMsgs(g);
+  const dwell = 1 - (g.n - 2) / (2 * g.n);
+  renderInfo([
+    ['Rayon de manivelle (axe → pion)', mm(g.a)],
+    ['Rayon d’entrée du pion', mm(g.b)],
+    ['Largeur des fentes', mm(g.w)],
+    ['Profondeur des fentes', mm(g.x1 - (g.rEnd - g.hw))],
+    ['Rayon extérieur de la croix', mm(g.Rw)],
+    ['Rayon du disque de verrouillage', mm(g.rL)],
+    ['Rayon des arcs de verrouillage', mm(g.Rc)],
+    ['Rayon du creux de dégagement', mm(g.Rcut)],
+    ['Avance de la croix par tour', dg(g.step)],
+    ['Angle d’engrènement du menant', dg(2 * g.alpha)],
+    ['Ouverture du creux de dégagement', g.betaC === null ? 'aucun' : dg(2 * g.betaC)],
+    ['Temps en mouvement / à l’arrêt', `${fmt(100 * (1 - dwell), 1)} % / ${fmt(100 * dwell, 1)} %`],
+    ['Ø de la croix', mm(2 * g.Rw)],
+    ['Encombrement de l’ensemble', `${fmt(D + g.C + g.Rw, 1)} × ${fmt(2 * Y, 1)} mm`],
+  ]);
+}
+
+function renderDecor() {
+  const g = cur = computeDecor(state.decor);
+  const p = g.p;
+  view.innerHTML = '';
+  const bb = measure(`<path d="${g.d}"/>`);
+  const e = Math.max(p.R, Math.abs(bb.x), Math.abs(bb.x + bb.width), Math.abs(bb.y), Math.abs(bb.y + bb.height));
+  const vb = fitBox(-e, -e, e, e);
+  let s = gridMarkup(vb) + `<path class="decor" d="${g.d}"/>`;
+  if ($('#show-constr').checked) {
+    s += `<g class="constr"><circle r="${f4(p.R)}"/><circle r="${f4(p.Rn)}"/>` + (p.r0 > 0 ? `<circle r="${f4(p.r0)}"/>` : '') + cross(0, 0, vb.w * 0.018) + `</g>`;
+  }
+  view.innerHTML = s;
+  renderMsgs(g);
+  renderInfo([
+    ['Angle entre branches', dg(g.step)],
+    ['Ouverture d’une branche (pointe à pointe)', dg(2 * g.dT)],
+    ['Écart entre pointes voisines', mm(g.gapTips)],
+    ['Profondeur des encoches', mm(p.R * Math.cos(g.dT) - p.Rn)],
+    ['Encombrement', `${fmt(bb.width, 1)} × ${fmt(bb.height, 1)} mm`],
+  ]);
+}
+
+function updatePose() {
+  if (state.mode !== 'geneva' || !cur) return;
+  const dDrv = norm360(tAng * DEG), dWhl = norm360(wheelAngle(tAng, cur) * DEG);
+  view.querySelectorAll('.drv').forEach(e => e.setAttribute('transform', `rotate(${f4(dDrv)})`));
+  const w = view.querySelector('#whl');
+  if (w) w.setAttribute('transform', `translate(${f4(cur.C)} 0) rotate(${f4(dWhl)})`);
+  $('#ang').value = dDrv;
+  $('#angv').textContent = Math.round(dDrv) + '°';
+}
+
+function renderMsgs(g) {
+  const box = $('#msgs');
+  let h = g.errors.map(m => `<p class="msg err">✖ ${esc(m)}</p>`).join('') + g.warns.map(m => `<p class="msg warn">⚠ ${esc(m)}</p>`).join('');
+  if (!h) h = `<p class="msg ok">✔ Géométrie cohérente.</p>`;
+  box.innerHTML = h;
+}
+function renderInfo(rows) {
+  $('#info').innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+}
+
+function render() {
+  const isG = state.mode === 'geneva';
+  document.querySelectorAll('.tabs button').forEach(b => { const on = b.dataset.mode === state.mode; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $('#ctl-geneva').hidden = !isG; $('#ctl-decor').hidden = isG;
+  $('#intro-geneva').hidden = !isG; $('#intro-decor').hidden = isG;
+  $('#anim').hidden = !isG; $('#exp-geneva').hidden = !isG;
+  if (!isG && playing) togglePlay();
+  isG ? renderGeneva() : renderDecor();
+}
+let raf = 0;
+function changed() { save(); cancelAnimationFrame(raf); raf = requestAnimationFrame(render); }
+
+/* ---------- animation ---------- */
+function frame(ts) {
+  if (!playing) return;
+  const dt = last ? Math.min((ts - last) / 1000, 0.1) : 0;
+  last = ts;
+  tAng += (+$('#spd').value) / 60 * TAU * dt;
+  updatePose();
+  requestAnimationFrame(frame);
+}
+function togglePlay() {
+  playing = !playing; last = 0;
+  $('#play').textContent = playing ? '❚❚ Pause' : '▶ Animer';
+  if (playing) requestAnimationFrame(frame);
+}
+$('#play').addEventListener('click', togglePlay);
+$('#ang').addEventListener('input', e => { tAng = +e.target.value / DEG; updatePose(); });
+$('#spd').addEventListener('input', e => { $('#spdv').textContent = e.target.value + ' tr/min'; });
+$('#show-constr').addEventListener('change', render);
+
+/* ---------- export ---------- */
+const meas = $('#measure');
+function measure(markup) {
+  meas.innerHTML = `<g>${markup}</g>`;
+  const b = meas.firstChild.getBBox();
+  return {x: b.x, y: b.y, width: b.width, height: b.height};
+}
+function buildSVG() {
+  const cut = $('#ex-style').value === 'cut';
+  const col = $('#ex-color').value;
+  const attr = c => cut ? 'fill="none" stroke="#000000" stroke-width="0.1"' : `fill="${c}" fill-rule="evenodd"`;
+  let inner, title, desc, fname;
+  if (state.mode === 'geneva') {
+    const g = cur, p = g.p;
+    const sel = {wheel: $('#ex-wheel').checked, disk: $('#ex-disk').checked, crank: $('#ex-crank').checked, pin: $('#ex-pin').checked};
+    const pieces = [];
+    if (sel.wheel) pieces.push({id: 'croix', d: g.wheelD, c: col});
+    if (sel.disk)  pieces.push({id: 'disque-verrouillage', d: g.diskD, c: '#2f6db4', drv: true});
+    if (sel.crank) pieces.push({id: 'manivelle', d: g.crankD, c: '#9a9aa0', drv: true});
+    if (sel.pin)   pieces.push({id: 'pion', d: circlePath(0, 0, g.d / 2), dAsm: circlePath(g.a, 0, g.d / 2), c: '#333333', drv: true});
+    if (!pieces.length) { toast('Cochez au moins une pièce à exporter.'); return null; }
+    if (document.querySelector('input[name=layout]:checked').value === 'asm') {
+      const drv = ['manivelle', 'disque-verrouillage', 'pion'].map(id => pieces.find(x => x.id === id)).filter(Boolean)
+        .map(x => `  <path id="${x.id}" ${attr(x.c)} d="${x.dAsm || x.d}"/>`).join('\n');
+      inner = (drv ? `<g id="menant" transform="rotate(${f4(norm360(tAng * DEG))})">\n${drv}\n</g>\n` : '') +
+              (sel.wheel ? `<g id="roue" transform="translate(${f4(g.C)} 0) rotate(${f4(norm360(wheelAngle(tAng, g) * DEG))})">\n  <path id="croix" ${attr(col)} d="${g.wheelD}"/>\n</g>` : '');
+    } else {
+      const items = pieces.map(x => ({x, bb: measure(`<path d="${x.d}"/>`)}));
+      const H = Math.max(...items.map(i => i.bb.height));
+      let cx = 0;
+      inner = items.map(({x, bb}) => {
+        const tx = cx - bb.x, ty = (H - bb.height) / 2 - bb.y;
+        cx += bb.width + 5;
+        return `<g transform="translate(${f4(tx)} ${f4(ty)})">\n  <path id="${x.id}" ${attr(x.c)} d="${x.d}"/>\n</g>`;
+      }).join('\n');
+    }
+    title = `Croix de Malte (roue de Genève) – ${g.n} branches`;
+    desc = `${g.n} branches ; entraxe ${fmt(g.C)} mm ; pion Ø${fmt(g.d)} mm ; rayon de manivelle ${fmt(g.a, 3)} mm ; ` +
+           `rayon croix ${fmt(g.Rw, 3)} mm ; disque de verrouillage ${fmt(g.rL, 3)} mm ; ` +
+           `jeux : fente ${fmt(p.jF)}, fond ${fmt(p.jB)}, verrouillage ${fmt(p.jV)}, dégagement ${fmt(p.jD)} mm ; ` +
+           `alésages croix Ø${fmt(p.hW)} / menant Ø${fmt(p.hD)} mm. Unités : mm.`;
+    fname = `croix-de-malte_geneve_${g.n}br_entraxe${f4(g.C)}.svg`;
+  } else {
+    const g = cur, p = g.p;
+    inner = `<path id="croix" ${attr(col)} d="${g.d}"/>`;
+    title = `Croix de Malte – ${g.n} branches`;
+    desc = `${g.n} branches ; rayon ${fmt(p.R)} mm ; fond d’encoche ${fmt(p.Rn)} mm ; jonction ${fmt(p.r0)} mm ; ouverture ${fmt(p.spread)} % ; courbure ${fmt(p.curv)} % ; perçage Ø${fmt(p.hole)} mm. Unités : mm.`;
+    fname = `croix-de-malte_${g.n}br_R${f4(p.R)}.svg`;
+  }
+  const bb = measure(inner), m = 2;
+  const x = bb.x - m, y = bb.y - m, w = bb.width + 2 * m, h = bb.height + 2 * m;
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${f4(w)}mm" height="${f4(h)}mm" viewBox="${f4(x)} ${f4(y)} ${f4(w)} ${f4(h)}">\n` +
+              `<title>${esc(title)}</title>\n<desc>${esc(desc)}</desc>\n${inner}\n</svg>\n`;
+  if (cur.errors.length) toast('Attention : la géométrie contient des erreurs.');
+  return {svg, fname};
+}
+$('#dl').addEventListener('click', () => {
+  const r = buildSVG(); if (!r) return;
+  const url = URL.createObjectURL(new Blob([r.svg], {type: 'image/svg+xml'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = r.fname; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+$('#copy').addEventListener('click', async () => {
+  const r = buildSVG(); if (!r) return;
+  try { await navigator.clipboard.writeText(r.svg); toast('Code SVG copié.'); }
+  catch (e) {
+    const ta = document.createElement('textarea'); ta.value = r.svg; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('Code SVG copié.'); } catch (e2) { toast('Copie impossible.'); }
+    ta.remove();
+  }
+});
+$('#ex-style').addEventListener('change', e => { $('#ex-color-wrap').hidden = e.target.value === 'cut'; });
+
+let toastT = 0;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ---------- onglets, réinitialisation ---------- */
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; changed(); }));
+$('#reset').addEventListener('click', () => { Object.assign(state[state.mode], defaults(state.mode)); refreshInputs(state.mode); changed(); });
+
+buildControls();
+render();
+})();
+</script>
+</body>
+</html>
