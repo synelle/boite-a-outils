@@ -136,7 +136,7 @@ dt{color:var(--muted)} dd{margin:0;font-variant-numeric:tabular-nums;font-weight
         <button type="button" id="dl" class="primary">Télécharger le SVG</button>
         <button type="button" id="copy" class="ghost">Copier le code</button>
       </div>
-      <p class="hint">1 unité SVG = 1 mm (largeur et hauteur du fichier en mm). Contours : trait noir de 0,1 mm, sans remplissage.</p>
+      <p class="hint">Cotes justes dans Fusion 360 comme dans Inkscape : coordonnées en px à 96 dpi, largeur et hauteur du document en mm. Contours : trait noir de 0,1 mm, sans remplissage.</p>
     </section>
   </aside>
 
@@ -553,11 +553,35 @@ function measure(markup) {
   const b = meas.firstChild.getBBox();
   return {x: b.x, y: b.y, width: b.width, height: b.height};
 }
+/* Transformation affine (échelle k, rotation th, translation tx,ty en mm) appliquée
+   directement aux coordonnées d’un tracé M/L/Q/A/Z : aucun attribut transform dans le fichier. */
+const mat = (k, th = 0, tx = 0, ty = 0) => {
+  const c = Math.cos(th), s = Math.sin(th);
+  return {a: k * c, b: k * s, c: -k * s, d: k * c, e: k * tx, f: k * ty, s: k};
+};
+function xfPath(d, M) {
+  const tk = d.match(/[A-Za-z]|-?\d*\.?\d+/g) || [];
+  const pt = (x, y) => P([M.a * x + M.c * y + M.e, M.b * x + M.d * y + M.f]);
+  let out = '', cmd = '', i = 0;
+  while (i < tk.length) {
+    if (/[A-Za-z]/.test(tk[i])) { cmd = tk[i++]; out += cmd; continue; }
+    const n = j => +tk[i + j];
+    if (cmd === 'M' || cmd === 'L') { out += pt(n(0), n(1)) + ' '; i += 2; }
+    else if (cmd === 'Q') { out += pt(n(0), n(1)) + ' ' + pt(n(2), n(3)) + ' '; i += 4; }
+    else if (cmd === 'A') { out += `${f4(n(0) * M.s)} ${f4(n(1) * M.s)} ${tk[i + 2]} ${tk[i + 3]} ${tk[i + 4]} ${pt(n(5), n(6))} `; i += 7; }
+    else i++;
+  }
+  return out.replace(/ ([A-Za-z])/g, '$1').trim();
+}
+/* Fusion 360 ignore viewBox et unités : il lit 1 unité = 1 px à 96 dpi.
+   On écrit donc les coordonnées en px 96 dpi, et width/height en mm pour les autres logiciels. */
+const PX_PER_MM = 96 / 25.4;
+
 function buildSVG() {
   const cut = $('#ex-style').value === 'cut';
   const col = $('#ex-color').value;
-  const attr = c => cut ? 'fill="none" stroke="#000000" stroke-width="0.1"' : `fill="${c}" fill-rule="evenodd"`;
-  let inner, title, desc, fname;
+  const attr = c => cut ? `fill="none" stroke="#000000" stroke-width="${f4(0.1 * PX_PER_MM)}"` : `fill="${c}" fill-rule="evenodd"`;
+  let parts, title, desc, fname;   // parts : [{id, c, d (mm, déjà placé)}]
   if (state.mode === 'geneva') {
     const g = cur, p = g.p;
     const sel = {wheel: $('#ex-wheel').checked, disk: $('#ex-disk').checked, crank: $('#ex-crank').checked, pin: $('#ex-pin').checked};
@@ -568,19 +592,18 @@ function buildSVG() {
     if (sel.pin)   pieces.push({id: 'pion', d: circlePath(0, 0, g.d / 2), dAsm: circlePath(g.a, 0, g.d / 2), c: '#333333', drv: true});
     if (!pieces.length) { toast('Cochez au moins une pièce à exporter.'); return null; }
     if (document.querySelector('input[name=layout]:checked').value === 'asm') {
-      const drv = ['manivelle', 'disque-verrouillage', 'pion'].map(id => pieces.find(x => x.id === id)).filter(Boolean)
-        .map(x => `  <path id="${x.id}" ${attr(x.c)} d="${x.dAsm || x.d}"/>`).join('\n');
-      inner = (drv ? `<g id="menant" transform="rotate(${f4(norm360(tAng * DEG))})">\n${drv}\n</g>\n` : '') +
-              (sel.wheel ? `<g id="roue" transform="translate(${f4(g.C)} 0) rotate(${f4(norm360(wheelAngle(tAng, g) * DEG))})">\n  <path id="croix" ${attr(col)} d="${g.wheelD}"/>\n</g>` : '');
+      const mDrv = mat(1, tAng), mWhl = mat(1, wheelAngle(tAng, g), g.C, 0);
+      parts = ['manivelle', 'disque-verrouillage', 'pion', 'croix'].map(id => pieces.find(x => x.id === id)).filter(Boolean)
+        .map(x => ({id: x.id, c: x.c, d: xfPath(x.dAsm || x.d, x.drv ? mDrv : mWhl)}));
     } else {
       const items = pieces.map(x => ({x, bb: measure(`<path d="${x.d}"/>`)}));
       const H = Math.max(...items.map(i => i.bb.height));
       let cx = 0;
-      inner = items.map(({x, bb}) => {
+      parts = items.map(({x, bb}) => {
         const tx = cx - bb.x, ty = (H - bb.height) / 2 - bb.y;
         cx += bb.width + 5;
-        return `<g transform="translate(${f4(tx)} ${f4(ty)})">\n  <path id="${x.id}" ${attr(x.c)} d="${x.d}"/>\n</g>`;
-      }).join('\n');
+        return {id: x.id, c: x.c, d: xfPath(x.d, mat(1, 0, tx, ty))};
+      });
     }
     title = `Croix de Malte (roue de Genève) – ${g.n} branches`;
     desc = `${g.n} branches ; entraxe ${fmt(g.C)} mm ; pion Ø${fmt(g.d)} mm ; rayon de manivelle ${fmt(g.a, 3)} mm ; ` +
@@ -590,15 +613,18 @@ function buildSVG() {
     fname = `croix-de-malte_geneve_${g.n}br_entraxe${f4(g.C)}.svg`;
   } else {
     const g = cur, p = g.p;
-    inner = `<path id="croix" ${attr(col)} d="${g.d}"/>`;
+    parts = [{id: 'croix', c: col, d: g.d}];
     title = `Croix de Malte – ${g.n} branches`;
     desc = `${g.n} branches ; rayon ${fmt(p.R)} mm ; fond d’encoche ${fmt(p.Rn)} mm ; jonction ${fmt(p.r0)} mm ; ouverture ${fmt(p.spread)} % ; courbure ${fmt(p.curv)} % ; perçage Ø${fmt(p.hole)} mm. Unités : mm.`;
     fname = `croix-de-malte_${g.n}br_R${f4(p.R)}.svg`;
   }
-  const bb = measure(inner), m = 2;
-  const x = bb.x - m, y = bb.y - m, w = bb.width + 2 * m, h = bb.height + 2 * m;
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${f4(w)}mm" height="${f4(h)}mm" viewBox="${f4(x)} ${f4(y)} ${f4(w)} ${f4(h)}">\n` +
-              `<title>${esc(title)}</title>\n<desc>${esc(desc)}</desc>\n${inner}\n</svg>\n`;
+  // cadrage : origine en haut à gauche avec 2 mm de marge, puis passage en px 96 dpi
+  const bb = measure(parts.map(x => `<path d="${x.d}"/>`).join('')), m = 2;
+  const w = bb.width + 2 * m, h = bb.height + 2 * m, k = PX_PER_MM;
+  const M = mat(k, 0, m - bb.x, m - bb.y);
+  const inner = parts.map(x => `<path id="${x.id}" ${attr(x.c)} d="${xfPath(x.d, M)}"/>`).join('\n');
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${f4(w)}mm" height="${f4(h)}mm" viewBox="0 0 ${f4(w * k)} ${f4(h * k)}">\n` +
+              `<title>${esc(title)}</title>\n<desc>${esc(desc + ' Coordonnées en px à 96 dpi (1 mm = 3,7795 px), dimensions du document en mm.')}</desc>\n${inner}\n</svg>\n`;
   if (cur.errors.length) toast('Attention : la géométrie contient des erreurs.');
   return {svg, fname};
 }
