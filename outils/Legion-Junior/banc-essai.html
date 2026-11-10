@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banc d'essai Légion Junior</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Chakra+Petch:wght@500;600;700&display=swap">
+<style>
+/* Mise en page : plateau carré à gauche (la table de 90 cm vue du dessus), console de commandement à droite ; empilés sur téléphone. */
+:root {
+  --bg: #e9edf2;
+  --panel: #ffffff;
+  --ink: #15203a;
+  --soft: #56627c;
+  --line: #cdd5e1;
+  --accent: #d9480f;
+  --machines: #c0392b;
+  --gardiens: #1d5fa8;
+  --field: #d6e2c8;
+  --field-line: #b9c9a6;
+  --zone: rgba(21, 32, 58, .06);
+  --ok: #1f7a4d;
+  --tint: #f3f5f9;
+  --t-caisses: #c9a46a;
+  --t-muret: #9aa3ad;
+  --t-ruines: #a89a8a;
+  --t-rocher: #6f6a63;
+  --t-batiment: #4f5a6b;
+  --die-red: #c62828; --die-black: #1d1d1f; --die-white: #ffffff;
+  --display: "Chakra Petch", "Bahnschrift", "Arial Narrow", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1220; --panel: #141d30; --ink: #e6ebf4; --soft: #a2adc3; --line: #2a3650;
+    --accent: #ff8a4c; --machines: #ef6a5a; --gardiens: #5f9ee8;
+    --field: #24321f; --field-line: #34462c; --zone: rgba(255,255,255,.05); --ok: #4cc58a; --tint: #1b2640;
+    --t-caisses: #8a6c3f; --t-muret: #6b737c; --t-ruines: #6e6356; --t-rocher: #4a4642; --t-batiment: #3a4456;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1220; --panel: #141d30; --ink: #e6ebf4; --soft: #a2adc3; --line: #2a3650;
+  --accent: #ff8a4c; --machines: #ef6a5a; --gardiens: #5f9ee8;
+  --field: #24321f; --field-line: #34462c; --zone: rgba(255,255,255,.05); --ok: #4cc58a; --tint: #1b2640;
+  --t-caisses: #8a6c3f; --t-muret: #6b737c; --t-ruines: #6e6356; --t-rocher: #4a4642; --t-batiment: #3a4456;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45;
+  padding-block: 16px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.1; text-wrap: balance; }
+h1 { font-size: 26px; font-weight: 700; }
+h2 { font-size: 15px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); }
+p { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+.wrap { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* En-tête et réglages */
+.top { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: flex-end; justify-content: space-between; }
+.top .sub { color: var(--soft); font-size: 14px; }
+.setup { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.setup label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--soft); font-family: var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.setup select, .setup input { background: var(--tint); border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px; font-family: var(--body); font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.setup input[type="number"] { width: 64px; }
+.btn { background: var(--tint); border: 1.5px solid var(--line); border-radius: 6px; padding: 7px 12px; font-family: var(--display); font-weight: 600; font-size: 14px; cursor: pointer; letter-spacing: .02em; }
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.on { outline: 3px solid var(--accent); outline-offset: 1px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Zone de jeu */
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; align-items: start; }
+@media (max-width: 960px) { .app { grid-template-columns: 1fr; } }
+.board { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; position: relative; }
+.board svg { display: block; width: 100%; height: auto; max-width: 100%; aspect-ratio: 1; touch-action: manipulation; user-select: none; }
+.hint { position: absolute; left: 16px; right: 16px; bottom: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 14px; pointer-events: none; }
+.hint:empty { display: none; }
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.score { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.team { border-radius: 6px; padding: 8px 10px; border: 2px solid transparent; background: var(--tint); display: flex; flex-direction: column; gap: 2px; }
+.team.active { border-color: currentColor; }
+.team.M { color: var(--machines); } .team.G { color: var(--gardiens); }
+.team .nm { font-family: var(--display); font-weight: 700; font-size: 15px; }
+.team .pts { font-family: var(--display); font-weight: 700; font-size: 26px; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1; }
+.team .meta { font-size: 12.5px; color: var(--soft); }
+.round { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-family: var(--display); font-weight: 600; }
+.pips { display: flex; gap: 4px; }
+.pips i { width: 22px; height: 6px; border-radius: 3px; background: var(--line); }
+.pips i.done { background: var(--soft); } .pips i.now { background: var(--accent); }
+.status { font-size: 14.5px; }
+
+.unit h3 { font-size: 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none; }
+.dot.M { background: var(--machines); } .dot.G { background: var(--gardiens); }
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.stats div { padding: 4px 2px; text-align: center; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; }
+.stats div:last-child { border-right: 0; }
+.stats .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); font-family: var(--display); }
+.stats .v { font-family: var(--display); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.stats .v.txt { font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-size: 12.5px; border-radius: 99px; padding: 1px 8px; background: var(--tint); border: 1px solid var(--line); }
+.chip.fear { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.small { font-size: 13px; color: var(--soft); }
+.actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.actions .end { grid-column: 1 / -1; }
+
+/* Dés */
+.dice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 14px; }
+.dice-row .lab { font-family: var(--display); font-weight: 600; min-width: 74px; }
+.dd { width: 24px; height: 24px; display: inline-grid; place-items: center; border: 1.5px solid var(--die-black); }
+.dd.a { border-radius: 4px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); width: 28px; height: 28px; }
+.dd.d { border-radius: 5px; }
+.dd.r { background: var(--die-red); color: #fff; border-color: var(--die-red); }
+.dd.k { background: var(--die-black); color: #fff; }
+.dd.w { background: var(--die-white); color: #15203a; }
+.dd svg { width: 14px; height: 14px; fill: currentColor; }
+.dd.x { opacity: .35; }
+.result { font-weight: 700; }
+.ask { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: var(--tint); border-radius: 6px; padding: 8px; }
+
+.log { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.log p { padding: 2px 0; border-bottom: 1px dashed var(--line); }
+.log .M { color: var(--machines); } .log .G { color: var(--gardiens); }
+.log .sys { font-family: var(--display); font-weight: 600; }
+.log .tip { color: var(--ok); }
+
+.tut { border: 2px solid var(--accent); }
+.tut .kick { font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.tut p { font-size: 15.5px; }
+.hl { outline: 3px solid var(--accent) !important; outline-offset: 2px; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .hl { animation: none; } }
+
+details.more { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+details.more summary { cursor: pointer; font-family: var(--display); font-weight: 600; }
+details.more[open] summary { margin-bottom: 10px; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13.5px; width: 100%; }
+th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { font-family: var(--display); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--soft); }
+td input, td select { width: 52px; background: var(--tint); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; color: var(--ink); }
+.simres { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.simres div { background: var(--tint); border-radius: 6px; padding: 8px 10px; }
+.simres b { font-family: var(--display); font-size: 24px; display: block; font-variant-numeric: tabular-nums; }
+.bar { height: 14px; border-radius: 7px; overflow: hidden; display: flex; background: var(--line); }
+.bar span { display: block; height: 100%; }
+.memo { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 20px; font-size: 14px; }
+.memo ul { margin: 4px 0 0; padding-left: 1.2em; }
+
+/* Plateau SVG */
+.u-label { font-family: var(--display); font-weight: 700; font-size: 17px; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; }
+.t-label { font-family: var(--display); font-size: 14px; fill: var(--ink); opacity: .75; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-hit" viewBox="0 0 24 24"><path d="M23 12L16.62 10.09 19.78 4.22 13.91 7.38 12 1 10.09 7.38 4.22 4.22 7.38 10.09 1 12 7.38 13.91 4.22 19.78 10.09 16.62 12 23 13.91 16.62 19.78 19.78 16.62 13.91Z"/></symbol>
+    <symbol id="i-crit" viewBox="0 0 24 24"><path d="M12 1.5l3.1 7 7.6.7-5.8 5 1.8 7.4L12 17.7l-6.7 3.9 1.8-7.4-5.8-5 7.6-.7z"/></symbol>
+    <symbol id="i-surge" viewBox="0 0 24 24"><path d="M14 1L4 14h6.5L9 23l10.5-13.5H13z"/></symbol>
+    <symbol id="i-block" viewBox="0 0 24 24"><path d="M12 1.5l9 3.4v6.4c0 5.5-3.8 10.1-9 11.7-5.2-1.6-9-6.2-9-11.7V4.9z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Banc d'essai Légion Junior</h1>
+      <p class="sub">Teste les règles du livret sur une table virtuelle de 90 × 90 cm. Les fiches reprennent les valeurs des pages 10 et 11.</p>
+    </div>
+  </header>
+
+  <form class="setup" id="setup">
+    <label for="s-level">Niveau
+      <select id="s-level"><option value="1">1 · Cadet</option><option value="2">2 · Soldat</option><option value="3">3 · Commandant</option></select>
+    </label>
+    <label for="s-M">Machines (rouge)
+      <select id="s-M"><option value="ai">Ordinateur</option><option value="human">Humain</option></select>
+    </label>
+    <label for="s-G">Gardiens (bleu)
+      <select id="s-G"><option value="human">Humain</option><option value="ai">Ordinateur</option></select>
+    </label>
+    <label for="s-first">Commence la manche 1
+      <select id="s-first"><option value="G">Gardiens</option><option value="M">Machines</option></select>
+    </label>
+    <label for="s-heroM">Héroïques rouge
+      <input id="s-heroM" type="number" min="0" max="6" value="2">
+    </label>
+    <label for="s-heroG">Héroïques bleu
+      <input id="s-heroG" type="number" min="0" max="6" value="2">
+    </label>
+    <label for="s-terrain">Décors
+      <select id="s-terrain"><option value="std">Table du livret</option><option value="rnd">Au hasard</option></select>
+    </label>
+    <label for="s-speed">Vitesse de l'ordinateur
+      <select id="s-speed"><option value="900">Lente</option><option value="450" selected>Normale</option><option value="120">Rapide</option></select>
+    </label>
+    <button class="btn primary" type="submit" id="b-new">Nouvelle partie</button>
+    <button class="btn" type="button" id="b-tuto">Tutoriel</button>
+  </form>
+
+  <div class="app">
+    <div class="board" id="board-wrap">
+      <svg id="board" viewBox="-10 -10 920 920" role="img" aria-label="Table de jeu vue du dessus"></svg>
+      <div class="hint" id="hint"></div>
+    </div>
+
+    <aside class="side">
+      <section class="card tut" id="tut" hidden>
+        <span class="kick" id="tut-step">Tutoriel</span>
+        <p id="tut-text"></p>
+        <div class="chips"><button class="btn primary" type="button" id="tut-next">Suivant</button><button class="btn" type="button" id="tut-quit">Quitter le tutoriel</button></div>
+      </section>
+
+      <section class="card">
+        <div class="round"><span id="round-label">Manche 1 sur 4</span><span class="pips" id="pips"></span></div>
+        <div class="score">
+          <div class="team M" id="team-M"><span class="nm">Machines</span><span class="pts" id="pts-M">0</span><span class="meta" id="meta-M"></span></div>
+          <div class="team G" id="team-G"><span class="nm">Gardiens</span><span class="pts" id="pts-G">0</span><span class="meta" id="meta-G"></span></div>
+        </div>
+        <p class="status" id="status"></p>
+      </section>
+
+      <section class="card unit" id="unit"></section>
+
+      <section class="card" id="act-card">
+        <h2>Actions</h2>
+        <div class="actions" id="actions">
+          <button class="btn" type="button" id="act-move">Bouger</button>
+          <button class="btn" type="button" id="act-roll" hidden>Rouler</button>
+          <button class="btn" type="button" id="act-charge" hidden>Charger</button>
+          <button class="btn" type="button" id="act-attack">Attaquer</button>
+          <button class="btn" type="button" id="act-aim">Viser</button>
+          <button class="btn" type="button" id="act-dodge">Esquiver</button>
+          <button class="btn" type="button" id="act-rally">Se reprendre</button>
+          <button class="btn end" type="button" id="act-end">Finir l'activation</button>
+        </div>
+      </section>
+
+      <section class="card" id="dice">
+        <h2>Dés</h2>
+        <div id="dice-body"><p class="small">Le détail du dernier tir apparaîtra ici.</p></div>
+      </section>
+
+      <section class="card">
+        <h2>Journal</h2>
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+    </aside>
+  </div>
+
+  <details class="more" id="sim-box">
+    <summary>Simulateur d'équilibre</summary>
+    <div class="card" style="border:0;padding:0">
+      <p class="small">L'ordinateur joue des parties contre lui-même avec les fiches et le niveau choisis ci-dessus. Cela remplace la partie en cours. L'ordinateur joue simplement : les résultats donnent une tendance, pas une vérité.</p>
+      <div class="chips">
+        <label class="small" for="sim-n">Parties</label>
+        <select id="sim-n"><option>50</option><option selected>200</option><option>500</option></select>
+        <button class="btn primary" type="button" id="sim-go">Lancer la simulation</button>
+      </div>
+      <div id="sim-out"></div>
+    </div>
+  </details>
+
+  <details class="more">
+    <summary>Ajuster les fiches</summary>
+    <p class="small" style="margin-bottom:8px">Change une valeur pour tester une variante. Elle s'applique à la prochaine partie et aux simulations. Courage 0 = Sans peur. Dés : nombre de dés rouges / noirs / blancs par figurine.</p>
+    <div class="tw"><table id="types-table"></table></div>
+    <div class="chips" style="margin-top:8px"><button class="btn" type="button" id="types-reset">Revenir aux fiches du livret</button></div>
+  </details>
+
+  <details class="more">
+    <summary>Aide-mémoire des règles</summary>
+    <div class="memo">
+      <div><strong>Une manche</strong><ul><li>Chacun son tour, fais agir une unité : 2 actions.</li><li>Fin de manche : on enlève Viser, Esquive et 1 Peur par unité.</li><li>4 manches. +1 point par unité ennemie battue.</li></ul></div>
+      <div><strong>Tirer</strong><ul><li>Cible vue par le chef et à portée (1 portée = 15 cm).</li><li>💥, ⭐ et ⚡ = touches. Abri léger −1, lourd −2 (niveau 2). ⭐ jamais annulé.</li><li>1 dé de défense par touche, chaque bouclier annule.</li></ul></div>
+      <div><strong>Niveau 2</strong><ul><li>Peur : début d'activation, 1 dé blanc par jeton, bouclier ou ⚡ en enlève 1. Peur ≥ courage = 1 seule action.</li><li>Terrain difficile (ruines) : vitesse −1.</li></ul></div>
+      <div><strong>Niveau 3</strong><ul><li>Charger au contact, frapper avec l'arme de corps à corps.</li><li>Objectifs : fin des manches 2 à 4, 1 point pour le camp qui a le plus de chefs à 7,5 cm.</li><li>Pouvoirs des fiches.</li></ul></div>
+    </div>
+  </details>
+</div>
+
+<script>
+(function () {
+"use strict";
+/* ================= CONSTANTES ================= */
+const W = 900, R1 = 150, HALF = 75, SPEED = [0, 100, 150, 200];
+const FACES = {
+  a: { r: ["hit","hit","hit","hit","hit","crit","surge","blank"], k: ["hit","hit","hit","crit","surge","blank","blank","blank"], w: ["hit","crit","surge","blank","blank","blank","blank","blank"] },
+  d: { r: ["block","block","block","surge","blank","blank"], w: ["block","surge","blank","blank","blank","blank"] }
+};
+const PHIT = { r: 7/8, k: 5/8, w: 3/8 };
+const KINDS = {
+  caisses:  { label: "Caisses",  cover: 1, block: false, imp: false, diff: false },
+  muret:    { label: "Muret",    cover: 2, block: false, imp: false, diff: false },
+  ruines:   { label: "Ruines",   cover: 1, block: false, imp: false, diff: true },
+  rocher:   { label: "Rochers",  cover: 2, block: true,  imp: true,  diff: false },
+  batiment: { label: "Bâtiment", cover: 2, block: true,  imp: true,  diff: false }
+};
+const SIDE_NAME = { M: "Machines", G: "Gardiens" };
+const POWER_TXT = {
+  machines: "Machines : la peur ne fait jamais perdre d'action.",
+  chefLeger: "Chef de section : au début de son tour, une escouade de Droïdes légers à portée 1 enlève sa peur.",
+  roue: "Mode roue : Rouler = Bouger à vitesse 3, mais pas d'attaque ce tour.",
+  reflexes: "Réflexes : en défense, ⚡ bloque.",
+  bond: "Bond : saute par-dessus les décors et les figurines.",
+  maitre: "Maître : au début de son tour, une unité alliée à portée 1 enlève sa peur."
+};
+const DEFAULT_TYPES = {
+  b1:   { name: "Droïdes légers",       side: "M", figs: 6, pv: 1, speed: 2, courage: 1, def: "w", rmax: 3, rd: { r: 0, k: 0, w: 1 }, md: { r: 0, k: 0, w: 1 }, base: 12.5, powers: ["machines"] },
+  b2:   { name: "Droïdes lourds",       side: "M", figs: 4, pv: 1, speed: 2, courage: 2, def: "r", rmax: 3, rd: { r: 0, k: 1, w: 0 }, md: { r: 0, k: 0, w: 1 }, base: 13,   powers: ["machines", "chefLeger"] },
+  deka: { name: "Droïde à bouclier",    side: "M", figs: 1, pv: 7, speed: 1, courage: 0, def: "r", rmax: 2, rd: { r: 4, k: 0, w: 0 }, md: { r: 0, k: 0, w: 0 }, base: 18,   powers: ["roue", "reflexes"] },
+  obi:  { name: "Chevalier",            side: "G", figs: 1, pv: 6, speed: 2, courage: 0, def: "r", rmax: 2, rd: { r: 0, k: 2, w: 0 }, md: { r: 4, k: 0, w: 0 }, base: 12.5, powers: ["bond", "reflexes"] },
+  yoda: { name: "Grand maître",         side: "G", figs: 1, pv: 5, speed: 2, courage: 0, def: "r", rmax: 2, rd: { r: 0, k: 3, w: 0 }, md: { r: 3, k: 0, w: 0 }, base: 11,   powers: ["maitre", "reflexes"] },
+  gun:  { name: "Guerriers des marais", side: "G", figs: 6, pv: 1, speed: 2, courage: 1, def: "w", rmax: 3, rd: { r: 0, k: 1, w: 0 }, md: { r: 0, k: 1, w: 0 }, base: 12.5, powers: [] }
+};
+const ARMIES = {
+  1: { M: ["b1", "b1", "b2"], G: ["obi", "gun", "gun"] },
+  2: { M: ["b1", "b1", "b1", "b2"], G: ["obi", "gun", "gun", "gun"] },
+  3: { M: ["b1", "b1", "b1", "b2", "deka"], G: ["obi", "yoda", "gun", "gun", "gun"] }
+};
+const STD_TERRAIN = [
+  { k: "batiment", x: 240, y: 390, w: 110, h: 120 },
+  { k: "caisses",  x: 400, y: 330, w: 100, h: 30 },
+  { k: "muret",    x: 110, y: 205, w: 130, h: 22 },
+  { k: "ruines",   x: 560, y: 215, w: 140, h: 90 },
+  { k: "caisses",  x: 370, y: 175, w: 60,  h: 40 },
+  { k: "rocher",   x: 55,  y: 500, w: 70,  h: 70 }
+];
+const OBJECTIVES = [{ x: 150, y: 450 }, { x: 450, y: 450 }, { x: 750, y: 450 }];
+const OBJ_R = 25;
+
+/* ================= OUTILS ================= */
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const other = s => (s === "M" ? "G" : "M");
+const rollDie = (kind, c) => { const f = FACES[kind][c]; return f[Math.floor(Math.random() * f.length)]; };
+const sumDice = d => (d ? d.r + d.k + d.w : 0);
+const hyp = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+function mirror(t) { return { k: t.k, x: W - t.x - t.w, y: W - t.y - t.h, w: t.w, h: t.h }; }
+function inflate(t, r) { return { x: t.x - r, y: t.y - r, w: t.w + 2 * r, h: t.h + 2 * r }; }
+function segRect(x1, y1, x2, y2, r) {
+  let t0 = 0, t1 = 1; const dx = x2 - x1, dy = y2 - y1;
+  const p = [-dx, dx, -dy, dy], q = [x1 - r.x, r.x + r.w - x1, y1 - r.y, r.y + r.h - y1];
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) { if (q[i] < 0) return false; }
+    else { const t = q[i] / p[i]; if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } }
+  }
+  return true;
+}
+function distPtRect(x, y, r) { const nx = clamp(x, r.x, r.x + r.w), ny = clamp(y, r.y, r.y + r.h); return Math.hypot(x - nx, y - ny); }
+function circleRect(x, y, rad, r) { return distPtRect(x, y, r) < rad; }
+
+/* ================= FICHES ================= */
+let TYPES = loadTypes();
+function loadTypes() {
+  const t = JSON.parse(JSON.stringify(DEFAULT_TYPES));
+  try { const s = JSON.parse(localStorage.getItem("lj-bench-types") || "null"); if (s) for (const k in s) if (t[k]) Object.assign(t[k], s[k]); } catch (e) { /* stockage indisponible */ }
+  return t;
+}
+function saveTypes() { try { localStorage.setItem("lj-bench-types", JSON.stringify(TYPES)); } catch (e) { /* ignoré */ } }
+
+/* ================= ÉTAT ================= */
+let G = null, CTRL = { M: "ai", G: "human" }, SIM = false, gameToken = 0, AI_DELAY = 450;
+let TER = [];
+let uid = 0;
+
+function newState(level, opts) {
+  uid = 0;
+  const st = {
+    level, round: 1, first: opts.first, turn: opts.first, units: [], points: { M: 0, G: 0 }, heroic: { M: opts.heroM, G: opts.heroG },
+    over: false, winner: null, act: null, phase: "wait", mode: null, busy: false, view: null, report: null, logs: [], tips: {},
+    resolveTurn: null, pending: null, tutorial: !!opts.tutorial
+  };
+  return st;
+}
+function makeUnit(type, side, letter) {
+  const t = TYPES[type];
+  return { id: ++uid, type, side, t, name: t.name + (t.figs > 1 ? " " + letter : ""), x: 0, y: 0, figs: [], dmg: 0, fear: 0, aim: 0, dodge: 0, activated: false, engaged: new Set() };
+}
+function buildTerrain(mode) {
+  let half;
+  if (mode === "rnd") {
+    half = []; const kinds = ["batiment", "rocher", "caisses", "muret", "ruines", "caisses"];
+    let tries = 0;
+    while (half.length < 5 && tries++ < 400) {
+      const k = kinds[half.length];
+      const w = k === "caisses" ? 60 + Math.random() * 50 : k === "muret" ? 110 + Math.random() * 40 : 70 + Math.random() * 70;
+      const h = k === "muret" ? 22 : k === "caisses" ? 30 + Math.random() * 15 : 60 + Math.random() * 60;
+      const t = { k, x: 20 + Math.random() * (W - 40 - w), y: 165 + Math.random() * (420 - 165 - h + 40), w, h };
+      const all = half.concat(half.map(mirror));
+      const clash = all.some(o => !(t.x > o.x + o.w + 60 || t.x + t.w + 60 < o.x || t.y > o.y + o.h + 60 || t.y + t.h + 60 < o.y));
+      const objClash = OBJECTIVES.some(o => distPtRect(o.x, o.y, t) < OBJ_R + 30) || OBJECTIVES.some(o => distPtRect(o.x, o.y, mirror(t)) < OBJ_R + 30);
+      const selfClash = !(t.y + t.h + 60 < W - t.y - t.h);
+      if (!clash && !objClash && !selfClash) half.push(t);
+    }
+  } else half = STD_TERRAIN;
+  return half.concat(half.map(mirror)).map(t => Object.assign({}, t, KINDS[t.k]));
+}
+
+/* ================= GÉOMÉTRIE DE JEU ================= */
+function losBlocked(x1, y1, x2, y2) { return TER.some(t => t.block && segRect(x1, y1, x2, y2, t)); }
+function figVisibleFrom(px, py, f, fr) {
+  const dx = f.x - px, dy = f.y - py, L = Math.hypot(dx, dy) || 1, ox = -dy / L * fr * 0.8, oy = dx / L * fr * 0.8;
+  return !losBlocked(px, py, f.x, f.y) || !losBlocked(px, py, f.x + ox, f.y + oy) || !losBlocked(px, py, f.x - ox, f.y - oy);
+}
+function unitVisibleFrom(px, py, def) { return def.figs.some(f => figVisibleFrom(px, py, f, def.t.base)); }
+function edgeToUnit(px, py, pr, def) { let m = Infinity; for (const f of def.figs) m = Math.min(m, hyp(px, py, f.x, f.y) - pr - def.t.base); return m; }
+function bandOf(d) { return d <= 0 ? 1 : Math.ceil(d / R1); }
+function hasPower(u, p) { return G.level >= 3 && u.t.powers.indexOf(p) >= 0; }
+function hasMelee(u) { return G.level >= 3 && sumDice(u.t.md) > 0; }
+function alive(u) { return u.figs.length > 0; }
+function enemies(u) { return G.units.filter(o => o.side !== u.side); }
+function allies(u) { return G.units.filter(o => o.side === u.side && o !== u); }
+function speedLen(sp) { return SPEED[clamp(sp, 1, 3)]; }
+
+function rangedTargetsFrom(u, px, py) {
+  if (u.engaged.size || sumDice(u.t.rd) === 0) return [];
+  return enemies(u).filter(e => !e.engaged.size && unitVisibleFrom(px, py, e) && bandOf(edgeToUnit(px, py, u.t.base, e)) <= u.t.rmax);
+}
+function attackTargets(u) {
+  if (u.engaged.size) return hasMelee(u) ? G.units.filter(o => u.engaged.has(o.id)) : [];
+  return rangedTargetsFrom(u, u.x, u.y);
+}
+
+/* Place les figurines autour du chef */
+function okFigPos(u, x, y, r, placed, ignoreEnemy) {
+  if (x < r || y < r || x > W - r || y > W - r) return false;
+  if (TER.some(t => t.imp && circleRect(x, y, r, t))) return false;
+  for (const p of placed) if (hyp(x, y, p.x, p.y) < 2 * r + 1) return false;
+  for (const o of G.units) {
+    if (o === u) continue;
+    const gap = o.side === u.side ? 1 : (ignoreEnemy && ignoreEnemy.has(o.id) ? 0 : 6);
+    for (const f of o.figs) if (hyp(x, y, f.x, f.y) < r + o.t.base + gap) return false;
+  }
+  return true;
+}
+function arrange(u, lx, ly) {
+  const r = u.t.base, n = Math.max(1, u.figs.length || u.t.figs), figs = [{ x: lx, y: ly }];
+  if (n > 1) {
+    const en = nearestEnemyPoint(u, lx, ly);
+    const base = en ? Math.atan2(ly - en.y, lx - en.x) : (u.side === "M" ? -Math.PI / 2 : Math.PI / 2);
+    const cands = [];
+    for (const rad of [2 * r + 4, 4 * r + 6, 6 * r + 8]) {
+      const k = Math.max(6, Math.floor(2 * Math.PI * rad / (2 * r + 6)));
+      for (let i = 0; i < k; i++) { const a = base + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (2 * Math.PI / k); cands.push({ x: lx + rad * Math.cos(a), y: ly + rad * Math.sin(a) }); }
+    }
+    for (const c of cands) {
+      if (figs.length >= n) break;
+      if (okFigPos(u, c.x, c.y, r, figs, u.engaged) && !losBlocked(lx, ly, c.x, c.y)) figs.push(c);
+    }
+    while (figs.length < n) figs.push({ x: lx + (figs.length % 3 - 1) * 3, y: ly + 3 });
+  }
+  u.figs = figs; u.x = lx; u.y = ly;
+}
+function nearestEnemyPoint(u, x, y) {
+  let best = null, bd = Infinity;
+  for (const e of G.units) if (e.side !== u.side) for (const f of e.figs) { const d = hyp(x, y, f.x, f.y); if (d < bd) { bd = d; best = f; } }
+  return best;
+}
+
+/* Vérifie un mouvement */
+function moveCheck(u, x, y, mode) {
+  const r = u.t.base, bond = hasPower(u, "bond");
+  if (x < r || y < r || x > W - r || y > W - r) return { ok: false, why: "En dehors de la table." };
+  if (TER.some(t => t.imp && circleRect(x, y, r, t))) return { ok: false, why: "On ne peut pas s'arrêter dans un bâtiment ou des rochers." };
+  if (!bond && TER.some(t => t.imp && segRect(u.x, u.y, x, y, inflate(t, r * 0.8)))) return { ok: false, why: "Le chemin traverse un décor infranchissable. Fais le tour." };
+  let sp = mode === "roll" ? 3 : mode === "disengage" ? 1 : u.t.speed;
+  const diff = G.level >= 2 && !bond && mode !== "disengage" && TER.some(t => t.diff && segRect(u.x, u.y, x, y, t));
+  if (diff) sp = Math.max(1, sp - 1);
+  const len = speedLen(sp), d = hyp(u.x, u.y, x, y);
+  if (d > len + 0.5) return { ok: false, why: "Trop loin : " + Math.round(d / 10) + " cm pour " + len / 10 + " cm au maximum" + (diff ? " (terrain difficile : vitesse −1)." : ".") };
+  for (const o of G.units) {
+    if (o === u) continue;
+    for (const f of o.figs) {
+      const min = r + o.t.base + (o.side !== u.side ? 8 : 1);
+      if (hyp(f.x, f.y, x, y) < min) return { ok: false, why: o.side !== u.side ? (G.level >= 3 ? "Pour aller au contact d'un ennemi, utilise Charger." : "Trop près d'un ennemi.") : "Une autre figurine est déjà là." };
+    }
+  }
+  return { ok: true, len, diff };
+}
+function chargePlan(u, target) {
+  if (!hasMelee(u) || u.engaged.size) return null;
+  const bond = hasPower(u, "bond");
+  let best = null;
+  for (const f of target.figs) {
+    const d = hyp(u.x, u.y, f.x, f.y), contact = u.t.base + target.t.base + 1;
+    const base = Math.atan2(u.y - f.y, u.x - f.x);
+    for (const off of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
+      const px = f.x + Math.cos(base + off) * contact, py = f.y + Math.sin(base + off) * contact;
+      const travel = hyp(u.x, u.y, px, py);
+      let sp = u.t.speed;
+      if (G.level >= 2 && !bond && TER.some(t => t.diff && segRect(u.x, u.y, px, py, t))) sp = Math.max(1, sp - 1);
+      if (travel > speedLen(sp) + 0.5) continue;
+      if (px < u.t.base || py < u.t.base || px > W - u.t.base || py > W - u.t.base) continue;
+      if (TER.some(t => t.imp && circleRect(px, py, u.t.base, t))) continue;
+      if (!bond && TER.some(t => t.imp && segRect(u.x, u.y, px, py, inflate(t, u.t.base * 0.8)))) continue;
+      let clash = false;
+      for (const o of G.units) { if (o === u) continue; for (const g of o.figs) { if (g === f) continue; if (hyp(px, py, g.x, g.y) < u.t.base + o.t.base + (o === target ? -2 : 1)) clash = true; } }
+      if (clash) continue;
+      if (!best || travel < best.travel) best = { x: px, y: py, travel };
+      break;
+    }
+    void d;
+  }
+  return best;
+}
+function chargeTargets(u) { return hasMelee(u) && !u.engaged.size ? enemies(u).filter(e => chargePlan(u, e)) : []; }
+
+/* ================= JOURNAL ET ÉVÉNEMENTS ================= */
+function log(text, cls) { if (SIM) return; G.logs.unshift({ text, cls: cls || "" }); if (G.logs.length > 80) G.logs.pop(); }
+function tip(key, text) { if (SIM || G.tips[key]) return; G.tips[key] = 1; log("Astuce : " + text, "tip"); }
+const listeners = [];
+function emit(ev, data) { if (SIM) return; for (const l of listeners.slice()) l(ev, data); }
+
+/* ================= DÉROULEMENT ================= */
+function deploy(st, tutorial) {
+  for (const side of ["M", "G"]) {
+    const list = ARMIES[st.level][side], counts = {};
+    list.forEach((type, i) => {
+      counts[type] = (counts[type] || 0) + 1;
+      const u = makeUnit(type, side, String.fromCharCode(64 + counts[type]));
+      st.units.push(u);
+      let x = W * (i + 1) / (list.length + 1), y = side === "M" ? 70 : W - 70;
+      if (tutorial) { const P = { M: [[450, 240], [720, 215], [200, 190]], G: [[250, 770], [440, 655], [700, 640]] }; x = P[side][i][0]; y = P[side][i][1]; }
+      u.figs = Array.from({ length: Math.max(1, u.t.figs) }, () => ({ x: -999, y: -999 }));
+      u._pos = [x, y];
+    });
+  }
+  const prev = G; G = st;
+  for (const u of st.units) arrange(u, u._pos[0], u._pos[1]);
+  G = prev;
+}
+
+function startGame(opts) {
+  gameToken++;
+  CTRL = { M: opts.M, G: opts.G };
+  TER = buildTerrain(opts.terrain);
+  const st = newState(opts.level, opts);
+  deploy(st, opts.tutorial);
+  G = st;
+  log("Nouvelle partie au niveau " + G.level + ". " + SIDE_NAME[G.first] + " commencent.", "sys");
+  if (G.level === 2) tip("n2", "au niveau 2, les décors donnent des abris et chaque tir donne un jeton Peur.");
+  if (G.level === 3) tip("n3", "au niveau 3, les unités avec une arme de contact peuvent Charger, et les objectifs rapportent des points à la fin des manches 2, 3 et 4.");
+  render();
+  return runGame(gameToken);
+}
+
+async function runGame(token) {
+  while (!G.over && token === gameToken) {
+    log("Manche " + G.round + " : " + SIDE_NAME[G.first] + " commencent.", "sys");
+    let side = G.first;
+    for (;;) {
+      if (token !== gameToken || G.over) return;
+      const can = s => G.units.some(u => u.side === s && !u.activated);
+      if (!can("M") && !can("G")) break;
+      if (!can(side)) side = other(side);
+      G.turn = side;
+      render();
+      emit("turn", side);
+      if (CTRL[side] === "ai") await aiTurn(side, token); else await humanTurn(side);
+      if (token !== gameToken) return;
+      side = other(side);
+    }
+    if (token !== gameToken || G.over) return;
+    endRound();
+  }
+  render();
+}
+
+function endRound() {
+  for (const u of G.units) { u.activated = false; u.aim = 0; u.dodge = 0; if (G.level >= 2 && u.fear > 0) u.fear--; }
+  if (G.level >= 3 && G.round >= 2) {
+    OBJECTIVES.forEach((o, i) => {
+      const c = { M: 0, G: 0 };
+      for (const u of G.units) if (hyp(u.x, u.y, o.x, o.y) - u.t.base - OBJ_R <= HALF) c[u.side]++;
+      if (c.M !== c.G) { const s = c.M > c.G ? "M" : "G"; G.points[s]++; log(SIDE_NAME[s] + " tiennent l'objectif " + (i + 1) + " : +1 point.", s); }
+    });
+  }
+  emit("roundEnded", G.round);
+  if (G.round >= 4) { finishGame(); return; }
+  G.round++;
+  G.first = other(G.first);
+}
+function finishGame(forced) {
+  G.over = true;
+  if (forced) G.winner = forced;
+  else if (G.points.M !== G.points.G) G.winner = G.points.M > G.points.G ? "M" : "G";
+  else {
+    const n = s => G.units.filter(u => u.side === s).reduce((a, u) => a + u.figs.length, 0);
+    G.winner = n("M") === n("G") ? "draw" : n("M") > n("G") ? "M" : "G";
+  }
+  G.act = null; G.mode = null; G.phase = "over";
+  log(G.winner === "draw" ? "Match nul !" : SIDE_NAME[G.winner] + " gagnent la partie !", "sys");
+  emit("gameOver", G.winner);
+  render();
+}
+function checkWipe() {
+  for (const s of ["M", "G"]) if (!G.units.some(u => u.side === s)) { finishGame(other(s)); return true; }
+  return false;
+}
+
+/* Activation */
+function beginActivation(u) {
+  const a = { unit: u, actionsLeft: 2, used: new Set(), rolled: false, disengaged: false };
+  G.act = a; G.view = u;
+  log(u.name + " entre en action.", u.side);
+  if (G.level >= 3) {
+    if (hasPower(u, "chefLeger") || hasPower(u, "maitre")) {
+      const pool = allies(u).filter(o => o.fear > 0 && (hasPower(u, "maitre") || o.type === "b1") && bandOf(edgeToUnit(u.x, u.y, u.t.base, o)) <= 1);
+      pool.sort((p, q) => q.fear - p.fear);
+      if (pool[0]) { log(u.name + " rassure " + pool[0].name + " : sa peur disparaît.", u.side); pool[0].fear = 0; }
+    }
+  }
+  if (G.level >= 2 && u.fear > 0) {
+    let removed = 0; const n = u.fear;
+    for (let i = 0; i < n; i++) { const f = rollDie("d", "w"); if (f === "block" || f === "surge") removed++; }
+    u.fear -= removed;
+    log(u.name + " lance " + n + " dé(s) contre la peur : " + removed + " jeton(s) enlevé(s).", u.side);
+    if (u.t.courage > 0 && u.fear >= u.t.courage) {
+      if (hasPower(u, "machines")) log(u.name + " a peur, mais les machines ne perdent pas d'action.", u.side);
+      else { a.actionsLeft = 1; log(u.name + " a trop peur : une seule action ce tour.", u.side); tip("fear", "une unité qui a autant de jetons Peur que son courage ne fait qu'une action. L'action Se reprendre enlève toute la peur."); }
+    }
+  }
+  return a;
+}
+function spend(name) { const a = G.act; if (!a) return; a.actionsLeft--; a.used.add(name); }
+
+function doMove(u, x, y, mode) {
+  const c = moveCheck(u, x, y, mode);
+  if (!c.ok) return c;
+  const dx = x - u.x, dy = y - u.y;
+  arrange(u, x, y);
+  if (mode === "disengage") { for (const id of u.engaged) { const o = G.units.find(v => v.id === id); if (o) o.engaged.delete(u.id); } u.engaged.clear(); G.act.disengaged = true; log(u.name + " se dégage du corps à corps.", u.side); }
+  else if (mode === "roll") { G.act.rolled = true; log(u.name + " roule à toute vitesse (" + Math.round(Math.hypot(dx, dy) / 10) + " cm).", u.side); }
+  else log(u.name + " bouge de " + Math.round(Math.hypot(dx, dy) / 10) + " cm" + (c.diff ? " dans un terrain difficile" : "") + ".", u.side);
+  if (c.diff) tip("diff", "les ruines sont un terrain difficile : la vitesse baisse de 1.");
+  spend("move");
+  return c;
+}
+function doCharge(u, target) {
+  const p = chargePlan(u, target);
+  if (!p) return false;
+  u.engaged.add(target.id); target.engaged.add(u.id);
+  arrange(u, p.x, p.y);
+  log(u.name + " charge " + target.name + " !", u.side);
+  tip("melee", "deux unités au contact ne peuvent plus tirer ni être visées par des tirs. Pour partir, il faut Bouger à vitesse 1.");
+  spend("move");
+  return true;
+}
+
+/* ================= ATTAQUE ================= */
+function poolFor(att, def, melee) {
+  const d = melee ? att.t.md : att.t.rd;
+  const n = melee ? att.figs.length : att.figs.filter(f => unitVisibleFrom(f.x, f.y, def)).length;
+  return { r: d.r * n, k: d.k * n, w: d.w * n, n };
+}
+function coverOf(att, def) {
+  if (G.level < 2) return 0;
+  let obs = 0, heavy = false;
+  for (const f of def.figs) {
+    let o = false;
+    for (const t of TER) {
+      if (distPtRect(f.x, f.y, t) - def.t.base > HALF) continue;
+      if (t.block) {
+        const dx = f.x - att.x, dy = f.y - att.y, L = Math.hypot(dx, dy) || 1, ox = -dy / L * def.t.base * 0.8, oy = dx / L * def.t.base * 0.8;
+        if (segRect(att.x, att.y, f.x, f.y, t) || segRect(att.x, att.y, f.x + ox, f.y + oy, t) || segRect(att.x, att.y, f.x - ox, f.y - oy, t)) { o = true; if (t.cover === 2) heavy = true; }
+      } else if (t.cover > 0 && segRect(att.x, att.y, f.x, f.y, t) && distPtRect(att.x, att.y, t) > att.t.base + 2) { o = true; if (t.cover === 2) heavy = true; }
+    }
+    if (o) obs++;
+  }
+  if (obs * 2 < def.figs.length || obs === 0) return 0;
+  return heavy ? 2 : 1;
+}
+function rollPool(pool) { const out = []; for (const c of ["r", "k", "w"]) for (let i = 0; i < pool[c]; i++) out.push({ kind: "a", c, f: rollDie("a", c) }); return out; }
+
+async function decide(side, kind, info) {
+  if (SIM || CTRL[side] === "ai") {
+    if (kind === "heroAtt") return info.fails >= Math.max(2, Math.ceil(info.total / 2)) && (G.heroic[side] > 1 || G.round >= 3);
+    return info.fails >= 2 && (G.heroic[side] > 1 || G.round >= 3);
+  }
+  render();
+  return new Promise(res => { G.pending = { side, kind, info, res }; renderDice(); emit("ask", kind); });
+}
+
+async function resolveAttack(att, def, melee) {
+  const rep = { att: att.name, attSide: att.side, def: def.name, defSide: def.side, melee, rows: [], result: "" };
+  G.report = rep;
+  const pool = poolFor(att, def, melee);
+  let dice = rollPool(pool);
+  rep.rows.push({ lab: melee ? "Corps à corps" : "Tir", dice: dice.slice(), note: pool.n + " figurine(s)" });
+  const fails = () => dice.filter(d => d.f === "blank").length;
+  if (G.level >= 2 && att.aim > 0 && fails() > 0) {
+    att.aim--; let k = 2;
+    dice = dice.map(d => { if (d.f === "blank" && k > 0) { k--; return { kind: "a", c: d.c, f: rollDie("a", d.c), re: true }; } return d; });
+    rep.rows.push({ lab: "Viser", dice: dice.slice(), note: "relance 2 dés ratés" });
+  }
+  if (G.heroic[att.side] > 0 && fails() > 0) {
+    if (await decide(att.side, "heroAtt", { fails: fails(), total: dice.length })) {
+      G.heroic[att.side]--;
+      dice = dice.map(d => d.f === "blank" ? { kind: "a", c: d.c, f: rollDie("a", d.c), re: true } : d);
+      rep.rows.push({ lab: "Héroïque", dice: dice.slice(), note: "relance des dés ratés" });
+      log(SIDE_NAME[att.side] + " utilisent un jeton héroïque.", att.side);
+    }
+    G.pending = null;
+  }
+  let hits = dice.filter(d => d.f === "hit" || d.f === "surge").length;
+  const crits = dice.filter(d => d.f === "crit").length;
+  const hadHit = hits + crits > 0;
+  if (!melee && G.level >= 2 && hits > 0) {
+    const cv = coverOf(att, def);
+    if (cv > 0) { const c = Math.min(cv, hits); hits -= c; rep.rows.push({ note: (cv === 2 ? "Abri lourd" : "Abri léger") + " : " + c + " touche(s) annulée(s)" }); tip("cover", "si au moins la moitié des figurines visées sont cachées en partie par un décor proche, elles sont à l'abri."); }
+  }
+  if (G.level >= 2 && def.dodge > 0 && hits > 0) { def.dodge--; hits--; rep.rows.push({ note: "Esquive : 1 touche annulée" }); }
+  const total = hits + crits;
+  let blocks = 0, ddice = [];
+  if (total > 0) {
+    for (let i = 0; i < total; i++) ddice.push({ kind: "d", c: def.t.def, f: rollDie("d", def.t.def) });
+    const refl = hasPower(def, "reflexes");
+    const isBlock = d => d.f === "block" || (refl && d.f === "surge");
+    rep.rows.push({ lab: "Défense", dice: ddice.slice(), note: refl ? "Réflexes : ⚡ bloque" : "" });
+    const dfails = () => ddice.filter(d => !isBlock(d)).length;
+    if (G.heroic[def.side] > 0 && dfails() > 0) {
+      if (await decide(def.side, "heroDef", { fails: dfails(), total: ddice.length })) {
+        G.heroic[def.side]--;
+        ddice = ddice.map(d => isBlock(d) ? d : { kind: "d", c: d.c, f: rollDie("d", d.c), re: true });
+        rep.rows.push({ lab: "Héroïque", dice: ddice.slice(), note: "relance des dés ratés" });
+        log(SIDE_NAME[def.side] + " utilisent un jeton héroïque.", def.side);
+      }
+      G.pending = null;
+    }
+    blocks = ddice.filter(isBlock).length;
+  }
+  const wounds = Math.max(0, total - blocks);
+  const destroyed = applyWounds(def, wounds);
+  let fearTxt = "";
+  if (!melee && G.level >= 2 && hadHit && !destroyed && def.t.courage > 0) { def.fear++; fearTxt = " " + def.name + " prend 1 jeton Peur."; }
+  rep.result = (wounds === 0 ? "Aucune blessure." : wounds + " blessure(s).") + (destroyed ? " " + def.name + " est battue : +1 point pour " + SIDE_NAME[att.side] + "." : "") + fearTxt;
+  log(att.name + (melee ? " frappe " : " tire sur ") + def.name + " : " + rep.result, att.side);
+  if (destroyed) { G.points[att.side]++; checkWipe(); }
+  emit("attackDone", { att, def, wounds });
+  return wounds;
+}
+function applyWounds(u, n) {
+  if (u.t.pv <= 1) { for (let i = 0; i < n && u.figs.length; i++) u.figs.pop(); }
+  else { u.dmg += n; while (u.dmg >= u.t.pv && u.figs.length) { u.dmg -= u.t.pv; u.figs.pop(); } if (!u.figs.length) u.dmg = 0; }
+  if (!u.figs.length) {
+    for (const o of G.units) o.engaged.delete(u.id);
+    G.units = G.units.filter(v => v !== u);
+    if (G.view === u) G.view = null;
+    return true;
+  }
+  return false;
+}
+
+/* ================= TOUR HUMAIN ================= */
+function humanTurn(side) {
+  return new Promise(res => { G.phase = "pick"; G.resolveTurn = res; render(); });
+}
+function finishActivation() {
+  const a = G.act; if (!a) return;
+  a.unit.activated = true; G.act = null; G.mode = null; G.phase = "wait";
+  emit("activationEnded", a.unit);
+  const r = G.resolveTurn; G.resolveTurn = null; render(); if (r) r();
+}
+function afterAction() {
+  if (G.over) { const r = G.resolveTurn; G.resolveTurn = null; render(); if (r) r(); return; }
+  G.mode = null;
+  if (G.act && G.act.actionsLeft <= 0) finishActivation(); else render();
+}
+function humanCan() { return G && !G.over && G.phase === "act" && !G.busy && G.act && CTRL[G.turn] === "human"; }
+function avail(u) {
+  const a = G.act; if (!a) return {};
+  const left = a.actionsLeft > 0;
+  const atkOk = left && !a.used.has("attack") && !a.rolled && !a.disengaged && attackTargets(u).length > 0;
+  return {
+    move: left,
+    roll: left && hasPower(u, "roue") && !a.used.has("attack") && !u.engaged.size,
+    charge: left && !a.used.has("attack") && chargeTargets(u).length > 0,
+    attack: atkOk,
+    aim: left && G.level >= 2 && !a.used.has("aim"),
+    dodge: left && G.level >= 2 && !a.used.has("dodge"),
+    rally: left && G.level >= 2 && !a.used.has("rally") && u.fear > 0
+  };
+}
+
+/* ================= ORDINATEUR ================= */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function pause(token) { if (SIM) return; render(); await sleep(AI_DELAY); if (token !== gameToken) throw new Error("annulé"); }
+function evOn(att, def, pool, cover) {
+  let hits = pool.r * PHIT.r + pool.k * PHIT.k + pool.w * PHIT.w;
+  if (G.level >= 2) hits = Math.max(0, hits - cover * 0.8);
+  let pb = (def.t.def === "r" ? 3 / 6 : 1 / 6) + (hasPower(def, "reflexes") ? 1 / 6 : 0);
+  const w = hits * (1 - pb);
+  const remain = def.t.pv > 1 ? def.t.pv - def.dmg : def.figs.length;
+  return w + (w >= remain ? 2 : 0) + (def.t.pv > 1 ? 0.3 : 0);
+}
+function bestRangedFrom(u, px, py) {
+  let best = null;
+  for (const e of rangedTargetsFrom(u, px, py)) {
+    const save = [u.x, u.y]; u.x = px; u.y = py;
+    const ev = evOn(u, e, { r: u.t.rd.r * u.figs.length, k: u.t.rd.k * u.figs.length, w: u.t.rd.w * u.figs.length }, coverOf(u, e));
+    u.x = save[0]; u.y = save[1];
+    if (!best || ev > best.ev) best = { target: e, ev };
+  }
+  return best;
+}
+function aiPickUnit(side) {
+  const mine = G.units.filter(u => u.side === side && !u.activated);
+  let best = null;
+  for (const u of mine) {
+    let s = 0;
+    if (u.engaged.size) s = 5;
+    else { const b = bestRangedFrom(u, u.x, u.y); if (b) s = 10 + b.ev; else { const p = nearestEnemyPoint(u, u.x, u.y); s = p ? 5 - hyp(u.x, u.y, p.x, p.y) / 300 : 0; } }
+    if (G.level >= 2 && u.fear > 0) s += 1;
+    if (!best || s > best.s) best = { u, s };
+  }
+  return best.u;
+}
+function aiMovePoint(u, mode, wantAttack) {
+  const len = speedLen(mode === "roll" ? 3 : mode === "disengage" ? 1 : u.t.speed);
+  const en = nearestEnemyPoint(u, u.x, u.y);
+  const cands = [{ x: u.x, y: u.y, stay: true }];
+  for (const f of [1, 0.75, 0.5, 0.25]) for (let i = 0; i < 20; i++) { const a = i * Math.PI / 10; cands.push({ x: u.x + Math.cos(a) * len * f, y: u.y + Math.sin(a) * len * f }); }
+  const reach = (u.t.rmax || 1) * R1;
+  let best = null;
+  for (const c of cands) {
+    if (!c.stay && !moveCheck(u, c.x, c.y, mode).ok) continue;
+    let s = 0;
+    if (mode === "disengage") { const p = nearestEnemyPoint(u, c.x, c.y); s = p ? hyp(c.x, c.y, p.x, p.y) / 50 : 0; }
+    else {
+      let canShoot = false;
+      if (wantAttack) { const b = bestRangedFrom(u, c.x, c.y); if (b) { s += 20 + b.ev * 5; canShoot = true; } }
+      for (const e of enemies(u)) {
+        const reachE = (sumDice(e.t.rd) ? e.t.rmax * R1 : 0) + speedLen(e.t.speed);
+        if (edgeToUnit(c.x, c.y, u.t.base, e) <= reachE && unitVisibleFrom(e.x, e.y, { figs: [c], t: u.t })) s -= canShoot ? 0.6 : 2.5;
+      }
+      if (en) {
+        const d = hyp(c.x, c.y, en.x, en.y) - u.t.base * 2;
+        s -= Math.max(0, d - (reach - 25)) / 40;
+        if (hasMelee(u) && u.t.rmax <= 2) s -= d / 200;
+      }
+      if (G.level >= 2 && TER.some(t => t.cover > 0 && distPtRect(c.x, c.y, t) < 45)) s += 1.5;
+      if (G.level >= 2 && TER.some(t => t.diff && circleRect(c.x, c.y, u.t.base, t))) s -= 0.5;
+      if (G.level >= 3 && G.round >= 1) { const od = Math.min(...OBJECTIVES.map(o => hyp(c.x, c.y, o.x, o.y) - OBJ_R - u.t.base)); s += od <= HALF ? 5 : -od / 150; }
+      if (c.stay) s -= 0.2;
+    }
+    if (!best || s > best.s) best = { x: c.x, y: c.y, s, stay: !!c.stay };
+  }
+  return best;
+}
+async function aiTurn(side, token) {
+  try {
+    const u = aiPickUnit(side);
+    G.phase = "ai";
+    beginActivation(u);
+    await pause(token);
+    let guard = 0;
+    while (G.act && G.act.actionsLeft > 0 && !G.over && guard++ < 6) {
+      const did = await aiAction(u);
+      if (token !== gameToken) return;
+      if (!did) break;
+      await pause(token);
+    }
+    if (G.act) { G.act.unit.activated = true; G.act = null; }
+    G.phase = "wait";
+    emit("aiDone", u);
+  } catch (e) { if (e.message !== "annulé") throw e; }
+}
+async function aiAction(u) {
+  const a = G.act;
+  const canAttack = !a.used.has("attack") && !a.rolled && !a.disengaged;
+  const scared = G.level >= 2 && u.t.courage > 0 && u.fear >= u.t.courage && !hasPower(u, "machines");
+  if (u.engaged.size) {
+    const tg = attackTargets(u);
+    if (canAttack && tg.length) { await resolveAttack(u, tg[0], true); spend("attack"); return true; }
+    if (!hasMelee(u) || a.used.has("attack")) {
+      const p = aiMovePoint(u, "disengage");
+      if (p && !p.stay) { doMove(u, p.x, p.y, "disengage"); return true; }
+    }
+    return false;
+  }
+  if (canAttack && hasMelee(u)) {
+    const ct = chargeTargets(u);
+    if (ct.length && a.actionsLeft >= 2) {
+      let best = null;
+      for (const e of ct) { const ev = evOn(u, e, { r: u.t.md.r * u.figs.length, k: u.t.md.k * u.figs.length, w: u.t.md.w * u.figs.length }, 0); if (!best || ev > best.ev) best = { e, ev }; }
+      const rb = bestRangedFrom(u, u.x, u.y);
+      if (best && (!rb || best.ev > rb.ev * 1.15)) { doCharge(u, best.e); return true; }
+    }
+  }
+  const rb = canAttack ? bestRangedFrom(u, u.x, u.y) : null;
+  if (rb) {
+    if (G.level >= 2 && a.actionsLeft >= 2 && !a.used.has("aim") && u.aim === 0) { u.aim++; spend("aim"); log(u.name + " vise.", u.side); return true; }
+    await resolveAttack(u, rb.target, false); spend("attack"); return true;
+  }
+  if (scared && !a.used.has("rally") && u.fear > 0) { u.fear = 0; spend("rally"); log(u.name + " se reprend.", u.side); return true; }
+  if (hasPower(u, "roue") && !a.used.has("attack") && a.actionsLeft >= 1) {
+    const pr = aiMovePoint(u, "roll", false), pn = aiMovePoint(u, "move", a.actionsLeft >= 2);
+    if (pr && !pr.stay && (!pn || pr.s > pn.s + 1) && a.actionsLeft === 1) { doMove(u, pr.x, pr.y, "roll"); return true; }
+  }
+  const mv = aiMovePoint(u, "move", canAttack && a.actionsLeft >= 2);
+  if (mv && !mv.stay) { doMove(u, mv.x, mv.y, "move"); return true; }
+  if (G.level >= 2 && !a.used.has("dodge")) { u.dodge++; spend("dodge"); log(u.name + " se met en garde (esquive).", u.side); return true; }
+  return false;
+}
+
+/* ================= RENDU ================= */
+const svgNS = "http://www.w3.org/2000/svg";
+const ICON = { hit: "i-hit", crit: "i-crit", surge: "i-surge", block: "i-block" };
+function dieHTML(d) {
+  const ic = ICON[d.f] && !(d.kind === "d" && d.f === "hit") ? '<svg aria-hidden="true"><use href="#' + ICON[d.f] + '"/></svg>' : "";
+  return '<span class="dd ' + d.kind + " " + d.c + '" title="' + d.f + '">' + ic + "</span>";
+}
+function render() {
+  if (SIM || !G) return;
+  renderBoard(); renderPanel(); renderDice();
+}
+function renderBoard() {
+  const s = [];
+  s.push('<rect x="-10" y="-10" width="920" height="920" rx="8" fill="var(--panel)"/>');
+  s.push('<rect x="0" y="0" width="900" height="900" fill="var(--field)"/>');
+  s.push('<rect x="0" y="0" width="900" height="150" fill="var(--zone)"/><rect x="0" y="750" width="900" height="150" fill="var(--zone)"/>');
+  for (let i = 150; i < 900; i += 150) s.push('<line x1="' + i + '" y1="0" x2="' + i + '" y2="900" stroke="var(--field-line)" stroke-width="1.5"/><line x1="0" y1="' + i + '" x2="900" y2="' + i + '" stroke="var(--field-line)" stroke-width="1.5"/>');
+  s.push('<text x="8" y="22" class="t-label">Zone des Machines</text><text x="8" y="892" class="t-label">Zone des Gardiens</text>');
+  for (const t of TER) {
+    s.push('<rect x="' + t.x + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h + '" rx="' + (t.k === "rocher" ? 18 : 3) + '" fill="var(--t-' + t.k + ')" stroke="var(--ink)" stroke-opacity=".35" ' + (t.diff ? 'stroke-dasharray="6 4"' : "") + "/>");
+    if (t.w > 50 && t.h > 26) s.push('<text x="' + (t.x + t.w / 2) + '" y="' + (t.y + t.h / 2 + 5) + '" text-anchor="middle" class="t-label">' + t.label + "</text>");
+  }
+  if (G.level >= 3) OBJECTIVES.forEach((o, i) => s.push('<circle cx="' + o.x + '" cy="' + o.y + '" r="' + OBJ_R + '" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="5 4"/><text x="' + o.x + '" y="' + (o.y + 6) + '" text-anchor="middle" class="u-label" fill="var(--accent)">' + (i + 1) + "</text>"));
+  const a = G.act, u = a && a.unit;
+  if (u && (G.mode === "move" || G.mode === "roll" || G.mode === "disengage")) {
+    const len = speedLen(G.mode === "roll" ? 3 : G.mode === "disengage" ? 1 : u.t.speed);
+    s.push('<circle cx="' + u.x + '" cy="' + u.y + '" r="' + len + '" fill="var(--accent)" fill-opacity=".08" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="8 6"/>');
+  }
+  if (u && !G.mode && u.t.rmax && !u.engaged.size) s.push('<circle cx="' + u.x + '" cy="' + u.y + '" r="' + (u.t.rmax * R1 + u.t.base) + '" fill="none" stroke="var(--ink)" stroke-opacity=".25" stroke-width="1.5" stroke-dasharray="3 6"/>');
+  const targets = u && G.mode === "attack" ? attackTargets(u) : u && G.mode === "charge" ? chargeTargets(u) : [];
+  for (const e of targets) for (const f of e.figs) s.push('<circle cx="' + f.x + '" cy="' + f.y + '" r="' + (e.t.base + 7) + '" fill="none" stroke="var(--accent)" stroke-width="4"/>');
+  for (const v of G.units) {
+    const col = v.side === "M" ? "var(--machines)" : "var(--gardiens)";
+    const op = v.activated ? 0.45 : 1;
+    if (v.engaged.size) for (const id of v.engaged) { const o = G.units.find(z => z.id === id); if (o && v.id < o.id) s.push('<line x1="' + v.x + '" y1="' + v.y + '" x2="' + o.x + '" y2="' + o.y + '" stroke="var(--accent)" stroke-width="3" stroke-dasharray="2 5"/>'); }
+    v.figs.forEach((f, i) => {
+      s.push('<circle cx="' + f.x.toFixed(1) + '" cy="' + f.y.toFixed(1) + '" r="' + v.t.base + '" fill="' + col + '" fill-opacity="' + op + '" stroke="' + (i === 0 ? "var(--ink)" : col) + '" stroke-width="' + (i === 0 ? 3.5 : 1.5) + '"/>');
+    });
+    if (u === v || G.view === v) s.push('<circle cx="' + v.x + '" cy="' + v.y + '" r="' + (v.t.base + 11) + '" fill="none" stroke="var(--ink)" stroke-width="2"/>');
+    let tag = v.name;
+    if (v.t.pv > 1) tag += " " + (v.t.pv - v.dmg) + "♥";
+    if (v.fear) tag += " ⚠" + v.fear;
+    if (v.aim) tag += " ◎"; if (v.dodge) tag += " ↻";
+    const ty = v.y < 60 ? v.y + v.t.base + 22 : v.y - v.t.base - 10;
+    s.push('<text x="' + clamp(v.x, 70, 830) + '" y="' + ty + '" text-anchor="middle" class="u-label" fill="' + col + '" opacity="' + (v.activated ? 0.7 : 1) + '">' + tag + "</text>");
+  }
+  s.push('<g id="preview"></g>');
+  $("#board").innerHTML = s.join("");
+}
+function renderPanel() {
+  $("#round-label").textContent = G.over ? "Partie terminée" : "Manche " + G.round + " sur 4";
+  $("#pips").innerHTML = [1, 2, 3, 4].map(i => '<i class="' + (i < G.round || G.over ? "done" : i === G.round ? "now" : "") + '"></i>').join("");
+  for (const s of ["M", "G"]) {
+    $("#pts-" + s).textContent = G.points[s];
+    $("#meta-" + s).textContent = (CTRL[s] === "ai" ? "Ordinateur" : "Humain") + " · " + G.heroic[s] + " jeton(s) héroïque(s) · " + G.units.filter(u => u.side === s).length + " unité(s)";
+    $("#team-" + s).classList.toggle("active", !G.over && G.turn === s);
+  }
+  let st = "";
+  if (G.over) st = G.winner === "draw" ? "Match nul ! Lance une nouvelle partie pour rejouer." : "<strong>" + SIDE_NAME[G.winner] + " gagnent la partie !</strong>";
+  else if (G.phase === "pick") st = "À toi, " + SIDE_NAME[G.turn] + " : clique sur une de tes unités qui n'a pas encore joué.";
+  else if (G.phase === "act" && G.act) st = G.act.unit.name + " : encore " + G.act.actionsLeft + " action(s).";
+  else if (CTRL[G.turn] === "ai") st = "L'ordinateur joue les " + SIDE_NAME[G.turn] + "…";
+  $("#status").innerHTML = st;
+
+  const v = (G.act && G.act.unit) || G.view;
+  const el = $("#unit");
+  if (!v) el.innerHTML = '<h2>Unité</h2><p class="small">Clique sur une unité de la table pour voir sa fiche.</p>';
+  else {
+    const t = v.t, dice = d => ["r", "k", "w"].map(c => d[c] ? '<span class="dd a ' + c + '"></span>'.repeat(d[c]) : "").join("");
+    const pw = G.level >= 3 ? t.powers.map(p => '<p class="small">' + POWER_TXT[p] + "</p>").join("") : '<p class="small">Pouvoirs : au niveau 3.</p>';
+    el.innerHTML = '<h3><span class="dot ' + v.side + '"></span>' + v.name + "</h3>" +
+      '<div class="stats"><div><span class="k">Figurines</span><span class="v">' + v.figs.length + '</span></div><div><span class="k">PV</span><span class="v">' + (t.pv > 1 ? (t.pv - v.dmg) + "/" + t.pv : 1) + '</span></div><div><span class="k">Vitesse</span><span class="v">' + t.speed + '</span></div><div><span class="k">Courage</span><span class="v' + (t.courage ? "" : " txt") + '">' + (t.courage || "Sans peur") + '</span></div><div><span class="k">Défense</span><span class="v"><span class="dd d ' + t.def + '"></span></span></div></div>' +
+      (sumDice(t.rd) ? '<div class="dice-row"><span class="lab">Tir 1–' + t.rmax + "</span>" + dice(t.rd) + '<span class="small">par figurine</span></div>' : "") +
+      (sumDice(t.md) ? '<div class="dice-row"><span class="lab">Contact</span>' + dice(t.md) + '<span class="small">' + (G.level >= 3 ? "par figurine" : "niveau 3") + "</span></div>" : "") +
+      '<div class="chips">' + (v.fear ? '<span class="chip fear">Peur ' + v.fear + "</span>" : "") + (v.aim ? '<span class="chip">Viser</span>' : "") + (v.dodge ? '<span class="chip">Esquive</span>' : "") + (v.engaged.size ? '<span class="chip fear">Au corps à corps</span>' : "") + (v.activated ? '<span class="chip">Déjà joué</span>' : "") + "</div>" + pw;
+  }
+
+  const on = humanCan(), u = G.act && G.act.unit, av = on ? avail(u) : {};
+  const set = (id, en, show) => { const b = $(id); b.disabled = !en; if (show !== undefined) b.hidden = !show; };
+  set("#act-move", av.move); $("#act-move").textContent = u && u.engaged.size ? "Se dégager" : "Bouger";
+  set("#act-roll", av.roll, !!(u && hasPower(u, "roue")));
+  set("#act-charge", av.charge, G.level >= 3);
+  set("#act-attack", av.attack); $("#act-attack").textContent = u && u.engaged.size ? "Frapper" : "Attaquer";
+  set("#act-aim", av.aim, G.level >= 2); set("#act-dodge", av.dodge, G.level >= 2); set("#act-rally", av.rally, G.level >= 2);
+  set("#act-end", on);
+  for (const [id, m] of [["#act-move", "move"], ["#act-roll", "roll"], ["#act-charge", "charge"], ["#act-attack", "attack"]]) $(id).classList.toggle("on", G.mode === m || (m === "move" && G.mode === "disengage"));
+
+  $("#log").innerHTML = G.logs.map(l => '<p class="' + l.cls + '">' + l.text + "</p>").join("");
+}
+function renderDice() {
+  if (SIM || !G) return;
+  const r = G.report, el = $("#dice-body");
+  if (!r) { el.innerHTML = '<p class="small">Le détail du dernier tir apparaîtra ici.</p>'; return; }
+  let h = '<p class="small"><span class="dot ' + r.attSide + '"></span> ' + r.att + (r.melee ? " frappe " : " tire sur ") + r.def + "</p>";
+  for (const row of r.rows) {
+    if (row.dice) h += '<div class="dice-row"><span class="lab">' + row.lab + "</span>" + row.dice.map(dieHTML).join("") + (row.note ? '<span class="small">' + row.note + "</span>" : "") + "</div>";
+    else h += '<p class="small">' + row.note + "</p>";
+  }
+  if (G.pending) {
+    const p = G.pending;
+    h += '<div class="ask"><span>' + SIDE_NAME[p.side] + " : relancer " + p.info.fails + " dé(s) raté(s) avec un jeton héroïque ? (il en reste " + G.heroic[p.side] + ")</span>" +
+      '<button class="btn primary" type="button" id="hero-yes">Relancer</button><button class="btn" type="button" id="hero-no">Garder</button></div>';
+  } else if (r.result) h += '<p class="result">' + r.result + "</p>";
+  el.innerHTML = h;
+  if (G.pending) {
+    $("#hero-yes").onclick = () => { const p = G.pending; G.pending = null; p.res(true); };
+    $("#hero-no").onclick = () => { const p = G.pending; G.pending = null; p.res(false); };
+  }
+}
+
+/* ================= INTERACTIONS ================= */
+function boardPoint(evt) {
+  const svg = $("#board"), pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+function unitAt(p) {
+  let best = null, bd = Infinity;
+  for (const u of G.units) for (const f of u.figs) { const d = hyp(p.x, p.y, f.x, f.y); if (d < u.t.base + 8 && d < bd) { bd = d; best = u; } }
+  return best;
+}
+function hint(t) { $("#hint").textContent = t || ""; }
+$("#board").addEventListener("click", async evt => {
+  if (!G || G.busy || G.pending) return;
+  const p = boardPoint(evt), hit = unitAt(p);
+  if (G.phase === "pick" && CTRL[G.turn] === "human") {
+    if (hit && hit.side === G.turn && !hit.activated) { G.phase = "act"; beginActivation(hit); render(); emit("activationStarted", hit); hint(""); return; }
+    if (hit) { G.view = hit; render(); if (hit.side === G.turn) hint("Cette unité a déjà joué cette manche."); return; }
+    hint("Clique sur une de tes unités (" + SIDE_NAME[G.turn] + ") qui n'a pas encore joué."); return;
+  }
+  if (!humanCan()) { if (hit) { G.view = hit; render(); } return; }
+  const u = G.act.unit;
+  if (G.mode === "move" || G.mode === "roll" || G.mode === "disengage") {
+    const c = doMove(u, p.x, p.y, G.mode);
+    if (!c.ok) { hint(c.why); return; }
+    hint(""); emit("moved", u); afterAction(); return;
+  }
+  if (G.mode === "attack") {
+    if (hit && attackTargets(u).indexOf(hit) >= 0) {
+      G.busy = true; G.mode = null; hint(""); render();
+      await resolveAttack(u, hit, u.engaged.size > 0);
+      G.busy = false; if (G.act) spend("attack"); afterAction(); return;
+    }
+    hint("Clique sur une unité ennemie entourée en orange."); return;
+  }
+  if (G.mode === "charge") {
+    if (hit && chargeTargets(u).indexOf(hit) >= 0) { doCharge(u, hit); emit("moved", u); afterAction(); return; }
+    hint("Clique sur une unité ennemie entourée en orange (assez proche pour la charger)."); return;
+  }
+  if (hit) { G.view = hit; render(); }
+});
+$("#board").addEventListener("pointermove", evt => {
+  if (!G || !humanCan()) return;
+  const g = $("#preview"); if (!g) return;
+  const m = G.mode;
+  if (m !== "move" && m !== "roll" && m !== "disengage") { g.innerHTML = ""; return; }
+  const u = G.act.unit, p = boardPoint(evt), c = moveCheck(u, p.x, p.y, m);
+  g.innerHTML = '<line x1="' + u.x + '" y1="' + u.y + '" x2="' + p.x + '" y2="' + p.y + '" stroke="' + (c.ok ? "var(--ok)" : "var(--machines)") + '" stroke-width="3"/><circle cx="' + p.x + '" cy="' + p.y + '" r="' + u.t.base + '" fill="none" stroke="' + (c.ok ? "var(--ok)" : "var(--machines)") + '" stroke-width="3"/>';
+  hint(c.ok ? Math.round(hyp(u.x, u.y, p.x, p.y) / 10) + " cm" : c.why);
+});
+$("#board").addEventListener("pointerleave", () => { const g = $("#preview"); if (g) g.innerHTML = ""; if (G && G.mode) hint(""); });
+
+function setMode(m) {
+  if (!humanCan()) return;
+  G.mode = G.mode === m ? null : m;
+  render(); emit("mode", G.mode);
+  const H = { move: "Clique sur la table, dans le cercle, pour placer le chef.", disengage: "Se dégager : vitesse 1, et pas d'attaque ce tour.", roll: "Rouler : vitesse 3, mais pas d'attaque ce tour.", attack: "Clique sur une unité ennemie entourée en orange.", charge: "Clique sur l'unité ennemie à charger." };
+  hint(G.mode ? H[G.mode] : "");
+}
+$("#act-move").onclick = () => setMode(G.act && G.act.unit.engaged.size ? "disengage" : "move");
+$("#act-roll").onclick = () => setMode("roll");
+$("#act-charge").onclick = () => setMode("charge");
+$("#act-attack").onclick = () => setMode("attack");
+$("#act-aim").onclick = () => { if (!humanCan()) return; const u = G.act.unit; u.aim++; spend("aim"); log(u.name + " vise.", u.side); afterAction(); };
+$("#act-dodge").onclick = () => { if (!humanCan()) return; const u = G.act.unit; u.dodge++; spend("dodge"); log(u.name + " se met en garde (esquive).", u.side); afterAction(); };
+$("#act-rally").onclick = () => { if (!humanCan()) return; const u = G.act.unit; u.fear = 0; spend("rally"); log(u.name + " se reprend : plus de peur.", u.side); afterAction(); };
+$("#act-end").onclick = () => { if (!humanCan()) return; hint(""); finishActivation(); };
+
+function readSetup() {
+  return {
+    level: +$("#s-level").value, M: $("#s-M").value, G: $("#s-G").value, first: $("#s-first").value,
+    heroM: clamp(+$("#s-heroM").value || 0, 0, 6), heroG: clamp(+$("#s-heroG").value || 0, 0, 6), terrain: $("#s-terrain").value
+  };
+}
+$("#s-speed").onchange = () => { AI_DELAY = +$("#s-speed").value; };
+$("#setup").addEventListener("submit", e => { e.preventDefault(); stopTutorial(); hint(""); startGame(readSetup()); });
+
+/* ================= TUTORIEL ================= */
+const TUTO = [
+  { t: "Bienvenue, jeune recrue ! Voici la table de 90 × 90 cm vue du dessus. Tu joues les Gardiens, en bleu, en bas. L'ordinateur joue les Machines, en rouge, en haut.", hl: "#board-wrap" },
+  { t: "Chaque groupe de ronds est une unité. Le rond entouré de noir est le chef : on mesure toujours depuis lui. Les lignes du quadrillage sont espacées de 15 cm, c'est-à-dire une portée." },
+  { t: "C'est ton tour. Clique sur l'escouade de Guerriers des marais du milieu (Guerriers des marais A) pour la faire agir.", wait: "activationStarted", hl: "#board-wrap" },
+  { t: "Une unité fait 2 actions par tour. Clique sur le bouton Bouger.", wait: "mode", cond: m => m === "move", hl: "#act-move" },
+  { t: "Le cercle pointillé montre jusqu'où le chef peut aller : vitesse 2 = 15 cm. Clique dans le cercle, tout droit vers les Machines.", wait: "moved", hl: "#board-wrap" },
+  { t: "Bien joué ! Ta 2e action : clique sur Attaquer, puis sur l'unité ennemie entourée en orange. Si Attaquer est grisé, aucun ennemi n'est à portée : bouge encore une fois.", wait: ["attackDone", "activationEnded"], hl: "#act-attack" },
+  { t: "Regarde les dés. En attaque, l'éclat, l'étoile et l'éclair sont des touches. Le défenseur lance 1 dé de défense par touche, et chaque bouclier annule une touche. Ce qui reste fait des blessures : une figurine retirée par blessure.", hl: "#dice" },
+  { t: "Ton unité a utilisé ses 2 actions : son tour est fini. Les Machines jouent maintenant une unité, regarde le journal. Ensuite ce sera de nouveau à toi.", wait: "turn", cond: s => s === "G", hl: "#log" },
+  { t: "À toi ! Fais agir une autre unité. Le Chevalier tire avec la Force, mais seulement à portée 1 ou 2 : approche-le d'abord. Les jetons héroïques (2 par camp) permettent de relancer des dés ratés : le panneau des dés te le proposera." },
+  { t: "Quand toutes les unités ont joué, la manche se termine. Il y a 4 manches, et tu gagnes 1 point par unité ennemie battue. Continue jusqu'à la fin de la manche.", wait: "roundEnded" },
+  { t: "Première manche terminée, tu connais le niveau 1 ! Finis la partie, puis choisis le niveau 2 en haut (abris, peur, viser, esquiver) et clique sur Nouvelle partie.", last: true }
+];
+let tutI = -1;
+function showTut() {
+  const s = TUTO[tutI];
+  document.querySelectorAll(".hl").forEach(e => e.classList.remove("hl"));
+  if (!s) { stopTutorial(); return; }
+  $("#tut").hidden = false;
+  $("#tut-step").textContent = "Tutoriel · étape " + (tutI + 1) + " sur " + TUTO.length;
+  $("#tut-text").textContent = s.t;
+  $("#tut-next").hidden = !!s.wait;
+  $("#tut-next").textContent = s.last ? "Terminer" : "Suivant";
+  if (s.hl) { const e = $(s.hl); if (e) e.classList.add("hl"); }
+}
+function nextTut() { tutI++; showTut(); }
+function stopTutorial() { tutI = -1; $("#tut").hidden = true; document.querySelectorAll(".hl").forEach(e => e.classList.remove("hl")); if (G) G.tutorial = false; }
+listeners.push((ev, data) => {
+  if (tutI < 0) return;
+  const s = TUTO[tutI]; if (!s || !s.wait) return;
+  const w = Array.isArray(s.wait) ? s.wait : [s.wait];
+  if (w.indexOf(ev) >= 0 && (!s.cond || s.cond(data))) { const at = tutI; s.done = true; setTimeout(() => { if (tutI === at) nextTut(); }, 250); }
+});
+$("#tut-next").onclick = () => { if (TUTO[tutI] && TUTO[tutI].last) stopTutorial(); else nextTut(); };
+$("#tut-quit").onclick = stopTutorial;
+$("#b-tuto").onclick = () => {
+  $("#s-level").value = "1"; $("#s-M").value = "ai"; $("#s-G").value = "human"; $("#s-first").value = "G"; $("#s-terrain").value = "std";
+  AI_DELAY = Math.max(AI_DELAY, 700);
+  tutI = 0; showTut();
+  startGame(Object.assign(readSetup(), { tutorial: true }));
+  $("#board-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+/* ================= SIMULATEUR ================= */
+$("#sim-go").onclick = async () => {
+  const n = +$("#sim-n").value, opts = readSetup();
+  stopTutorial(); gameToken++;
+  const btn = $("#sim-go"); btn.disabled = true;
+  const res = { M: 0, G: 0, draw: 0, ptsM: 0, ptsG: 0, wipes: 0 };
+  SIM = true;
+  try {
+    for (let i = 0; i < n; i++) {
+      CTRL = { M: "ai", G: "ai" };
+      TER = buildTerrain(opts.terrain);
+      const st = newState(opts.level, opts); deploy(st, false); G = st;
+      gameToken++;
+      await runGame(gameToken);
+      res[G.winner]++; res.ptsM += G.points.M; res.ptsG += G.points.G;
+      if (!G.units.some(u => u.side === "M") || !G.units.some(u => u.side === "G")) res.wipes++;
+      if (i % 10 === 9) { $("#sim-out").innerHTML = '<p class="small">' + (i + 1) + " / " + n + " parties…</p>"; await sleep(0); }
+    }
+  } finally { SIM = false; btn.disabled = false; }
+  const pc = x => Math.round(100 * x / n);
+  $("#sim-out").innerHTML =
+    '<div class="bar" aria-hidden="true"><span style="width:' + pc(res.M) + '%;background:var(--machines)"></span><span style="width:' + pc(res.draw) + '%;background:var(--soft)"></span><span style="width:' + pc(res.G) + '%;background:var(--gardiens)"></span></div>' +
+    '<div class="simres"><div><span class="small">Machines gagnent</span><b>' + pc(res.M) + ' %</b></div><div><span class="small">Gardiens gagnent</span><b>' + pc(res.G) + ' %</b></div><div><span class="small">Matchs nuls</span><b>' + pc(res.draw) + ' %</b></div>' +
+    '<div><span class="small">Points moyens (M – G)</span><b>' + (res.ptsM / n).toFixed(1) + " – " + (res.ptsG / n).toFixed(1) + '</b></div><div><span class="small">Un camp anéanti</span><b>' + pc(res.wipes) + ' %</b></div></div>' +
+    '<p class="small">' + n + " parties au niveau " + opts.level + ", jetons héroïques " + opts.heroM + " / " + opts.heroG + ". Entre 40 % et 60 %, l'équilibre est bon.</p>";
+  CTRL = { M: opts.M, G: opts.G };
+  startGame(opts);
+};
+
+/* ================= ÉDITEUR DE FICHES ================= */
+function renderTypes() {
+  const cols = [["figs", "Fig."], ["pv", "PV"], ["speed", "Vit."], ["courage", "Cour."], ["def", "Déf."], ["rmax", "Portée max"], ["rd", "Tir R/N/B"], ["md", "Contact R/N/B"]];
+  let h = "<thead><tr><th>Unité</th>" + cols.map(c => "<th>" + c[1] + "</th>").join("") + "<th>Pouvoirs (N3)</th></tr></thead><tbody>";
+  for (const k in TYPES) {
+    const t = TYPES[k];
+    h += '<tr><td><span class="dot ' + t.side + '"></span> ' + t.name + "</td>";
+    for (const [f] of cols) {
+      if (f === "def") h += '<td><select id="ty-' + k + '-def" data-k="' + k + '" data-f="def"><option value="r"' + (t.def === "r" ? " selected" : "") + '>rouge</option><option value="w"' + (t.def === "w" ? " selected" : "") + ">blanc</option></select></td>";
+      else if (f === "rd" || f === "md") h += "<td>" + ["r", "k", "w"].map(c => '<input id="ty-' + k + "-" + f + c + '" type="number" min="0" max="6" data-k="' + k + '" data-f="' + f + '" data-c="' + c + '" value="' + t[f][c] + '" style="width:40px">').join(" ") + "</td>";
+      else h += '<td><input id="ty-' + k + "-" + f + '" type="number" min="' + (f === "courage" ? 0 : 1) + '" max="9" data-k="' + k + '" data-f="' + f + '" value="' + t[f] + '"></td>';
+    }
+    h += "<td>" + DEFAULT_TYPES[k].powers.map(p => '<label class="small" style="white-space:nowrap;margin-right:8px"><input type="checkbox" id="ty-' + k + "-p-" + p + '" data-k="' + k + '" data-p="' + p + '"' + (t.powers.indexOf(p) >= 0 ? " checked" : "") + ' style="width:auto"> ' + POWER_TXT[p].split(" :")[0] + "</label>").join("") + "</td>";
+    h += "</tr>";
+  }
+  $("#types-table").innerHTML = h + "</tbody>";
+}
+$("#types-table").addEventListener("change", e => {
+  const el = e.target, k = el.dataset.k, f = el.dataset.f; if (!k) return;
+  if (el.dataset.p) { const p = el.dataset.p, list = TYPES[k].powers.filter(x => x !== p); if (el.checked) list.push(p); TYPES[k].powers = list; }
+  else if (f === "def") TYPES[k].def = el.value;
+  else if (el.dataset.c) TYPES[k][f][el.dataset.c] = clamp(+el.value || 0, 0, 6);
+  else TYPES[k][f] = clamp(+el.value || 0, f === "courage" ? 0 : 1, f === "speed" ? 3 : 9);
+  saveTypes();
+});
+$("#types-reset").onclick = () => { TYPES = JSON.parse(JSON.stringify(DEFAULT_TYPES)); saveTypes(); renderTypes(); };
+
+/* ================= DÉMARRAGE ================= */
+renderTypes();
+startGame(readSetup());
+})();
+</script>
+
+</html>

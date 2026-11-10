@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Légion Junior</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Chakra+Petch:wght@500;600;700&display=swap">
+<style>
+/* Mise en page : un livret de feuilles A4 empilées ; chaque feuille = une page imprimée. Bandeaux de niveau (N1/N2/N3) comme fil conducteur. */
+:root {
+  --paper: #eef1f5;
+  --sheet: #ffffff;
+  --ink: #15203a;
+  --ink-soft: #4a5672;
+  --line: #cfd6e2;
+  --accent: #d9480f;
+  --n1: #1f7a4d;
+  --n2: #1d5fa8;
+  --n3: #8a3ab9;
+  --tint: #f4f6fa;
+  --die-red: #c62828;
+  --die-black: #1d1d1f;
+  --die-white: #ffffff;
+  --display: "Chakra Petch", "Bahnschrift", "Arial Narrow", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0b1220; --sheet: #141d30; --ink: #e6ebf4; --ink-soft: #a5b0c6; --line: #2a3650;
+    --accent: #ff8a4c; --n1: #4cc58a; --n2: #6aa8ef; --n3: #c48bea; --tint: #1b2640;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0b1220; --sheet: #141d30; --ink: #e6ebf4; --ink-soft: #a5b0c6; --line: #2a3650;
+  --accent: #ff8a4c; --n1: #4cc58a; --n2: #6aa8ef; --n3: #c48bea; --tint: #1b2640;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.book { display: flex; flex-direction: column; gap: 28px; max-width: 820px; margin: 0 auto; }
+.sheet {
+  background: var(--sheet); border: 1px solid var(--line); border-radius: 6px;
+  padding: clamp(18px, 4vw, 44px); display: flex; flex-direction: column; gap: 18px; min-width: 0;
+}
+.sheet-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-soft); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+h1, h2, h3 { font-family: var(--display); line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(44px, 9vw, 76px); font-weight: 700; letter-spacing: .01em; }
+h2 { font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+h3 { font-size: 19px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+p { margin: 0; max-width: 68ch; }
+ul, ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 4px; }
+strong { font-weight: 700; }
+.kicker { font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.lead { font-size: 19px; max-width: 52ch; }
+.muted { color: var(--ink-soft); }
+.small { font-size: 14px; }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px 28px; }
+.cols > * { min-width: 0; }
+.block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.box { background: var(--tint); border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.box.warn { border-left: 4px solid var(--accent); }
+
+/* Pastilles de niveau */
+.lvl { font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #fff; padding: 2px 8px; border-radius: 99px; white-space: nowrap; vertical-align: middle; }
+.lvl.n1 { background: var(--n1); } .lvl.n2 { background: var(--n2); } .lvl.n3 { background: var(--n3); }
+:root[data-theme="dark"] .lvl, .lvl { color: var(--sheet); }
+
+/* Étapes */
+.steps { list-style: none; padding: 0; counter-reset: s; gap: 10px; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; }
+.steps > li::before { content: counter(s); font-family: var(--display); font-weight: 700; font-size: 15px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--accent); color: var(--accent); display: grid; place-items: center; }
+.steps > li > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+/* Tableaux */
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; font-family: var(--body); color: var(--ink); }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Icônes et dés */
+.ic { width: 1.15em; height: 1.15em; vertical-align: -.2em; fill: currentColor; flex: none; }
+.sym { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-weight: 700; }
+.s-hit { color: var(--accent); } .s-crit { color: #d4a00a; } .s-surge { color: var(--n2); } .s-block { color: var(--n1); }
+.die { display: inline-block; width: 15px; height: 15px; border: 1.5px solid var(--die-black); vertical-align: -2px; margin-right: 2px; }
+.die.att { transform: rotate(45deg) scale(.82); border-radius: 2px; }
+.die.def { border-radius: 4px; }
+.die.r { background: var(--die-red); border-color: var(--die-red); }
+.die.k { background: var(--die-black); }
+.die.w { background: var(--die-white); }
+.dicename { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 700; }
+.faces { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
+/* Couverture */
+.cover-top { display: flex; flex-direction: column; gap: 14px; padding-bottom: 6px; border-bottom: 3px solid var(--ink); }
+.title-row { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+.title-row svg { width: 78px; height: 78px; flex: none; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { font-family: var(--display); font-weight: 600; font-size: 15px; border: 1.5px solid var(--ink); border-radius: 4px; padding: 3px 10px; }
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.levels > div { border-top: 5px solid; padding-top: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.levels .l1 { border-color: var(--n1); } .levels .l2 { border-color: var(--n2); } .levels .l3 { border-color: var(--n3); }
+.levels h3 { font-size: 18px; }
+
+/* Fiches d'unités */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.card { border: 2px solid var(--ink); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; break-inside: avoid; min-width: 0; background: var(--sheet); }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 12px; color: var(--sheet); }
+.card-head h3 { font-size: 20px; }
+.card-head .type { font-family: var(--display); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; opacity: .9; }
+.cost { font-family: var(--display); font-weight: 700; font-size: 18px; white-space: nowrap; }
+.t-troop { background: var(--n1); } .t-elite { background: var(--n2); } .t-hero { background: var(--accent); } .t-spec { background: var(--ink-soft); } .t-veh { background: var(--n3); }
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1.5px solid var(--ink); }
+.stats > div { padding: 6px 4px; text-align: center; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; align-items: center; min-width: 0; }
+.stats > div:last-child { border-right: 0; }
+.stats .k { font-family: var(--display); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.stats .v { font-family: var(--display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stats .v.txt { font-size: 13px; line-height: 1.2; }
+.card-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 7px; font-size: 14px; }
+.weapons { width: 100%; font-size: 14px; }
+.weapons td { padding: 4px 4px; border-bottom: 1px dashed var(--line); }
+.weapons td:last-child { white-space: nowrap; }
+.power { border-top: 1px solid var(--line); padding-top: 6px; }
+.fits { font-size: 12.5px; color: var(--ink-soft); }
+
+/* Jetons */
+.tokens { display: flex; flex-wrap: wrap; gap: 8px; }
+.tok { width: 24mm; height: 24mm; border-radius: 50%; border: 2px solid var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-family: var(--display); font-weight: 700; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; text-align: center; break-inside: avoid; background: var(--sheet); }
+.tok .ic { width: 9mm; height: 9mm; }
+.tok.fear { color: var(--accent); border-color: var(--accent); }
+.tok.aim { color: var(--n2); border-color: var(--n2); }
+.tok.dodge { color: var(--n1); border-color: var(--n1); }
+.tok.wound { color: var(--die-red); border-color: var(--die-red); }
+.tok.hero { color: #b8860b; border-color: #b8860b; }
+.tok.done { color: var(--ink-soft); border-color: var(--ink-soft); }
+.tok.obj { width: 50mm; height: 50mm; font-size: 14px; border-width: 3px; color: var(--n3); border-color: var(--n3); }
+.tok.obj .ic { width: 18mm; height: 18mm; }
+.tokgroup { display: flex; flex-direction: column; gap: 6px; }
+
+/* Aide-mémoire */
+.memo { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.memo .box { gap: 6px; font-size: 15px; }
+.memo h3 { font-size: 17px; }
+
+.example { border: 1.5px dashed var(--ink-soft); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.example .kicker { font-size: 12px; }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  .stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .stats .v { font-size: 17px; }
+  .tok { width: 21mm; height: 21mm; }
+}
+
+/* Impression : toujours en clair, une feuille par page A4 */
+@page { size: A4; margin: 11mm; }
+@media print {
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    --paper: #ffffff; --sheet: #ffffff; --ink: #15203a; --ink-soft: #4a5672; --line: #c4ccd9;
+    --accent: #d9480f; --n1: #1f7a4d; --n2: #1d5fa8; --n3: #8a3ab9; --tint: #f1f4f8;
+    color-scheme: light;
+  }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { padding: 0; font-size: 12.5pt; background: #fff; }
+  .book { max-width: none; gap: 0; }
+  .sheet { border: 0; border-radius: 0; padding: 0; min-height: 272mm; break-after: page; gap: 12px; }
+  .sheet:last-child { break-after: auto; }
+  h1 { font-size: 54pt; }
+  h2 { font-size: 20pt; }
+  .lead { font-size: 14pt; }
+  .cards { grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .card { font-size: 10pt; }
+  .card-body, .weapons { font-size: 10pt; }
+  .stats .v { font-size: 15pt; }
+  .memo { grid-template-columns: 1fr 1fr; }
+  .cols { grid-template-columns: 1fr 1fr; }
+  .steps > li, .box, .example, table tr { break-inside: avoid; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-hit" viewBox="0 0 24 24"><path d="M23 12L16.62 10.09 19.78 4.22 13.91 7.38 12 1 10.09 7.38 4.22 4.22 7.38 10.09 1 12 7.38 13.91 4.22 19.78 10.09 16.62 12 23 13.91 16.62 19.78 19.78 16.62 13.91Z"/></symbol>
+    <symbol id="i-crit" viewBox="0 0 24 24"><path d="M12 1.5l3.1 7 7.6.7-5.8 5 1.8 7.4L12 17.7l-6.7 3.9 1.8-7.4-5.8-5 7.6-.7z"/></symbol>
+    <symbol id="i-surge" viewBox="0 0 24 24"><path d="M14 1L4 14h6.5L9 23l10.5-13.5H13z"/></symbol>
+    <symbol id="i-block" viewBox="0 0 24 24"><path d="M12 1.5l9 3.4v6.4c0 5.5-3.8 10.1-9 11.7-5.2-1.6-9-6.2-9-11.7V4.9z"/></symbol>
+    <symbol id="i-blank" viewBox="0 0 24 24"><path d="M12 3a9 9 0 110 18 9 9 0 010-18zm0 2.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13z"/></symbol>
+    <symbol id="i-sword" viewBox="0 0 24 24"><path d="M20.5 2l1.5 1.5-11 11 1.6 1.6-1.5 1.5-1.4-1.4-3.2 3.2.9.9-1.4 1.4-3.4-3.4 1.4-1.4.9.9 3.2-3.2-1.4-1.4 1.5-1.5 1.6 1.6z"/></symbol>
+    <symbol id="i-aim" viewBox="0 0 24 24"><path d="M11 1h2v3.1A8 8 0 0119.9 11H23v2h-3.1A8 8 0 0113 19.9V23h-2v-3.1A8 8 0 014.1 13H1v-2h3.1A8 8 0 0111 4.1zm1 5a6 6 0 100 12 6 6 0 000-12zm0 4a2 2 0 110 4 2 2 0 010-4z"/></symbol>
+    <symbol id="i-dodge" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6L20 4v7h-7l2.9-2.9A5.5 5.5 0 006.5 12zm16 0a8 8 0 01-13.7 5.6L4 20v-7h7l-2.9 2.9A5.5 5.5 0 0017.5 12z"/></symbol>
+    <symbol id="i-fear" viewBox="0 0 24 24"><path d="M12 1.5L23 21H1zm-1.2 6.5v6.5h2.4V8zm0 8.3v2.4h2.4v-2.4z"/></symbol>
+    <symbol id="i-wound" viewBox="0 0 24 24"><path d="M12 21.5l-1.5-1.3C5.3 15.5 2 12.5 2 8.6 2 5.5 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1A6 6 0 0116.5 3C19.6 3 22 5.5 22 8.6c0 3.9-3.3 6.9-8.5 11.6z"/></symbol>
+    <symbol id="i-done" viewBox="0 0 24 24"><path d="M9 16.2l-4.2-4.2-1.4 1.4L9 19 21 7l-1.4-1.4z"/></symbol>
+    <symbol id="i-obj" viewBox="0 0 24 24"><path d="M3 7l9-5 9 5v10l-9 5-9-5zm2 1.2v7.6l6 3.3v-7.6zm14 0l-6 3.3v7.6l6-3.3zM12 4.3L6.1 7.6 12 10.9l5.9-3.3z"/></symbol>
+  </defs>
+</svg>
+
+<main class="book">
+
+<!-- ============ FEUILLE 1 : COUVERTURE ============ -->
+<section class="sheet" aria-labelledby="t-cover">
+  <div class="cover-top">
+    <span class="kicker">Règles simplifiées pour jeunes recrues · dès 8 ans</span>
+    <div class="title-row">
+      <svg viewBox="0 0 24 24" aria-hidden="true" style="color:var(--accent)"><use href="#i-hit"/></svg>
+      <h1 id="t-cover">Légion Junior</h1>
+    </div>
+    <p class="lead">Joue à <strong>Star Wars: Legion</strong> avec tes vraies figurines, dans une version courte et facile à apprendre.</p>
+    <div class="facts">
+      <span class="fact">2 joueurs</span>
+      <span class="fact">4 manches</span>
+      <span class="fact">30 à 45 min</span>
+      <span class="fact">Table 90 × 90 cm</span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="block">
+      <h3>Ce qu'il te faut</h3>
+      <ul>
+        <li>Tes figurines Legion (2 à 5 unités par joueur).</li>
+        <li>Les dés : <span class="dicename"><span class="die att r"></span><span class="die att k"></span><span class="die att w"></span> attaque</span> (rouge, noir, blanc) et <span class="dicename"><span class="die def r"></span><span class="die def w"></span> défense</span> (rouge, blanc).</li>
+        <li>Les 3 outils de mouvement (vitesse 1, 2 et 3).</li>
+        <li>La règle de portée : chaque morceau fait 15 cm. Le petit morceau de 7,5 cm s'appelle la <strong>demi-portée</strong>.</li>
+        <li>5 à 8 décors : caisses, murets, rochers, bâtiments.</li>
+        <li>Les jetons de la boîte, ou ceux à découper en dernière page.</li>
+      </ul>
+    </div>
+    <div class="block">
+      <h3>Le but du jeu</h3>
+      <p>Chaque joueur commande une petite armée. À ton tour, tu fais agir une de tes unités : elle bouge, elle tire, elle se protège.</p>
+      <p>Tu gagnes des <strong>points</strong> en battant les unités de ton adversaire et, au niveau 3, en tenant les objectifs. Après 4 manches, le joueur qui a le plus de points gagne.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Apprendre en 3 niveaux</h2>
+    <p class="muted">Commence au niveau 1. Passe au suivant quand tout le monde connaît les règles par cœur. Chaque règle de ce livret porte la pastille de son niveau.</p>
+  </div>
+  <div class="levels">
+    <div class="l1">
+      <h3><span class="lvl n1">N1</span> Cadet</h3>
+      <p class="small">Bouger, tirer, lancer les dés, retirer les figurines. Jetons héroïques. Une première partie dure 20 minutes.</p>
+    </div>
+    <div class="l2">
+      <h3><span class="lvl n2">N2</span> Soldat</h3>
+      <p class="small">On ajoute les abris, la peur, et trois nouvelles actions : viser, esquiver, se reprendre.</p>
+    </div>
+    <div class="l3">
+      <h3><span class="lvl n3">N3</span> Commandant</h3>
+      <p class="small">On ajoute le corps à corps, les objectifs, les pouvoirs des fiches, les véhicules et les armées à 12 étoiles.</p>
+    </div>
+  </div>
+
+  <div class="box warn">
+    <strong>Pour les parents</strong>
+    <p class="small">Lisez les règles à voix haute pendant la première partie, assis à côté de l'enfant. Si une situation n'est pas prévue, choisissez la solution la plus simple, jouez-la et notez-la pour la prochaine fois. Pour équilibrer une partie adulte contre enfant, donnez un jeton héroïque de plus à l'enfant.</p>
+  </div>
+
+  <div class="sheet-foot"><span>Adaptation maison non officielle de Star Wars: Legion. Nécessite le matériel du jeu.</span><span>1</span></div>
+</section>
+
+<!-- ============ FEUILLE 2 : PRÉPARER + DÉS ============ -->
+<section class="sheet" aria-labelledby="t-setup">
+  <h2 id="t-setup">Préparer la bataille</h2>
+  <ol class="steps">
+    <li><div><strong>Choisissez vos armées.</strong> Prenez les fiches d'unités des pages 7 et 8. Les deux joueurs prennent le même nombre d'unités. Pour jouer droïdes contre Gungans et Jedi, prenez plutôt les armées toutes prêtes de la page 9.
+      <div class="tw"><table>
+        <thead><tr><th>Niveau</th><th>Armée de chaque joueur</th></tr></thead>
+        <tbody>
+          <tr><td><span class="lvl n1">N1</span></td><td>1 héros + 2 escouades de soldats</td></tr>
+          <tr><td><span class="lvl n2">N2</span></td><td>1 héros + 3 escouades (soldats ou commandos)</td></tr>
+          <tr><td><span class="lvl n3">N3</span></td><td>12 ★ au total, avec au moins 1 héros et 2 escouades de soldats, et au plus 1 véhicule</td></tr>
+        </tbody>
+      </table></div>
+    </div></li>
+    <li><div><strong>Posez les décors</strong> à tour de rôle sur la table de 90 × 90 cm. Laissez au moins une demi-portée entre deux décors pour que les figurines passent. <span class="lvl n2">N2</span> Pour chaque décor, décidez ensemble s'il donne un <strong>abri léger</strong> (caisses, buissons, barrières) ou un <strong>abri lourd</strong> (murs, rochers, bâtiments).</div></li>
+    <li><div><strong>Choisissez vos bords.</strong> Chaque joueur s'assoit d'un côté de la table, face à l'autre. Sa zone de départ est la bande d'une portée (15 cm) le long de son bord.</div></li>
+    <li><div><strong>Déployez.</strong> Le plus jeune commence. Chacun à son tour pose une unité entière dans sa zone de départ, jusqu'à ce que toutes les unités soient posées.</div></li>
+    <li><div><span class="lvl n3">N3</span> <strong>Posez les 3 objectifs</strong> sur la ligne du milieu de la table : un au centre, et un de chaque côté à 2 portées (30 cm) du centre.</div></li>
+  </ol>
+
+  <h2>Les dés</h2>
+  <p>Les dés d'attaque ont 8 faces, les dés de défense en ont 6. Plus un dé est foncé, plus il est fort : <strong>rouge</strong> est le plus fort, <strong>blanc</strong> le plus faible.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Dé</th><th>Ses faces</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dicename"><span class="die att r"></span> Attaque rouge</span></td><td><div class="faces"><span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg>×5</span><span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg>×1</span><span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg>×1</span><span class="sym muted"><svg class="ic"><use href="#i-blank"/></svg>×1</span></div></td></tr>
+      <tr><td><span class="dicename"><span class="die att k"></span> Attaque noir</span></td><td><div class="faces"><span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg>×3</span><span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg>×1</span><span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg>×1</span><span class="sym muted"><svg class="ic"><use href="#i-blank"/></svg>×3</span></div></td></tr>
+      <tr><td><span class="dicename"><span class="die att w"></span> Attaque blanc</span></td><td><div class="faces"><span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg>×1</span><span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg>×1</span><span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg>×1</span><span class="sym muted"><svg class="ic"><use href="#i-blank"/></svg>×5</span></div></td></tr>
+      <tr><td><span class="dicename"><span class="die def r"></span> Défense rouge</span></td><td><div class="faces"><span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg>×3</span><span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg>×1</span><span class="sym muted"><svg class="ic"><use href="#i-blank"/></svg>×2</span></div></td></tr>
+      <tr><td><span class="dicename"><span class="die def w"></span> Défense blanc</span></td><td><div class="faces"><span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg>×1</span><span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg>×1</span><span class="sym muted"><svg class="ic"><use href="#i-blank"/></svg>×4</span></div></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="tw"><table>
+    <thead><tr><th>Symbole</th><th>Ce qu'il veut dire</th></tr></thead>
+    <tbody>
+      <tr><td><span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg> Touche</span></td><td>Un tir réussi.</td></tr>
+      <tr><td><span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg> Critique</span></td><td>Un tir parfait. Les abris et les esquives ne l'annulent jamais.</td></tr>
+      <tr><td><span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg> Éclair</span></td><td><strong>En attaque</strong>, il compte comme une touche. <strong>En défense</strong>, il ne fait rien, sauf si la fiche de l'unité a le pouvoir <em>Réflexes</em>.</td></tr>
+      <tr><td><span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg> Bloque</span></td><td>Annule une touche ou un critique.</td></tr>
+      <tr><td><span class="sym muted"><svg class="ic"><use href="#i-blank"/></svg> Vide</span></td><td>Raté, rien ne se passe.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="sheet-foot"><span>Légion Junior</span><span>2</span></div>
+</section>
+
+<!-- ============ FEUILLE 3 : UNE MANCHE ============ -->
+<section class="sheet" aria-labelledby="t-round">
+  <h2 id="t-round">Une manche</h2>
+  <p>La partie dure <strong>4 manches</strong>. Pendant une manche, chaque unité agit une fois.</p>
+  <ol class="steps">
+    <li><div><strong>Qui commence ?</strong> À la manche 1, le joueur le plus jeune choisit qui commence. Astuce : jouer en deuxième aide souvent, parce que l'autre doit s'approcher le premier. Ensuite, on change à chaque manche : celui qui a joué en deuxième commence.</div></li>
+    <li><div><strong>Chacun son tour.</strong> Le premier joueur choisit une de ses unités et la fait agir. Puis c'est à l'autre joueur, et ainsi de suite. Pose un jeton <em>Activé</em> à côté de chaque unité qui a agi, ou retourne son jeton d'ordre.</div></li>
+    <li><div><strong>Plus d'unités ?</strong> Si un joueur n'a plus d'unité qui peut agir, l'autre fait agir les siennes une par une jusqu'à la fin.</div></li>
+    <li><div><strong>Fin de manche.</strong> Enlevez tous les jetons <em>Activé</em>. <span class="lvl n2">N2</span> Enlevez les jetons <em>Viser</em> et <em>Esquive</em>, et chaque unité enlève 1 jeton <em>Peur</em>. <span class="lvl n3">N3</span> À la fin des manches 2, 3 et 4, comptez les objectifs (page 5).</div></li>
+  </ol>
+
+  <h2>Les unités</h2>
+  <div class="cols">
+    <div class="block">
+      <p>Une <strong>unité</strong> est un groupe de figurines qui agissent ensemble. Un héros seul est aussi une unité.</p>
+      <p>Dans chaque escouade, une figurine est le <strong>chef</strong>. C'est à partir de lui qu'on mesure les mouvements et les portées. Choisis-la au début et garde la même toute la partie.</p>
+    </div>
+    <div class="box">
+      <strong>Restez groupés</strong>
+      <p class="small">Après chaque mouvement, toutes les figurines de l'unité doivent être à moins d'une <strong>demi-portée</strong> (7,5 cm) de leur chef. Si le chef est battu, une autre figurine devient chef.</p>
+    </div>
+  </div>
+
+  <h2>Les actions</h2>
+  <p>Quand une unité agit, elle fait <strong>2 actions</strong>. Elle ne peut pas faire deux fois la même action, sauf <em>Bouger</em>.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Action</th><th>Niveau</th><th>Ce qu'elle fait</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Bouger</strong></td><td><span class="lvl n1">N1</span></td><td>L'unité se déplace (page 4). On peut bouger deux fois.</td></tr>
+      <tr><td><strong>Attaquer</strong></td><td><span class="lvl n1">N1</span></td><td>L'unité tire sur une unité ennemie (page 4). <span class="lvl n3">N3</span> Ou elle frappe au corps à corps.</td></tr>
+      <tr><td><strong>Viser</strong></td><td><span class="lvl n2">N2</span></td><td>Prends un jeton <em>Viser</em>. Pendant une attaque, défausse-le pour relancer jusqu'à 2 dés d'attaque.</td></tr>
+      <tr><td><strong>Esquiver</strong></td><td><span class="lvl n2">N2</span></td><td>Prends un jeton <em>Esquive</em>. Quand on t'attaque, défausse-le pour annuler une <span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg></span>.</td></tr>
+      <tr><td><strong>Se reprendre</strong></td><td><span class="lvl n2">N2</span></td><td>L'unité enlève tous ses jetons <em>Peur</em>.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">Astuce : Viser puis Attaquer est un bon combo. Bouger puis Esquiver aide une unité qui traverse un terrain découvert.</p>
+
+  <div class="sheet-foot"><span>Légion Junior</span><span>3</span></div>
+</section>
+
+<!-- ============ FEUILLE 4 : BOUGER ET TIRER ============ -->
+<section class="sheet" aria-labelledby="t-move">
+  <h2 id="t-move">Bouger <span class="lvl n1">N1</span></h2>
+  <ol class="steps">
+    <li><div>Prends l'outil de mouvement qui a la <strong>vitesse</strong> de ton unité, ou un plus petit.</div></li>
+    <li><div>Pose un bout de l'outil contre le socle du chef. Plie l'outil à sa charnière comme tu veux.</div></li>
+    <li><div>Soulève le chef et pose-le n'importe où, socle contre l'outil.</div></li>
+    <li><div>Place les autres figurines de l'unité à moins d'une demi-portée du chef.</div></li>
+  </ol>
+  <div class="cols">
+    <div class="block small">
+      <p><strong>Tu peux</strong> passer à travers les autres figurines et les petits décors bas, comme les caisses.</p>
+      <p><strong>Tu ne peux pas</strong> traverser les bâtiments ni les gros rochers, t'arrêter sur une autre figurine ou sortir de la table.</p>
+    </div>
+    <div class="block small">
+      <p><span class="lvl n2">N2</span> <strong>Terrain difficile</strong> : si ton unité entre dans des ruines, une forêt ou des gravats, sa vitesse baisse de 1 pour ce mouvement (minimum 1).</p>
+      <p><strong>Véhicules</strong> : ils bougent pareil, et tu peux les tourner dans la direction que tu veux à la fin.</p>
+    </div>
+  </div>
+
+  <h2>Attaquer : le tir <span class="lvl n1">N1</span></h2>
+  <ol class="steps">
+    <li><div><strong>Choisis une cible</strong> : une unité ennemie que ton chef <strong>voit</strong> et qui est <strong>à portée</strong> d'une de ses armes.
+      <span class="small"><em>Voir</em> : baisse-toi à la hauteur du chef. Si tu vois une partie du corps d'une figurine ennemie, tu la vois. Les figurines ne cachent rien, seuls les décors et les gros véhicules cachent la vue.<br><em>Portée</em> : pose la règle contre le socle du chef et regarde dans quel morceau se trouve la figurine ennemie la plus proche : portée 1, 2, 3…</span></div></li>
+    <li><div><strong>Prends les dés.</strong> Chaque figurine de ton unité qui voit la cible ajoute les dés de son arme (écrits sur sa fiche).</div></li>
+    <li><div><strong>Lance les dés d'attaque.</strong> Garde les <span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg></span>, <span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg></span> et <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> (qui compte comme une touche). <span class="lvl n2">N2</span> Avec un jeton Viser, relance jusqu'à 2 dés.</div></li>
+    <li><div><span class="lvl n2">N2</span> <strong>Abri et esquive.</strong> Si la cible est à l'abri, annule 1 touche (abri léger) ou 2 touches (abri lourd). Chaque jeton Esquive dépensé annule 1 touche. Les <span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg></span> ne sont jamais annulés.</div></li>
+    <li><div><strong>Défense.</strong> Ton adversaire lance 1 dé de défense par touche restante, de la couleur écrite sur sa fiche. Chaque <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span> annule une touche.</div></li>
+    <li><div><strong>Blessures.</strong> Chaque touche non annulée fait 1 blessure. Pour les soldats (1 PV), retire une figurine par blessure, le chef en dernier. Pour un héros ou un véhicule, pose des jetons Blessure : quand il en a autant que ses PV, retire-le.</div></li>
+    <li><div><span class="lvl n2">N2</span> <strong>Peur.</strong> S'il y avait au moins une touche après le lancer, même bloquée ensuite, la cible prend 1 jeton Peur.</div></li>
+  </ol>
+
+  <div class="example">
+    <span class="kicker">Exemple</span>
+    <p>Les 6 soldats rebelles de Léo tirent sur 4 stormtroopers à portée 2. Ils lancent 6 dés blancs et obtiennent 1 <span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg></span>, 1 <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> et 4 faces vides : cela fait 2 touches. Les stormtroopers sont derrière des caisses (abri léger), donc 1 touche est annulée. Lina lance 1 dé de défense rouge et fait une face vide. 1 blessure : elle retire un stormtrooper, et l'unité prend 1 jeton Peur.</p>
+  </div>
+
+  <div class="sheet-foot"><span>Légion Junior</span><span>4</span></div>
+</section>
+
+<!-- ============ FEUILLE 5 : NIVEAUX 2 ET 3 ============ -->
+<section class="sheet" aria-labelledby="t-n2">
+  <h2 id="t-n2"><span class="lvl n2">N2</span> Abris et peur</h2>
+  <div class="cols">
+    <div class="block">
+      <h3>Être à l'abri</h3>
+      <p>Regarde depuis le chef qui tire. Si <strong>au moins la moitié</strong> des figurines de la cible sont en partie cachées par un décor tout proche d'elles (à moins d'une demi-portée), la cible est à l'abri.</p>
+      <p>Un seul décor lourd suffit pour que ce soit un abri lourd. Sinon c'est un abri léger.</p>
+      <p class="small muted">Les véhicules ne sont jamais à l'abri.</p>
+    </div>
+    <div class="block">
+      <h3>La peur</h3>
+      <p>Chaque unité a un <strong>courage</strong> sur sa fiche. Au début de son action, une unité qui a des jetons Peur lance 1 dé de défense blanc par jeton. Chaque <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span> ou <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> enlève 1 jeton.</p>
+      <p>S'il lui reste <strong>autant de jetons Peur que son courage, ou plus</strong>, elle ne fait qu'<strong>une seule action</strong> ce tour-ci.</p>
+      <p class="small muted">Une unité <em>Sans peur</em> ne prend jamais de jeton Peur.</p>
+    </div>
+  </div>
+
+  <h2><span class="lvl n3">N3</span> Corps à corps</h2>
+  <div class="cols">
+    <div class="block">
+      <p><strong>Charger.</strong> Une unité qui a une arme <span class="sym"><svg class="ic"><use href="#i-sword"/></svg></span> peut finir son mouvement avec son chef collé à une figurine ennemie. Place ensuite les autres figurines de ton unité contre les ennemis si tu peux. Ton adversaire fait pareil avec son unité.</p>
+      <p><strong>Frapper.</strong> L'action Attaquer se fait avec les armes <span class="sym"><svg class="ic"><use href="#i-sword"/></svg></span> : toutes les figurines de l'unité lancent leurs dés. Pas d'abri et pas de peur au corps à corps.</p>
+    </div>
+    <div class="block">
+      <p><strong>Bloqués.</strong> Deux unités au contact ne peuvent pas tirer, et personne ne peut leur tirer dessus.</p>
+      <p><strong>Se dégager.</strong> Fais une action Bouger avec la vitesse 1. Pendant ce tour, l'unité ne peut pas attaquer.</p>
+      <p class="small muted">Un véhicule peut être touché au corps à corps mais il n'est jamais bloqué.</p>
+    </div>
+  </div>
+
+  <h2><span class="lvl n3">N3</span> Objectifs</h2>
+  <p>À la fin des manches 2, 3 et 4, regarde chaque objectif. Le joueur qui a <strong>le plus d'unités avec leur chef à moins d'une demi-portée</strong> de l'objectif gagne <strong>1 point</strong>. En cas d'égalité, personne ne marque.</p>
+
+  <h2><span class="lvl n3">N3</span> Pouvoirs et véhicules</h2>
+  <p>Chaque fiche a un pouvoir. Il s'utilise à partir du niveau 3. Les gros véhicules, comme les chars et les grands marcheurs, cachent la vue comme un décor. Les motos et petits speeders ne cachent rien.</p>
+
+  <div class="sheet-foot"><span>Légion Junior</span><span>5</span></div>
+</section>
+
+<!-- ============ FEUILLE 6 : GAGNER + AIDE-MÉMOIRE ============ -->
+<section class="sheet" aria-labelledby="t-win">
+  <h2 id="t-win">Gagner la partie</h2>
+  <div class="cols">
+    <div class="block">
+      <ul>
+        <li><span class="lvl n1">N1</span> <strong>+1 point</strong> chaque fois que tu bats une unité ennemie entière.</li>
+        <li><span class="lvl n3">N3</span> <strong>+1 point</strong> par objectif tenu, à la fin des manches 2, 3 et 4.</li>
+        <li>Si ton adversaire n'a plus aucune unité, tu gagnes tout de suite.</li>
+        <li>Sinon, après la manche 4, le joueur qui a le plus de points gagne. En cas d'égalité, celui qui a le plus de figurines encore sur la table gagne.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3><span class="sym" style="color:#b8860b"><svg class="ic"><use href="#i-crit"/></svg></span> Jetons héroïques <span class="lvl n1">N1</span></h3>
+      <p class="small">Chaque joueur commence avec <strong>2 jetons héroïques</strong> pour toute la partie. Défausse-en un pour relancer les dés que tu veux dans un de tes lancers, en attaque ou en défense. Un dé ne peut être relancé qu'une fois par jeton.</p>
+    </div>
+  </div>
+
+  <h2>Aide-mémoire</h2>
+  <div class="memo">
+    <div class="box">
+      <h3>Une manche</h3>
+      <ol class="small">
+        <li>Chacun son tour, fais agir une unité.</li>
+        <li>Une unité fait 2 actions.</li>
+        <li>Fin de manche : on enlève les jetons Activé, Viser, Esquive et 1 Peur.</li>
+        <li>Après la manche 4, on compte les points.</li>
+      </ol>
+    </div>
+    <div class="box">
+      <h3>Les actions</h3>
+      <ul class="small">
+        <li><strong>Bouger</strong> (on peut le faire 2 fois)</li>
+        <li><strong>Attaquer</strong></li>
+        <li><strong>Viser</strong> : relancer 2 dés <span class="lvl n2">N2</span></li>
+        <li><strong>Esquiver</strong> : annuler 1 touche <span class="lvl n2">N2</span></li>
+        <li><strong>Se reprendre</strong> : enlever la peur <span class="lvl n2">N2</span></li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Tirer</h3>
+      <ol class="small">
+        <li>Cible visible et à portée</li>
+        <li>Lance l'attaque : <span class="sym s-hit"><svg class="ic"><use href="#i-hit"/></svg></span> <span class="sym s-crit"><svg class="ic"><use href="#i-crit"/></svg></span> <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> = touches</li>
+        <li>Abri : −1 ou −2 touches <span class="lvl n2">N2</span></li>
+        <li>Défense : 1 dé par touche, <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span> annule</li>
+        <li>Blessures, puis 1 jeton Peur <span class="lvl n2">N2</span></li>
+      </ol>
+    </div>
+    <div class="box">
+      <h3>Mesures</h3>
+      <ul class="small">
+        <li><strong>Portée 1</strong> = 15 cm, portée 2 = 30 cm…</li>
+        <li><strong>Demi-portée</strong> = 7,5 cm : distance max entre le chef et son groupe.</li>
+        <li>Zone de départ : 1 portée depuis ton bord.</li>
+        <li>On mesure toujours depuis le socle du chef.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sheet-foot"><span>Légion Junior</span><span>6</span></div>
+</section>
+
+<!-- ============ FEUILLE 7 : FICHES (1) ============ -->
+<section class="sheet" aria-labelledby="t-cards1">
+  <h2 id="t-cards1">Fiches d'unités <span class="muted small" style="font-family:var(--body);font-weight:400">à découper</span></h2>
+  <p class="small muted">Les étoiles ★ servent à composer les armées du niveau 3. Le dé de défense est celui que l'unité lance quand on lui tire dessus. « Par figurine » veut dire que chaque figurine qui voit la cible ajoute ces dés.</p>
+  <div class="cards">
+
+    <article class="card">
+      <div class="card-head t-troop"><div><div class="type">Escouade</div><h3>Soldats légers</h3></div><span class="cost">2 ★</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">6</span></div>
+        <div><span class="k">PV</span><span class="v">1</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">1</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def w"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Blaster</td><td>portée 1 à 3</td><td><span class="die att w"></span> par figurine</td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Coup de crosse</td><td>au contact</td><td><span class="die att w"></span> par figurine</td></tr>
+          <tr><td>Arme lourde <span class="muted">(1 figurine)</span></td><td>portée 1 à 3</td><td><span class="die att k"></span><span class="die att k"></span> à la place</td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Réflexes</strong> : en défense, <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> compte comme <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span>.</p>
+        <p class="fits">Pour : soldats rebelles, droïdes de combat B1, soldats de la flotte.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-elite"><div><div class="type">Escouade</div><h3>Soldats d'élite</h3></div><span class="cost">3 ★</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">4</span></div>
+        <div><span class="k">PV</span><span class="v">1</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">2</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def r"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Blaster</td><td>portée 1 à 3</td><td><span class="die att w"></span> par figurine</td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Coup de crosse</td><td>au contact</td><td><span class="die att w"></span> par figurine</td></tr>
+          <tr><td>Arme lourde <span class="muted">(1 figurine)</span></td><td>portée 1 à 3</td><td><span class="die att k"></span><span class="die att k"></span> à la place</td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Précis</strong> : avec un jeton Viser, relance jusqu'à 3 dés au lieu de 2.</p>
+        <p class="fits">Pour : stormtroopers, clone troopers, snowtroopers.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-spec"><div><div class="type">Forces spéciales</div><h3>Commandos</h3></div><span class="cost">3 ★</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">4</span></div>
+        <div><span class="k">PV</span><span class="v">1</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">2</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def w"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Carabine</td><td>portée 1 à 3</td><td><span class="die att k"></span> par figurine</td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Couteau</td><td>au contact</td><td><span class="die att w"></span> par figurine</td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Éclaireurs</strong> : au déploiement, ils peuvent être posés jusqu'à 2 portées de ton bord.</p>
+        <p class="fits">Pour : éclaireurs impériaux, pathfinders rebelles, ARC troopers, commandos droïdes BX, mandaloriens.</p>
+      </div>
+    </article>
+
+  </div>
+  <div class="sheet-foot"><span>Légion Junior</span><span>7</span></div>
+</section>
+
+<!-- ============ FEUILLE 8 : FICHES (2) ============ -->
+<section class="sheet" aria-labelledby="t-cards2">
+  <h2 id="t-cards2">Fiches d'unités <span class="muted small" style="font-family:var(--body);font-weight:400">suite</span></h2>
+  <div class="cards">
+
+    <article class="card">
+      <div class="card-head t-hero"><div><div class="type">Héros</div><h3>Héros au sabre</h3></div><span class="cost">4 ★</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">1</span></div>
+        <div><span class="k">PV</span><span class="v">6</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v txt">Sans peur</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def r"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Poussée de Force</td><td>portée 1 à 2</td><td><span class="die att k"></span><span class="die att k"></span></td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Sabre laser <span class="lvl n3">N3</span></td><td>au contact</td><td><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span></td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Bond</strong> : quand il bouge, il peut sauter par-dessus les décors et les figurines.<br><strong>Réflexes</strong> : en défense, <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> compte comme <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span>.</p>
+        <p class="fits">Pour : chevaliers Jedi, seigneurs Sith, le général Grievous.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-hero"><div><div class="type">Héros</div><h3>Héros meneur</h3></div><span class="cost">3 ★</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">1</span></div>
+        <div><span class="k">PV</span><span class="v">5</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">3</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def w"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Pistolet blaster</td><td>portée 1 à 3</td><td><span class="die att k"></span><span class="die att k"></span></td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Coup de poing</td><td>au contact</td><td><span class="die att w"></span><span class="die att w"></span></td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Chef</strong> : au début de son tour, une unité alliée à portée 1 enlève tous ses jetons Peur.<br><strong>Réflexes</strong> : en défense, <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> compte comme <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span>.</p>
+        <p class="fits">Pour : officiers, généraux, commandants clones, héros rebelles armés d'un blaster.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-veh"><div><div class="type">Véhicule · niveau 3</div><h3>Véhicule léger</h3></div><span class="cost">4 ★</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">1</span></div>
+        <div><span class="k">PV</span><span class="v">6</span></div>
+        <div><span class="k">Vitesse</span><span class="v">3</span></div>
+        <div><span class="k">Courage</span><span class="v txt">Sans peur</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def w"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Canon laser</td><td>portée 1 à 3</td><td><span class="die att k"></span><span class="die att k"></span><span class="die att k"></span></td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Tout-terrain</strong> : ignore le terrain difficile. Ne peut pas charger et n'est jamais à l'abri.</p>
+        <p class="fits">Pour : AT-RT, motos speeder, BARC speeder, STAP.</p>
+      </div>
+    </article>
+
+  </div>
+  <div class="box">
+    <strong>Tu n'as pas le bon nombre de figurines ?</strong>
+    <p class="small">Joue avec celles que tu as. Une escouade de soldats légers peut avoir de 4 à 7 figurines, une escouade d'élite de 3 à 5. Les deux joueurs gardent des armées de taille proche.</p>
+  </div>
+  <div class="sheet-foot"><span>Légion Junior</span><span>8</span></div>
+</section>
+
+<!-- ============ FEUILLE 9 : VOS ARMÉES ============ -->
+<section class="sheet" aria-labelledby="t-naboo">
+  <span class="kicker">Vos figurines</span>
+  <h2 id="t-naboo">La bataille de Naboo</h2>
+  <p class="lead">Les droïdes de la Confédération envahissent Naboo. Les Jedi et les guerriers gungans les attendent.</p>
+  <p>Ces deux armées remplacent la règle « Choisissez vos armées » de la page 2. Chaque niveau ajoute une unité de chaque côté, et les deux camps ont toujours le même nombre d'unités. Les fiches sont en pages 10 et 11.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Niveau</th><th>Droïdes de la Confédération</th><th>Naboo et Jedi</th></tr></thead>
+    <tbody>
+      <tr><td><span class="lvl n1">N1</span></td><td>2 escouades de B1<br>1 escouade de B2</td><td>Obi-Wan Kenobi<br>2 escouades de guerriers gungans</td></tr>
+      <tr><td><span class="lvl n2">N2</span></td><td>3 escouades de B1<br>1 escouade de B2</td><td>Obi-Wan Kenobi<br>3 escouades de guerriers gungans</td></tr>
+      <tr><td><span class="lvl n3">N3</span></td><td>3 escouades de B1<br>1 escouade de B2<br>1 droïdeka</td><td>Obi-Wan Kenobi<br>Yoda<br>3 escouades de guerriers gungans</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="cols">
+    <div class="block">
+      <h3>Comment jouent les droïdes</h3>
+      <p class="small">Ils sont nombreux et tirent de loin, jusqu'à portée 3. Reste à distance, tire à chaque tour et cache-toi derrière les décors. Au niveau 3, la droïdeka roule vite pour bloquer un passage, puis se déploie et tire très fort de près.</p>
+    </div>
+    <div class="block">
+      <h3>Comment jouent les Gungans et les Jedi</h3>
+      <p class="small">Les Gungans sont nombreux et tirent aussi loin que les droïdes, avec de meilleurs dés. Avance de décor en décor pour rester à l'abri. Les Jedi sont solides : mets-les devant pour attirer les tirs. Au niveau 3, le corps à corps devient ta meilleure arme.</p>
+    </div>
+  </div>
+
+  <div class="box warn">
+    <strong>Un camp gagne trop souvent ?</strong>
+    <p class="small">Donne 1 jeton héroïque de plus à l'autre camp. Si un camp gagne encore, donne-lui-en 2 de plus. Ces fiches ont été équilibrées avec 1 000 parties simulées par niveau : chaque camp gagne environ une partie sur deux.</p>
+  </div>
+
+  <div class="box">
+    <strong>Mise en place conseillée</strong>
+    <p class="small">Mettez quelques décors au milieu de la table, comme des rochers, des colonnes ou des ruines, pour que les Gungans puissent approcher à l'abri. Mettez-en aussi un ou deux près de chaque bord.</p>
+  </div>
+  <div class="sheet-foot"><span>Légion Junior</span><span>9</span></div>
+</section>
+
+<!-- ============ FEUILLE 10 : FICHES DROÏDES ============ -->
+<section class="sheet" aria-labelledby="t-cis">
+  <h2 id="t-cis">Fiches : droïdes de la Confédération</h2>
+  <div class="cards">
+
+    <article class="card">
+      <div class="card-head t-troop"><div><div class="type">Escouade · dès N1</div><h3>Droïdes de combat B1</h3></div><span class="cost">×3</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">6</span></div>
+        <div><span class="k">PV</span><span class="v">1</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">1</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def w"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Fusil blaster E-5</td><td>portée 1 à 3</td><td><span class="die att w"></span> par figurine</td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Coup de crosse</td><td>au contact</td><td><span class="die att w"></span> par figurine</td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Machines</strong> : la peur ne leur fait jamais perdre d'action. Ils lancent quand même les dés pour enlever leurs jetons Peur.</p>
+        <p class="fits">« Roger, roger. »</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-elite"><div><div class="type">Escouade · dès N1</div><h3>Super droïdes B2</h3></div><span class="cost">×1</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">4</span></div>
+        <div><span class="k">PV</span><span class="v">1</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">2</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def r"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Blasters de poignet</td><td>portée 1 à 3</td><td><span class="die att k"></span> par figurine</td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Coup de poing</td><td>au contact</td><td><span class="die att w"></span> par figurine</td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Machines</strong> : la peur ne leur fait jamais perdre d'action.<br><strong>Chef de section</strong> : au début de leur tour, une escouade de B1 à portée 1 enlève tous ses jetons Peur.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-veh"><div><div class="type">Droïde destroyer · N3</div><h3>Droïdeka</h3></div><span class="cost">×1</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">1</span></div>
+        <div><span class="k">PV</span><span class="v">7</span></div>
+        <div><span class="k">Vitesse</span><span class="v">1</span></div>
+        <div><span class="k">Courage</span><span class="v txt">Sans peur</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def r"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Blasters jumeaux</td><td>portée 1 à 2</td><td><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span></td></tr>
+        </tbody></table>
+        <p class="power"><strong>Mode roue</strong> : une action Bouger peut se faire à la vitesse 3. Mais si la droïdeka roule, elle ne peut pas attaquer pendant ce tour.<br><strong>Bouclier</strong> : en défense, <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> compte comme <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span>.<br><span class="muted">Pas de corps à corps : elle ne peut pas charger.</span></p>
+      </div>
+    </article>
+
+  </div>
+  <div class="box">
+    <strong>Tu n'as pas exactement ces nombres de figurines ?</strong>
+    <p class="small">Joue avec celles qui sont dans tes boîtes. Si un camp a beaucoup plus de figurines que l'autre, retire-en une ou deux pour équilibrer.</p>
+  </div>
+  <div class="sheet-foot"><span>Légion Junior</span><span>10</span></div>
+</section>
+
+<!-- ============ FEUILLE 11 : FICHES NABOO ============ -->
+<section class="sheet" aria-labelledby="t-gun">
+  <h2 id="t-gun">Fiches : Naboo et Jedi</h2>
+  <div class="cards">
+
+    <article class="card">
+      <div class="card-head t-hero"><div><div class="type">Héros · dès N1</div><h3>Obi-Wan Kenobi</h3></div><span class="cost">×1</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">1</span></div>
+        <div><span class="k">PV</span><span class="v">6</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v txt">Sans peur</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def r"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Poussée de Force</td><td>portée 1 à 2</td><td><span class="die att k"></span><span class="die att k"></span></td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Sabre laser <span class="lvl n3">N3</span></td><td>au contact</td><td><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span></td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Bond</strong> : quand il bouge, il peut sauter par-dessus les décors et les figurines.<br><strong>Réflexes</strong> : en défense, <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> compte comme <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span>.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-hero"><div><div class="type">Héros · N3</div><h3>Maître Yoda</h3></div><span class="cost">×1</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">1</span></div>
+        <div><span class="k">PV</span><span class="v">5</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v txt">Sans peur</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def r"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Poussée de Force</td><td>portée 1 à 2</td><td><span class="die att k"></span><span class="die att k"></span><span class="die att k"></span></td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Sabre laser</td><td>au contact</td><td><span class="die att r"></span><span class="die att r"></span><span class="die att r"></span></td></tr>
+        </tbody></table>
+        <p class="power"><strong>Maître Jedi</strong> : au début de son tour, une unité alliée à portée 1 enlève tous ses jetons Peur.<br><strong>Réflexes</strong> : en défense, <span class="sym s-surge"><svg class="ic"><use href="#i-surge"/></svg></span> compte comme <span class="sym s-block"><svg class="ic"><use href="#i-block"/></svg></span>.</p>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-head t-troop"><div><div class="type">Escouade · dès N1</div><h3>Guerriers gungans</h3></div><span class="cost">×3</span></div>
+      <div class="stats">
+        <div><span class="k">Figurines</span><span class="v">6</span></div>
+        <div><span class="k">PV</span><span class="v">1</span></div>
+        <div><span class="k">Vitesse</span><span class="v">2</span></div>
+        <div><span class="k">Courage</span><span class="v">1</span></div>
+        <div><span class="k">Défense</span><span class="v"><span class="die def w"></span></span></div>
+      </div>
+      <div class="card-body">
+        <table class="weapons"><tbody>
+          <tr><td>Boules d'énergie</td><td>portée 1 à 3</td><td><span class="die att k"></span> par figurine</td></tr>
+          <tr><td><svg class="ic"><use href="#i-sword"/></svg> Électro-lance</td><td>au contact</td><td><span class="die att k"></span> par figurine</td></tr>
+        </tbody></table>
+        <p class="power"><span class="lvl n3">N3</span> <strong>Pas de pouvoir</strong> : les guerriers gungans comptent sur leur nombre.</p>
+        <p class="fits">« Mesa prêt pour la bataille ! »</p>
+      </div>
+    </article>
+
+  </div>
+  <div class="sheet-foot"><span>Légion Junior</span><span>11</span></div>
+</section>
+
+<!-- ============ FEUILLE 12 : JETONS ============ -->
+<section class="sheet" aria-labelledby="t-tokens">
+  <h2 id="t-tokens">Jetons à découper</h2>
+  <p class="small muted">Imprime cette page sur du papier épais, ou colle-la sur du carton avant de découper. Tu peux aussi utiliser les jetons de la boîte.</p>
+  <div class="tokgroup"><h3>Peur <span class="lvl n2">N2</span></h3><div class="tokens" data-tok="fear" data-n="12"></div></div>
+  <div class="tokgroup"><h3>Viser et Esquive <span class="lvl n2">N2</span></h3><div class="tokens"><span data-tok="aim" data-n="6"></span><span data-tok="dodge" data-n="6"></span></div></div>
+  <div class="tokgroup"><h3>Blessures, activés et héroïques <span class="lvl n1">N1</span></h3><div class="tokens"><span data-tok="wound" data-n="16"></span><span data-tok="done" data-n="10"></span><span data-tok="hero" data-n="4"></span></div></div>
+  <div class="tokgroup"><h3>Objectifs <span class="lvl n3">N3</span></h3><div class="tokens" data-tok="obj" data-n="3"></div></div>
+  <div class="sheet-foot"><span>Légion Junior</span><span>12</span></div>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var defs = {
+    fear:  { icon: "i-fear",  label: "Peur" },
+    aim:   { icon: "i-aim",   label: "Viser" },
+    dodge: { icon: "i-dodge", label: "Esquive" },
+    wound: { icon: "i-wound", label: "Blessure" },
+    done:  { icon: "i-done",  label: "Activé" },
+    hero:  { icon: "i-crit",  label: "Héroïque" },
+    obj:   { icon: "i-obj",   label: "Objectif" }
+  };
+  document.querySelectorAll("[data-tok]").forEach(function (slot) {
+    var d = defs[slot.dataset.tok], n = +slot.dataset.n || 1, html = "";
+    for (var i = 0; i < n; i++) {
+      html += '<div class="tok ' + slot.dataset.tok + '"><svg class="ic" aria-hidden="true"><use href="#' + d.icon + '"/></svg><span>' + d.label + '</span></div>';
+    }
+    if (slot.tagName === "SPAN") { slot.outerHTML = html; } else { slot.innerHTML = html; }
+  });
+})();
+</script>
+
+</html>

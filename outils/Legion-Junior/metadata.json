@@ -1,0 +1,12 @@
+{
+  "livret-regles.html": {
+    "titre": "Livret de règles",
+    "description": "Règles simplifiées en 3 niveaux (Cadet, Soldat, Commandant), fiches d'unités et scénario « Bataille de Naboo ». Imprimable.",
+    "icone": "📘"
+  },
+  "banc-essai.html": {
+    "titre": "Banc d'essai",
+    "description": "Table jouable contre l'ordinateur, tutoriel niveau 1, simulateur IA contre IA et éditeur de fiches pour tester l'équilibrage.",
+    "icone": "🧪"
+  }
+}
